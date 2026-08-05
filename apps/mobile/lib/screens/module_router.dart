@@ -1,14 +1,109 @@
-import 'package:flutter/material.dart'; import '../core/module_definition.dart'; import 'dashboard_screen.dart'; import 'members_screen.dart'; import 'entity_list_screen.dart'; import 'emergency_screen.dart';
-class ModuleRouter extends StatelessWidget{const ModuleRouter({super.key,required this.module});final ModuleDefinition module;
- @override Widget build(BuildContext c)=>switch(module.code){
- 'dashboard'=>const DashboardScreen(),'members'=>const MembersScreen(),'treasury'=>const EntityListScreen(title:'Contas financeiras',table:'financial_accounts',primaryField:'name',subtitleFields:['account_type','opening_balance']),
- 'fees'=>const EntityListScreen(title:'Quotas',table:'fee_obligations',primaryField:'period_start',subtitleFields:['status','amount','paid_amount']),
- 'lottery'=>const EntityListScreen(title:'Euromilhões',table:'lottery_groups',primaryField:'name',subtitleFields:['billing_frequency','participant_amount']),
- 'events'=>const EntityListScreen(title:'Eventos',table:'events',primaryField:'name',subtitleFields:['event_type','status','starts_at']),
- 'inventory'=>const EntityListScreen(title:'Produtos',table:'products',primaryField:'name',subtitleFields:['category','active']),
- 'documents'=>const EntityListScreen(title:'Documentos',table:'documents',primaryField:'name',subtitleFields:['category','status','expires_at']),
- 'communication'=>const EntityListScreen(title:'Comunicação',table:'announcements',primaryField:'title',subtitleFields:['priority','body']),
- 'reports'=>const _Info('Relatórios e exportações','PDF, Excel, CSV, importador editável e Livro Anual.'),
- 'settings'=>const _Info('Configurações','Identidade, cargos, permissões, contas, fundos e integrações.'),
- 'emergency'=>const EmergencyScreen(),_=>const SizedBox.shrink()};}
-class _Info extends StatelessWidget{const _Info(this.title,this.body);final String title,body;@override Widget build(BuildContext c)=>ListView(padding:const EdgeInsets.all(16),children:[Card(child:ListTile(leading:const Icon(Icons.construction),title:Text(title),subtitle:Text(body)))]);}
+import 'package:flutter/material.dart';
+
+import '../core/entity_definition.dart';
+import '../core/module_definition.dart';
+import 'dashboard_screen.dart';
+import 'emergency_screen.dart';
+import 'entity_crud_screen.dart';
+import 'members_screen.dart';
+
+class ModuleRouter extends StatelessWidget {
+  const ModuleRouter({super.key, required this.module});
+
+  final ModuleDefinition module;
+
+  @override
+  Widget build(BuildContext context) {
+    return switch (module.code) {
+      'dashboard' => const DashboardScreen(),
+      'members' => const MembersScreen(),
+      'treasury' => const EntityCrudScreen(definition: treasuryDefinition),
+      'fees' => const EntityCrudScreen(definition: feesDefinition),
+      'lottery' => const EntityCrudScreen(definition: lotteryDefinition),
+      'events' => const EntityCrudScreen(definition: eventsDefinition),
+      'inventory' => const EntityCrudScreen(definition: inventoryDefinition),
+      'documents' => const EntityCrudScreen(definition: documentsDefinition),
+      'communication' =>
+        const EntityCrudScreen(definition: communicationDefinition),
+      'reports' => const _ReportsScreen(),
+      'settings' => const _SettingsScreen(),
+      'emergency' => const EmergencyScreen(),
+      _ => const SizedBox.shrink(),
+    };
+  }
+}
+
+class _ReportsScreen extends StatelessWidget {
+  const _ReportsScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    const reports = [
+      ('Membros', 'Listas, cargos, motas, patches e participação.'),
+      ('Quotas', 'Mapa mensal, anual, dívida, créditos e comprovativos.'),
+      ('Tesouraria', 'Contas, fundos, centros de custo e resultados.'),
+      ('Euromilhões', 'Participantes, chaves, sorteios, acertos e saldo.'),
+      ('Eventos', 'Participantes, orçamento, stock e relatório final.'),
+      ('Inventário', 'Stock, vendas, reservas, validades e margens.'),
+      ('Livro Anual', 'Cápsula do Tempo do Blue On Black.'),
+      ('Importar Excel', 'Pré-visualizar, corrigir e validar antes de importar.'),
+    ];
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text('Relatórios e importação', style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 12),
+        ...reports.map(
+          (report) => Card(
+            child: ListTile(
+              leading: const Icon(Icons.assessment_outlined),
+              title: Text(report.$1),
+              subtitle: Text(report.$2),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('${report.$1}: gerador preparado na arquitetura da Fase 2.')),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SettingsScreen extends StatelessWidget {
+  const _SettingsScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    const settings = [
+      ('Identidade do clube', 'Blue On Black, logótipo, cores e Club House.'),
+      ('Cargos', 'Cargo principal, cargos adicionais e hierarquia.'),
+      ('Perfis e permissões', 'Alteráveis apenas pela direção autorizada.'),
+      ('Contas e fundos', 'Caixa, Banco CGD, Quotas, Reserva, Representação, Marketing e Euromilhões.'),
+      ('Centros de custo', 'Club House, Representação, Eventos e restantes centros.'),
+      ('Quotas', '25 € mensais e inscrição manual de Prospect.'),
+      ('Armazenamento', '500 MB pessoais e arquivo geral do clube.'),
+      ('Auditoria e backups', 'Histórico, exportação integral e recuperação.'),
+    ];
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text('Configurações', style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 12),
+        ...settings.map(
+          (setting) => Card(
+            child: ListTile(
+              leading: const Icon(Icons.settings_outlined),
+              title: Text(setting.$1),
+              subtitle: Text(setting.$2),
+              trailing: const Icon(Icons.chevron_right),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}

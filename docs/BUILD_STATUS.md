@@ -1,13 +1,24 @@
-# Estado de construção
+# BOB Manager v1.0 DEV — estado da Fase 2
 
-- Entidades do esquema: 116
-- Requisitos rastreados: 47
-- Migração SQL consolidada: criada
-- Seed Blue On Black: criado
-- Flutter modular: criado
-- Testes iniciais: criados
+## Implementado nesta atualização
 
-## Limitação de validação
+- CRUD funcional em modo demonstração para Membros, Tesouraria, Quotas, Euromilhões, Eventos, Inventário, Documentos e Comunicação.
+- Criação, edição, consulta, pesquisa e eliminação de registos de demonstração.
+- Ficha detalhada do membro com identificação, percurso, contactos, emergência, saúde e mota principal.
+- Formulário de membro com cargos, datas de Prospect e Full Color, alergias, observações médicas e dados da mota.
+- Euromilhões corrigido para apresentar participantes e chaves individuais, em vez de contas bancárias.
+- Quotas com cálculo automático do saldo pendente no formulário.
+- Vista de Emergência com pesquisa e informação essencial.
+- Dados de demonstração representativos para os módulos principais.
+- Testes adicionais para CRUD de demonstração, campos essenciais e chaves do Euromilhões.
 
-O ambiente de geração não contém Flutter SDK nem uma instância Supabase ligada.
-A validação final deve ser feita com `scripts/validate.ps1` e num projeto Supabase DEV.
+## Ainda dependente da base real e de fluxos avançados
+
+- Aplicação e validação da migração Supabase integral.
+- Storage de fotografias, PDFs e anexos.
+- Relações avançadas: várias motas, histórico de manutenção, cargos adicionais normalizados, patches e Timeline automática.
+- Transações financeiras server-side, comprovativos, aprovações e reversões.
+- Importador Excel, geração de PDF e notificações externas.
+- Resultados automáticos do Euromilhões.
+
+Esta atualização mantém a arquitetura e o Blueprint aprovados. Não cria uma nova fase.
