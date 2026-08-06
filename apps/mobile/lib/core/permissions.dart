@@ -21,6 +21,12 @@ enum AppPermission {
   viewInventory,
   manageInventory,
   sellInventory,
+  viewDocuments,
+  viewSensitiveDocuments,
+  manageDocuments,
+  viewCommunication,
+  manageCommunication,
+  acknowledgeCommunication,
   manageSettings,
 }
 
@@ -28,9 +34,7 @@ class PermissionPolicy {
   const PermissionPolicy._();
 
   static bool allows(AppRole role, AppPermission permission) {
-    if (_fullAccessRoles.contains(role)) {
-      return true;
-    }
+    if (_fullAccessRoles.contains(role)) return true;
 
     return switch (permission) {
       AppPermission.viewMembers => role != AppRole.unknown,
@@ -58,6 +62,13 @@ class PermissionPolicy {
       AppPermission.manageInventory => role == AppRole.inventoryManager,
       AppPermission.sellInventory =>
         role == AppRole.inventoryManager || role == AppRole.treasurer,
+      AppPermission.viewDocuments => role != AppRole.unknown,
+      AppPermission.viewSensitiveDocuments =>
+        role == AppRole.secretary || role == AppRole.treasurer,
+      AppPermission.manageDocuments => role == AppRole.secretary,
+      AppPermission.viewCommunication => role != AppRole.unknown,
+      AppPermission.manageCommunication => role == AppRole.secretary,
+      AppPermission.acknowledgeCommunication => role != AppRole.unknown,
       AppPermission.manageMembers => role == AppRole.secretary,
       AppPermission.manageFinancialAccounts || AppPermission.manageSettings =>
         false,
