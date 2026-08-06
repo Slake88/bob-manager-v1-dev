@@ -32,7 +32,10 @@ enum AppRole {
     return switch (normalized) {
       'presidente' => AppRole.president,
       'vice presidente' => AppRole.vicePresident,
-      'administrador' || 'administrator' => AppRole.administrator,
+      'super admin' ||
+      'super administrador' ||
+      'administrador' ||
+      'administrator' => AppRole.administrator,
       'tesoureiro' => AppRole.treasurer,
       'secretario' => AppRole.secretary,
       'road captain' => AppRole.roadCaptain,
