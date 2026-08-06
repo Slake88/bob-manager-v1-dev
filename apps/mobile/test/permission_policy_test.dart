@@ -19,6 +19,19 @@ void main() {
     }
   });
 
+  test('super_admin do Supabase é reconhecido como administrador', () {
+    final role = AppRole.fromValue('super_admin');
+
+    expect(role, AppRole.administrator);
+    for (final permission in AppPermission.values) {
+      expect(
+        PermissionPolicy.allows(role, permission),
+        isTrue,
+        reason: 'super_admin deveria ter $permission',
+      );
+    }
+  });
+
   test('tesoureiro movimenta dinheiro mas não gere contas', () {
     expect(
       PermissionPolicy.allows(
