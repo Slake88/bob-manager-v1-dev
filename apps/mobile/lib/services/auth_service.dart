@@ -9,7 +9,17 @@ class AuthService {
   static final AuthService instance = AuthService._();
 
   Future<void> signIn(String email, String password) async {
+    final normalizedEmail = email.trim();
+    if (normalizedEmail.isEmpty || password.isEmpty) {
+      throw const AuthException('Indica o email e a palavra-passe.');
+    }
+
     if (AppConfig.demoMode) {
+      if (!AppConfig.explicitDemoMode) {
+        throw const AuthException(
+          'A aplicação não está configurada para ligar ao Supabase.',
+        );
+      }
       AppSession.instance.authenticate(
         newProfileId: 'demo-profile',
         newClubId: '00000000-0000-0000-0000-000000000001',
@@ -19,16 +29,26 @@ class AuthService {
       return;
     }
 
-    final response = await Supabase.instance.client.auth.signInWithPassword(
-      email: email,
-      password: password,
-    );
-    final user = response.user;
-    if (user == null) {
-      throw const AuthException('Falha no login.');
-    }
+    try {
+      final response = await Supabase.instance.client.auth.signInWithPassword(
+        email: normalizedEmail,
+        password: password,
+      );
+      final user = response.user;
+      if (user == null) {
+        throw const AuthException('Não foi possível iniciar sessão.');
+      }
 
-    await _hydrateSession(user.id, fallbackName: email);
+      await _hydrateSession(user.id, fallbackName: normalizedEmail);
+    } on AuthException {
+      AppSession.instance.clear();
+      rethrow;
+    } catch (_) {
+      AppSession.instance.clear();
+      throw const AuthException(
+        'Não foi possível concluir o login. Verifica a ligação e tenta novamente.',
+      );
+    }
   }
 
   Future<bool> restore() async {
@@ -38,21 +58,31 @@ class AuthService {
 
     final user = Supabase.instance.client.auth.currentUser;
     if (user == null) {
+      AppSession.instance.clear();
       return false;
     }
 
-    await _hydrateSession(
-      user.id,
-      fallbackName: user.email ?? 'Utilizador',
-    );
-    return true;
+    try {
+      await _hydrateSession(
+        user.id,
+        fallbackName: user.email ?? 'Utilizador',
+      );
+      return true;
+    } catch (_) {
+      await Supabase.instance.client.auth.signOut();
+      AppSession.instance.clear();
+      return false;
+    }
   }
 
   Future<void> signOut() async {
-    if (!AppConfig.demoMode) {
-      await Supabase.instance.client.auth.signOut();
+    try {
+      if (!AppConfig.demoMode) {
+        await Supabase.instance.client.auth.signOut();
+      }
+    } finally {
+      AppSession.instance.clear();
     }
-    AppSession.instance.clear();
   }
 
   Future<void> _hydrateSession(
@@ -65,7 +95,18 @@ class AuthService {
         .eq('profile_id', profileId)
         .eq('active', true)
         .limit(1)
-        .single();
+        .maybeSingle();
+
+    if (row == null) {
+      throw const AuthException(
+        'O utilizador não tem uma associação ativa a nenhum clube.',
+      );
+    }
+
+    final clubId = row['club_id']?.toString();
+    if (clubId == null || clubId.isEmpty) {
+      throw const AuthException('A associação do utilizador não tem clube.');
+    }
 
     final profile = row['profiles'];
     final fullName = profile is Map && profile['full_name'] != null
@@ -74,7 +115,7 @@ class AuthService {
 
     AppSession.instance.authenticate(
       newProfileId: profileId,
-      newClubId: row['club_id'].toString(),
+      newClubId: clubId,
       newFullName: fullName,
       newRole: row['access_role']?.toString() ?? 'Membro',
     );
