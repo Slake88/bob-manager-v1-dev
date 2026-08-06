@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_role.dart';
+import '../core/app_session.dart';
 import '../core/entity_definition.dart';
-import '../services/data_service.dart';
+import '../core/permissions.dart';
+import '../repositories/member_repository.dart';
 import 'entity_form_screen.dart';
 
 class MemberDetailScreen extends StatefulWidget {
@@ -14,12 +17,36 @@ class MemberDetailScreen extends StatefulWidget {
 }
 
 class _MemberDetailScreenState extends State<MemberDetailScreen> {
+  final MemberRepository _repository = MemberRepository();
   late Map<String, dynamic> _member;
+  late Future<Map<String, int>> _relatedCounts;
+
+  bool get _canManage => PermissionPolicy.allows(
+        AppRole.fromValue(AppSession.instance.role),
+        AppPermission.manageMembers,
+      );
 
   @override
   void initState() {
     super.initState();
     _member = Map<String, dynamic>.from(widget.member);
+    _relatedCounts = _loadRelatedCounts();
+  }
+
+  Future<Map<String, int>> _loadRelatedCounts() async {
+    final id = _member['id'].toString();
+    final results = await Future.wait([
+      _repository.related('motorcycles', id),
+      _repository.related('maintenance_records', id),
+      _repository.related('member_patch_awards', id),
+      _repository.related('member_timeline', id),
+    ]);
+    return {
+      'motorcycles': results[0].length,
+      'maintenance': results[1].length,
+      'patches': results[2].length,
+      'timeline': results[3].length,
+    };
   }
 
   Future<void> _edit() async {
@@ -28,16 +55,19 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         builder: (_) => EntityFormScreen(
           definition: memberDefinition,
           initialValues: _member,
+          onSave: (values, id) async {
+            await _repository.saveMember(values, memberId: id);
+          },
         ),
       ),
     );
     if (changed != true) return;
-    final refreshed = await DataService.instance.getById(
-      memberDefinition.table,
-      _member['id'].toString(),
-    );
+    final refreshed = await _repository.getMember(_member['id'].toString());
     if (refreshed != null && mounted) {
-      setState(() => _member = refreshed);
+      setState(() {
+        _member = refreshed;
+        _relatedCounts = _loadRelatedCounts();
+      });
     }
   }
 
@@ -95,21 +125,17 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final motorcycle = [
-      _text('motorcycle_brand', ''),
-      _text('motorcycle_model', ''),
-      _text('motorcycle_year', ''),
-    ].where((value) => value.isNotEmpty).join(' ');
-
+    final name = _text('full_name', 'Membro');
     return Scaffold(
       appBar: AppBar(
-        title: Text(_text('full_name', 'Membro')),
+        title: Text(name),
         actions: [
-          IconButton(
-            tooltip: 'Editar membro',
-            onPressed: _edit,
-            icon: const Icon(Icons.edit_outlined),
-          ),
+          if (_canManage)
+            IconButton(
+              tooltip: 'Editar membro',
+              onPressed: _edit,
+              icon: const Icon(Icons.edit_outlined),
+            ),
         ],
       ),
       body: ListView(
@@ -120,39 +146,24 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               padding: const EdgeInsets.all(20),
               child: Row(
                 children: [
-                  Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      CircleAvatar(
-                        radius: 44,
-                        child: Text(
-                          _text('full_name', '?').substring(0, 1).toUpperCase(),
-                          style: const TextStyle(fontSize: 30),
-                        ),
-                      ),
-                      const CircleAvatar(
-                        radius: 15,
-                        child: Icon(Icons.photo_camera_outlined, size: 16),
-                      ),
-                    ],
+                  CircleAvatar(
+                    radius: 42,
+                    child: Text(
+                      name.isEmpty ? '?' : name[0].toUpperCase(),
+                      style: const TextStyle(fontSize: 28),
+                    ),
                   ),
                   const SizedBox(width: 18),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          _text('full_name'),
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
+                        Text(name,
+                            style: Theme.of(context).textTheme.headlineSmall),
                         if (_text('nickname', '').isNotEmpty)
                           Text('“${_text('nickname')}”'),
                         const SizedBox(height: 6),
-                        Text(
-                          '${_text('primary_role')} • ${_text('status')}',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        if (motorcycle.isNotEmpty) Text(motorcycle),
+                        Text('${_text('primary_role')} • ${_text('status')}'),
                       ],
                     ),
                   ),
@@ -182,7 +193,6 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               _line('Telefone', _text('phone')),
               _line('Email', _text('email')),
               _line('Morada', _text('address')),
-              _line('Código postal', _text('postal_code')),
               _line('Localidade', _text('locality')),
             ],
           ),
@@ -208,47 +218,32 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               _line('Modelo', _text('motorcycle_model')),
               _line('Ano', _text('motorcycle_year')),
               _line('Matrícula', _text('motorcycle_registration')),
-              const SizedBox(height: 8),
-              const ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.build_outlined),
-                title: Text('Manutenção e documentos'),
-                subtitle: Text(
-                  'A estrutura definitiva está preparada para várias motas, serviços, custos e anexos.',
-                ),
-              ),
             ],
           ),
-          _section(
-            context,
-            title: 'Áreas ligadas',
-            icon: Icons.account_tree_outlined,
-            children: const [
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.timeline_outlined),
-                title: Text('Timeline'),
-                subtitle: Text('Percurso, cargos, patches e participação em eventos.'),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.receipt_long_outlined),
-                title: Text('Quotas'),
-                subtitle: Text('Saldo e histórico ficam no módulo Quotas.'),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.casino_outlined),
-                title: Text('Euromilhões'),
-                subtitle: Text('Chave individual, pagamentos e acertos.'),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(Icons.event_outlined),
-                title: Text('Eventos'),
-                subtitle: Text('Presenças, acompanhantes e voluntariado.'),
-              ),
-            ],
+          FutureBuilder<Map<String, int>>(
+            future: _relatedCounts,
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                );
+              }
+              final counts = snapshot.data!;
+              return _section(
+                context,
+                title: 'Áreas ligadas',
+                icon: Icons.account_tree_outlined,
+                children: [
+                  _line('Motas', counts['motorcycles'].toString()),
+                  _line('Manutenções', counts['maintenance'].toString()),
+                  _line('Patches', counts['patches'].toString()),
+                  _line('Registos na Timeline', counts['timeline'].toString()),
+                ],
+              );
+            },
           ),
         ],
       ),
