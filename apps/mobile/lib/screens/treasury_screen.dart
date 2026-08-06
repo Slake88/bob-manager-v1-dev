@@ -27,10 +27,12 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
     final results = await Future.wait([
       _repository.summary(),
       _repository.listMovements(),
+      _repository.listCostCenters(),
     ]);
     return _TreasuryViewData(
       summary: Map<String, dynamic>.from(results[0] as Map),
       movements: List<Map<String, dynamic>>.from(results[1] as List),
+      costCenters: List<Map<String, dynamic>>.from(results[2] as List),
     );
   }
 
@@ -41,6 +43,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
 
   Future<void> _openMovement(
     List<Map<String, dynamic>> accounts,
+    List<Map<String, dynamic>> costCenters,
     String kind,
   ) async {
     final changed = await showDialog<bool>(
@@ -48,6 +51,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
       builder: (_) => _MovementDialog(
         repository: _repository,
         accounts: accounts,
+        costCenters: costCenters,
         kind: kind,
       ),
     );
@@ -117,12 +121,20 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                           runSpacing: 8,
                           children: [
                             FilledButton.icon(
-                              onPressed: () => _openMovement(accounts, 'income'),
+                              onPressed: () => _openMovement(
+                                accounts,
+                                data.costCenters,
+                                'income',
+                              ),
                               icon: const Icon(Icons.add_circle_outline),
                               label: const Text('Receita'),
                             ),
                             FilledButton.tonalIcon(
-                              onPressed: () => _openMovement(accounts, 'expense'),
+                              onPressed: () => _openMovement(
+                                accounts,
+                                data.costCenters,
+                                'expense',
+                              ),
                               icon: const Icon(Icons.remove_circle_outline),
                               label: const Text('Despesa'),
                             ),
@@ -224,21 +236,25 @@ class _TreasuryViewData {
   const _TreasuryViewData({
     required this.summary,
     required this.movements,
+    required this.costCenters,
   });
 
   final Map<String, dynamic> summary;
   final List<Map<String, dynamic>> movements;
+  final List<Map<String, dynamic>> costCenters;
 }
 
 class _MovementDialog extends StatefulWidget {
   const _MovementDialog({
     required this.repository,
     required this.accounts,
+    required this.costCenters,
     required this.kind,
   });
 
   final TreasuryRepository repository;
   final List<Map<String, dynamic>> accounts;
+  final List<Map<String, dynamic>> costCenters;
   final String kind;
 
   @override
@@ -249,8 +265,8 @@ class _MovementDialogState extends State<_MovementDialog> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _description = TextEditingController();
   final TextEditingController _amount = TextEditingController();
-  final TextEditingController _costCenter = TextEditingController();
   String? _accountId;
+  String? _costCenterId;
   bool _saving = false;
 
   @override
@@ -259,13 +275,15 @@ class _MovementDialogState extends State<_MovementDialog> {
     if (widget.accounts.isNotEmpty) {
       _accountId = widget.accounts.first['id']?.toString();
     }
+    if (widget.kind == 'expense' && widget.costCenters.isNotEmpty) {
+      _costCenterId = widget.costCenters.first['id']?.toString();
+    }
   }
 
   @override
   void dispose() {
     _description.dispose();
     _amount.dispose();
-    _costCenter.dispose();
     super.dispose();
   }
 
@@ -274,6 +292,12 @@ class _MovementDialogState extends State<_MovementDialog> {
     final account = widget.accounts.firstWhere(
       (row) => row['id']?.toString() == _accountId,
     );
+    final costCenter = _costCenterId == null
+        ? null
+        : widget.costCenters.firstWhere(
+            (row) => row['id']?.toString() == _costCenterId,
+          );
+
     setState(() => _saving = true);
     try {
       await widget.repository.createMovement({
@@ -283,8 +307,8 @@ class _MovementDialogState extends State<_MovementDialog> {
         'amount': double.parse(_amount.text.replaceAll(',', '.')),
         'account_id': _accountId,
         'account_name': account['name'],
-        if (_costCenter.text.trim().isNotEmpty)
-          'cost_center_name': _costCenter.text.trim(),
+        if (costCenter != null) 'cost_center_id': costCenter['id'],
+        if (costCenter != null) 'cost_center_name': costCenter['name'],
       });
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -311,7 +335,11 @@ class _MovementDialogState extends State<_MovementDialog> {
               children: [
                 DropdownButtonFormField<String>(
                   initialValue: _accountId,
-                  decoration: const InputDecoration(labelText: 'Conta'),
+                  decoration: InputDecoration(
+                    labelText: widget.kind == 'income'
+                        ? 'Conta que recebe o dinheiro'
+                        : 'Conta de onde sai o dinheiro',
+                  ),
                   items: widget.accounts
                       .map(
                         (account) => DropdownMenuItem<String>(
@@ -349,10 +377,23 @@ class _MovementDialogState extends State<_MovementDialog> {
                 ),
                 if (widget.kind == 'expense') ...[
                   const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _costCenter,
+                  DropdownButtonFormField<String>(
+                    initialValue: _costCenterId,
                     decoration:
                         const InputDecoration(labelText: 'Centro de custo'),
+                    items: widget.costCenters
+                        .map(
+                          (center) => DropdownMenuItem<String>(
+                            value: center['id'].toString(),
+                            child: Text(center['name'].toString()),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) =>
+                        setState(() => _costCenterId = value),
+                    validator: (value) => value == null
+                        ? 'Seleciona o centro de custo.'
+                        : null,
                   ),
                 ],
               ],
@@ -452,7 +493,9 @@ class _TransferDialogState extends State<_TransferDialog> {
             children: [
               DropdownButtonFormField<String>(
                 initialValue: _sourceId,
-                decoration: const InputDecoration(labelText: 'Conta de origem'),
+                decoration: const InputDecoration(
+                  labelText: 'O dinheiro sai da conta',
+                ),
                 items: widget.accounts
                     .map(
                       (account) => DropdownMenuItem<String>(
@@ -463,13 +506,14 @@ class _TransferDialogState extends State<_TransferDialog> {
                     .toList(),
                 onChanged: (value) => setState(() => _sourceId = value),
                 validator: (value) =>
-                    value == null ? 'Seleciona a origem.' : null,
+                    value == null ? 'Seleciona a conta de origem.' : null,
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: _destinationId,
-                decoration:
-                    const InputDecoration(labelText: 'Conta de destino'),
+                decoration: const InputDecoration(
+                  labelText: 'O dinheiro entra na conta',
+                ),
                 items: widget.accounts
                     .map(
                       (account) => DropdownMenuItem<String>(
@@ -480,7 +524,7 @@ class _TransferDialogState extends State<_TransferDialog> {
                     .toList(),
                 onChanged: (value) => setState(() => _destinationId = value),
                 validator: (value) {
-                  if (value == null) return 'Seleciona o destino.';
+                  if (value == null) return 'Seleciona a conta de destino.';
                   if (value == _sourceId) {
                     return 'A origem e o destino têm de ser diferentes.';
                   }
@@ -490,7 +534,7 @@ class _TransferDialogState extends State<_TransferDialog> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _amount,
-                decoration: const InputDecoration(labelText: 'Valor'),
+                decoration: const InputDecoration(labelText: 'Valor a transferir'),
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 validator: (value) {
@@ -504,7 +548,9 @@ class _TransferDialogState extends State<_TransferDialog> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _description,
-                decoration: const InputDecoration(labelText: 'Descrição'),
+                decoration: const InputDecoration(
+                  labelText: 'Descrição (opcional)',
+                ),
               ),
             ],
           ),
