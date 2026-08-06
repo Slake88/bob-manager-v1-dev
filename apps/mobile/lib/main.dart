@@ -118,8 +118,16 @@ class _ConfigurationErrorScreen extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.settings_ethernet, size: 64),
-                    const SizedBox(height: 16),
+                    const Icon(Icons.shield, size: 64),
+                    const SizedBox(height: 12),
+                    Text(
+                      'BOB MANAGER',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
                     Text(
                       'Configuração Supabase em falta',
                       style: Theme.of(context).textTheme.headlineSmall,
