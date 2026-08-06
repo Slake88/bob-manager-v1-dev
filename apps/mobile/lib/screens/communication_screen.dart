@@ -54,6 +54,36 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
     setState(_reload);
   }
 
+  String _audienceLabel(Object? value) {
+    return switch (value?.toString()) {
+      'members' => 'Membros',
+      'prospects' => 'Prospects',
+      'leadership' => 'Direção e responsáveis',
+      'treasury' => 'Tesouraria',
+      'events' => 'Equipa de eventos',
+      _ => 'Todos',
+    };
+  }
+
+  String _priorityLabel(Object? value) {
+    return switch (value?.toString()) {
+      'informative' => 'Informativo',
+      'important' => 'Importante',
+      'urgent' => 'Urgente',
+      'critical' => 'Crítico',
+      _ => 'Normal',
+    };
+  }
+
+  String _publicationState(Map<String, dynamic> row) {
+    final now = DateTime.now();
+    final published = DateTime.tryParse(row['published_at']?.toString() ?? '');
+    final expires = DateTime.tryParse(row['expires_at']?.toString() ?? '');
+    if (published != null && published.isAfter(now)) return 'Agendado';
+    if (expires != null && !expires.isAfter(now)) return 'Expirado';
+    return 'Publicado';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -75,8 +105,10 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
               children: [
-                Text('Centro de Comunicação',
-                    style: Theme.of(context).textTheme.headlineSmall),
+                Text(
+                  'Centro de Comunicação',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
                 const SizedBox(height: 12),
                 if (rows.isEmpty)
                   const Card(
@@ -85,6 +117,7 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
                 else
                   ...rows.map((row) {
                     final requiresAck = row['requires_acknowledgement'] == true;
+                    final acknowledged = row['acknowledged'] == true;
                     return Card(
                       child: Padding(
                         padding: const EdgeInsets.all(16),
@@ -93,16 +126,23 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
                           children: [
                             Row(
                               children: [
-                                const Icon(Icons.campaign_outlined),
+                                Icon(
+                                  row['priority'] == 'critical' ||
+                                          row['priority'] == 'urgent'
+                                      ? Icons.warning_amber_rounded
+                                      : Icons.campaign_outlined,
+                                ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     row['title']?.toString() ?? 'Comunicado',
-                                    style: Theme.of(context).textTheme.titleMedium,
+                                    style:
+                                        Theme.of(context).textTheme.titleMedium,
                                   ),
                                 ),
                                 if (_canManage)
                                   IconButton(
+                                    tooltip: 'Editar comunicado',
                                     onPressed: () => _openForm(row),
                                     icon: const Icon(Icons.edit_outlined),
                                   ),
@@ -111,22 +151,37 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
                             const SizedBox(height: 8),
                             Text(row['body']?.toString() ?? ''),
                             const SizedBox(height: 10),
-                            Text(
-                              [
-                                row['priority'],
-                                row['audience'],
-                                row['published_at'],
-                              ].where((value) => value != null).join(' • '),
-                              style: Theme.of(context).textTheme.bodySmall,
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 6,
+                              children: [
+                                Chip(
+                                  label: Text(_priorityLabel(row['priority'])),
+                                ),
+                                Chip(
+                                  label: Text(_audienceLabel(row['audience'])),
+                                ),
+                                Chip(label: Text(_publicationState(row))),
+                              ],
                             ),
                             if (requiresAck) ...[
                               const SizedBox(height: 12),
                               Align(
                                 alignment: Alignment.centerRight,
                                 child: FilledButton.tonalIcon(
-                                  onPressed: () => _acknowledge(row),
-                                  icon: const Icon(Icons.done_all),
-                                  label: const Text('Confirmar leitura'),
+                                  onPressed: acknowledged
+                                      ? null
+                                      : () => _acknowledge(row),
+                                  icon: Icon(
+                                    acknowledged
+                                        ? Icons.verified_outlined
+                                        : Icons.done_all,
+                                  ),
+                                  label: Text(
+                                    acknowledged
+                                        ? 'Leitura confirmada'
+                                        : 'Confirmar leitura',
+                                  ),
                                 ),
                               ),
                             ],
