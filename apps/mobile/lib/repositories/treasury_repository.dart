@@ -18,6 +18,9 @@ class TreasuryRepository {
   SupabaseClient get _supabase => _client ?? Supabase.instance.client;
   AppRole get currentRole => AppRole.fromValue(AppSession.instance.role);
 
+  bool get canManageAccounts =>
+      PermissionPolicy.allows(currentRole, AppPermission.manageFinancialAccounts);
+
   Future<Map<String, dynamic>> summary() async {
     _require(AppPermission.viewTreasury);
     if (AppConfig.demoMode) return _dataService.treasurySummary();
@@ -99,6 +102,126 @@ class TreasuryRepository {
         .eq('active', true)
         .order('name');
     return List<Map<String, dynamic>>.from(response);
+  }
+
+  Future<Map<String, dynamic>> createAccount({
+    required String name,
+    required String accountType,
+    String? iban,
+    String? icon,
+    double openingBalance = 0,
+  }) async {
+    _require(AppPermission.manageFinancialAccounts);
+    final cleanName = name.trim();
+    if (cleanName.isEmpty) throw ArgumentError('Indica o nome da conta.');
+
+    final existing = await listAccounts();
+    if (existing.any((row) =>
+        row['name']?.toString().toLowerCase() == cleanName.toLowerCase())) {
+      throw StateError('Já existe uma conta com esse nome.');
+    }
+
+    final values = <String, dynamic>{
+      'name': cleanName,
+      'account_type': accountType,
+      'type': accountType,
+      'iban': iban?.trim().isEmpty == true ? null : iban?.trim(),
+      'icon': icon?.trim().isEmpty == true ? '💰' : icon?.trim(),
+      'opening_balance': openingBalance,
+      'opening_date': DateTime.now().toIso8601String().split('T').first,
+      'allows_negative': cleanName.toLowerCase() == 'caixa',
+      'active': true,
+    };
+
+    if (AppConfig.demoMode) {
+      return _dataService.insert('financial_accounts', values);
+    }
+
+    final response = await _supabase
+        .from('treasury_accounts')
+        .insert({
+          'club_id': AppSession.instance.clubId,
+          'name': cleanName,
+          'account_type': accountType,
+          'iban': values['iban'],
+          'icon': values['icon'],
+          'opening_balance': openingBalance,
+          'opening_date': values['opening_date'],
+          'allows_negative': values['allows_negative'],
+          'active': true,
+        })
+        .select()
+        .single();
+    return Map<String, dynamic>.from(response);
+  }
+
+  Future<Map<String, dynamic>> updateAccount(
+    String id, {
+    required String name,
+    required String accountType,
+    String? iban,
+    String? icon,
+  }) async {
+    _require(AppPermission.manageFinancialAccounts);
+    final cleanName = name.trim();
+    if (cleanName.isEmpty) throw ArgumentError('Indica o nome da conta.');
+
+    final accounts = await listAccounts();
+    if (accounts.any((row) =>
+        row['id']?.toString() != id &&
+        row['name']?.toString().toLowerCase() == cleanName.toLowerCase())) {
+      throw StateError('Já existe uma conta com esse nome.');
+    }
+
+    final values = <String, dynamic>{
+      'name': cleanName,
+      'account_type': accountType,
+      'type': accountType,
+      'iban': iban?.trim().isEmpty == true ? null : iban?.trim(),
+      'icon': icon?.trim().isEmpty == true ? '💰' : icon?.trim(),
+      'allows_negative': cleanName.toLowerCase() == 'caixa',
+    };
+
+    if (AppConfig.demoMode) {
+      return _dataService.update('financial_accounts', id, values);
+    }
+
+    final response = await _supabase
+        .from('treasury_accounts')
+        .update({
+          'name': cleanName,
+          'account_type': accountType,
+          'iban': values['iban'],
+          'icon': values['icon'],
+          'allows_negative': values['allows_negative'],
+        })
+        .eq('id', id)
+        .eq('club_id', AppSession.instance.clubId)
+        .select()
+        .single();
+    return Map<String, dynamic>.from(response);
+  }
+
+  Future<void> deactivateAccount(Map<String, dynamic> account) async {
+    _require(AppPermission.manageFinancialAccounts);
+    final id = account['id']?.toString();
+    if (id == null || id.isEmpty) throw ArgumentError('Conta inválida.');
+    if (_asDouble(account['balance']).abs() > 0.0001) {
+      throw StateError(
+        'A conta só pode ser desativada quando tiver saldo igual a zero.',
+      );
+    }
+
+    if (AppConfig.demoMode) {
+      await _dataService.update('financial_accounts', id, {'active': false});
+      return;
+    }
+
+    await _supabase
+        .from('treasury_accounts')
+        .update({'active': false})
+        .eq('id', id)
+        .eq('club_id', AppSession.instance.clubId);
   }
 
   Future<List<Map<String, dynamic>>> listMovements() async {
