@@ -1,4 +1,5 @@
 import '../services/data_service.dart';
+import '../services/rc1_data_extensions.dart';
 
 class MemberRepository {
   MemberRepository({DataService? dataService})
