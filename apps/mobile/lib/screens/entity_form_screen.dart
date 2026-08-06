@@ -3,15 +3,22 @@ import 'package:flutter/material.dart';
 import '../core/entity_definition.dart';
 import '../services/data_service.dart';
 
+typedef EntitySaveHandler = Future<void> Function(
+  Map<String, dynamic> values,
+  String? entityId,
+);
+
 class EntityFormScreen extends StatefulWidget {
   const EntityFormScreen({
     super.key,
     required this.definition,
     this.initialValues,
+    this.onSave,
   });
 
   final EntityDefinition definition;
   final Map<String, dynamic>? initialValues;
+  final EntitySaveHandler? onSave;
 
   bool get isEditing => initialValues?['id'] != null;
 
@@ -35,8 +42,7 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
         _booleanValues[field.key] = value == true || value?.toString() == 'true';
       } else if (field.type == EntityFieldType.choice) {
         final text = value?.toString();
-        _choiceValues[field.key] =
-            field.choices.contains(text) ? text : null;
+        _choiceValues[field.key] = field.choices.contains(text) ? text : null;
       } else {
         _controllers[field.key] = TextEditingController(
           text: value?.toString() ?? '',
@@ -139,10 +145,13 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
     setState(() => _saving = true);
     try {
       final values = _buildValues();
-      if (widget.isEditing) {
+      final id = widget.initialValues?['id']?.toString();
+      if (widget.onSave != null) {
+        await widget.onSave!(values, id);
+      } else if (widget.isEditing) {
         await DataService.instance.update(
           widget.definition.table,
-          widget.initialValues!['id'].toString(),
+          id!,
           values,
         );
       } else {
