@@ -6,6 +6,7 @@ import 'dashboard_screen.dart';
 import 'emergency_screen.dart';
 import 'entity_crud_screen.dart';
 import 'members_screen.dart';
+import 'treasury_screen.dart';
 
 class ModuleRouter extends StatelessWidget {
   const ModuleRouter({super.key, required this.module});
@@ -17,7 +18,7 @@ class ModuleRouter extends StatelessWidget {
     return switch (module.code) {
       'dashboard' => const DashboardScreen(),
       'members' => const MembersScreen(),
-      'treasury' => const EntityCrudScreen(definition: treasuryDefinition),
+      'treasury' => const TreasuryScreen(),
       'fees' => const EntityCrudScreen(definition: feesDefinition),
       'lottery' => const EntityCrudScreen(definition: lotteryDefinition),
       'events' => const EntityCrudScreen(definition: eventsDefinition),
@@ -41,7 +42,7 @@ class _ReportsScreen extends StatelessWidget {
     const reports = [
       ('Membros', 'Listas, cargos, motas, patches e participação.'),
       ('Quotas', 'Mapa mensal, anual, dívida, créditos e comprovativos.'),
-      ('Tesouraria', 'Contas, fundos, centros de custo e resultados.'),
+      ('Tesouraria', 'Contas, movimentos, centros de custo e resultados.'),
       ('Euromilhões', 'Participantes, chaves, sorteios, acertos e saldo.'),
       ('Eventos', 'Participantes, orçamento, stock e relatório final.'),
       ('Inventário', 'Stock, vendas, reservas, validades e margens.'),
@@ -52,7 +53,10 @@ class _ReportsScreen extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text('Relatórios e importação', style: Theme.of(context).textTheme.headlineSmall),
+        Text(
+          'Relatórios e importação',
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
         const SizedBox(height: 12),
         ...reports.map(
           (report) => Card(
@@ -62,7 +66,9 @@ class _ReportsScreen extends StatelessWidget {
               subtitle: Text(report.$2),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${report.$1}: gerador preparado na arquitetura da Fase 2.')),
+                SnackBar(
+                  content: Text('${report.$1}: gerador preparado na RC1.'),
+                ),
               ),
             ),
           ),
@@ -81,7 +87,10 @@ class _SettingsScreen extends StatelessWidget {
       ('Identidade do clube', 'Blue On Black, logótipo, cores e Club House.'),
       ('Cargos', 'Cargo principal, cargos adicionais e hierarquia.'),
       ('Perfis e permissões', 'Alteráveis apenas pela direção autorizada.'),
-      ('Contas e fundos', 'Caixa, Banco CGD, Quotas, Reserva, Representação, Marketing e Euromilhões.'),
+      (
+        'Contas',
+        'Caixa, Banco CGD, Quotas, Reserva, Representação, Marketing, Euromilhões e Club House.'
+      ),
       ('Centros de custo', 'Club House, Representação, Eventos e restantes centros.'),
       ('Quotas', '25 € mensais e inscrição manual de Prospect.'),
       ('Armazenamento', '500 MB pessoais e arquivo geral do clube.'),
