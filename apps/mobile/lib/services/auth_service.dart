@@ -43,6 +43,9 @@ class AuthService {
     } on AuthException {
       AppSession.instance.clear();
       rethrow;
+    } on PostgrestException catch (error) {
+      AppSession.instance.clear();
+      throw AuthException(_friendlyDatabaseError(error));
     } catch (_) {
       AppSession.instance.clear();
       throw const AuthException(
@@ -89,35 +92,50 @@ class AuthService {
     String profileId, {
     required String fallbackName,
   }) async {
-    final row = await Supabase.instance.client
+    // Não usa relações embebidas do PostgREST. A associação e o perfil são
+    // consultados separadamente, evitando dependência do schema cache.
+    final membership = await Supabase.instance.client
         .from('club_memberships')
-        .select('club_id, access_role, profiles(full_name)')
+        .select('club_id, access_role')
         .eq('profile_id', profileId)
         .eq('active', true)
         .limit(1)
         .maybeSingle();
 
-    if (row == null) {
+    if (membership == null) {
       throw const AuthException(
         'O utilizador não tem uma associação ativa a nenhum clube.',
       );
     }
 
-    final clubId = row['club_id']?.toString();
+    final clubId = membership['club_id']?.toString();
     if (clubId == null || clubId.isEmpty) {
       throw const AuthException('A associação do utilizador não tem clube.');
     }
 
-    final profile = row['profiles'];
-    final fullName = profile is Map && profile['full_name'] != null
-        ? profile['full_name'].toString()
-        : fallbackName;
+    final profile = await Supabase.instance.client
+        .from('profiles')
+        .select('full_name')
+        .eq('id', profileId)
+        .maybeSingle();
+
+    final fullName = profile?['full_name']?.toString().trim();
 
     AppSession.instance.authenticate(
       newProfileId: profileId,
       newClubId: clubId,
-      newFullName: fullName,
-      newRole: row['access_role']?.toString() ?? 'Membro',
+      newFullName: fullName == null || fullName.isEmpty
+          ? fallbackName
+          : fullName,
+      newRole: membership['access_role']?.toString() ?? 'Membro',
     );
+  }
+
+  static String _friendlyDatabaseError(PostgrestException error) {
+    if (error.code == 'PGRST200') {
+      return 'A configuração de acesso do utilizador está desatualizada. '
+          'Atualiza a aplicação e tenta novamente.';
+    }
+    return 'Não foi possível carregar a associação do utilizador ao clube.';
   }
 }
