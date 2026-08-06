@@ -11,6 +11,10 @@ enum AppPermission {
   manageFinancialAccounts,
   approveExpenseRequests,
   viewFinancialReports,
+  viewFees,
+  manageFees,
+  viewLottery,
+  manageLottery,
   manageSettings,
 }
 
@@ -31,6 +35,12 @@ class PermissionPolicy {
       AppPermission.transferBetweenAccounts => role == AppRole.treasurer,
       AppPermission.approveExpenseRequests => role == AppRole.treasurer,
       AppPermission.viewFinancialReports => role == AppRole.treasurer,
+      AppPermission.viewFees =>
+        role == AppRole.treasurer || role == AppRole.secretary,
+      AppPermission.manageFees =>
+        role == AppRole.treasurer || role == AppRole.secretary,
+      AppPermission.viewLottery => role != AppRole.unknown,
+      AppPermission.manageLottery => role == AppRole.treasurer,
       AppPermission.manageMembers => role == AppRole.secretary,
       AppPermission.manageFinancialAccounts || AppPermission.manageSettings =>
         false,
