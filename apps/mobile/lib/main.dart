@@ -1,3 +1,157 @@
-import 'package:flutter/material.dart'; import 'package:flutter_localizations/flutter_localizations.dart'; import 'package:supabase_flutter/supabase_flutter.dart'; import 'core/app_config.dart'; import 'screens/login_screen.dart';
-Future<void> main()async{WidgetsFlutterBinding.ensureInitialized();if(!AppConfig.demoMode)await Supabase.initialize(url:AppConfig.supabaseUrl,publishableKey:AppConfig.supabasePublishableKey);runApp(const BobManagerApp());}
-class BobManagerApp extends StatelessWidget{const BobManagerApp({super.key});@override Widget build(BuildContext c)=>MaterialApp(title:'BOB Manager',debugShowCheckedModeBanner:false,locale:const Locale('pt','PT'),supportedLocales:const[Locale('pt','PT'),Locale('en')],localizationsDelegates:const[GlobalMaterialLocalizations.delegate,GlobalWidgetsLocalizations.delegate,GlobalCupertinoLocalizations.delegate],theme:ThemeData(useMaterial3:true,brightness:Brightness.dark,colorScheme:ColorScheme.fromSeed(seedColor:const Color(0xFF0C18D2),brightness:Brightness.dark),scaffoldBackgroundColor:const Color(0xFF08090D),inputDecorationTheme:InputDecorationTheme(filled:true,border:OutlineInputBorder(borderRadius:BorderRadius.circular(14)))),home:const LoginScreen());}
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'core/app_config.dart';
+import 'screens/login_screen.dart';
+import 'screens/shell_screen.dart';
+import 'services/auth_service.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  if (!AppConfig.demoMode) {
+    AppConfig.validateForRealMode();
+    await Supabase.initialize(
+      url: AppConfig.supabaseUrl,
+      publishableKey: AppConfig.supabasePublishableKey,
+    );
+  }
+
+  runApp(const BobManagerApp());
+}
+
+class BobManagerApp extends StatelessWidget {
+  const BobManagerApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'BOB Manager',
+      debugShowCheckedModeBanner: false,
+      locale: const Locale('pt', 'PT'),
+      supportedLocales: const [Locale('pt', 'PT'), Locale('en')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      theme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF0C18D2),
+          brightness: Brightness.dark,
+        ),
+        scaffoldBackgroundColor: const Color(0xFF08090D),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+      home: const _AppBootstrap(),
+    );
+  }
+}
+
+class _AppBootstrap extends StatefulWidget {
+  const _AppBootstrap();
+
+  @override
+  State<_AppBootstrap> createState() => _AppBootstrapState();
+}
+
+class _AppBootstrapState extends State<_AppBootstrap> {
+  late Future<bool> _restoreFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreFuture = AuthService.instance.restore();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (AppConfig.implicitDemoMode) {
+      return const _ConfigurationErrorScreen();
+    }
+
+    if (AppConfig.explicitDemoMode) {
+      return const LoginScreen();
+    }
+
+    return FutureBuilder<bool>(
+      future: _restoreFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.data == true) {
+          return const ShellScreen();
+        }
+
+        return const LoginScreen();
+      },
+    );
+  }
+}
+
+class _ConfigurationErrorScreen extends StatelessWidget {
+  const _ConfigurationErrorScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.settings_ethernet, size: 64),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Configuração Supabase em falta',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Executa a aplicação com SUPABASE_URL e '
+                      'SUPABASE_PUBLISHABLE_KEY. O modo Demo deixou de ser '
+                      'ativado silenciosamente.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    const SelectableText(
+                      'flutter run -d chrome '
+                      '--dart-define=SUPABASE_URL=... '
+                      '--dart-define=SUPABASE_PUBLISHABLE_KEY=...',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Para demonstração explícita utiliza '
+                      '--dart-define=DEMO_MODE=true.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
