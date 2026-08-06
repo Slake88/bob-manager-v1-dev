@@ -5,6 +5,7 @@ import '../core/module_definition.dart';
 import 'dashboard_screen.dart';
 import 'emergency_screen.dart';
 import 'entity_crud_screen.dart';
+import 'events_screen.dart';
 import 'fees_screen.dart';
 import 'lottery_screen.dart';
 import 'members_screen.dart';
@@ -23,7 +24,7 @@ class ModuleRouter extends StatelessWidget {
       'treasury' => const TreasuryScreen(),
       'fees' => const FeesScreen(),
       'lottery' => const LotteryScreen(),
-      'events' => const EntityCrudScreen(definition: eventsDefinition),
+      'events' => const EventsScreen(),
       'inventory' => const EntityCrudScreen(definition: inventoryDefinition),
       'documents' => const EntityCrudScreen(definition: documentsDefinition),
       'communication' =>
