@@ -69,6 +69,51 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
     if (changed == true && mounted) setState(_reload);
   }
 
+  Future<void> _openAccount([Map<String, dynamic>? account]) async {
+    final changed = await showDialog<bool>(
+      context: context,
+      builder: (_) => _AccountDialog(
+        repository: _repository,
+        account: account,
+      ),
+    );
+    if (changed == true && mounted) setState(_reload);
+  }
+
+  Future<void> _deactivateAccount(Map<String, dynamic> account) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Desativar conta'),
+        content: Text(
+          'Desativar a conta ${account['name']}? A conta deixa de aparecer nas operações, mas o histórico é mantido.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Desativar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await _repository.deactivateAccount(account);
+      if (!mounted) return;
+      setState(_reload);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível desativar: $error')),
+      );
+    }
+  }
+
   String _money(Object? value) {
     final amount = value is num
         ? value.toDouble()
@@ -143,6 +188,12 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                               icon: const Icon(Icons.swap_horiz),
                               label: const Text('Transferência'),
                             ),
+                            if (_repository.canManageAccounts)
+                              OutlinedButton.icon(
+                                onPressed: _openAccount,
+                                icon: const Icon(Icons.account_balance_wallet_outlined),
+                                label: const Text('Nova conta'),
+                              ),
                           ],
                         ),
                       ],
@@ -150,7 +201,22 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Text('Contas', style: Theme.of(context).textTheme.titleLarge),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Contas',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                    if (_repository.canManageAccounts)
+                      TextButton.icon(
+                        onPressed: _openAccount,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Adicionar'),
+                      ),
+                  ],
+                ),
                 const SizedBox(height: 8),
                 ...accounts.map(
                   (account) => Card(
@@ -160,13 +226,46 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                       ),
                       title: Text(account['name']?.toString() ?? 'Conta'),
                       subtitle: Text(
-                        account['allows_negative'] == true
-                            ? 'Pode ficar com saldo negativo'
-                            : 'Saldo negativo bloqueado',
+                        [
+                          account['account_type']?.toString(),
+                          account['allows_negative'] == true
+                              ? 'Pode ficar com saldo negativo'
+                              : 'Saldo negativo bloqueado',
+                        ].where((value) => value != null).join(' • '),
                       ),
-                      trailing: Text(
-                        _money(account['balance']),
-                        style: Theme.of(context).textTheme.titleMedium,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _money(account['balance']),
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          if (_repository.canManageAccounts)
+                            PopupMenuButton<String>(
+                              onSelected: (value) {
+                                if (value == 'edit') _openAccount(account);
+                                if (value == 'deactivate') {
+                                  _deactivateAccount(account);
+                                }
+                              },
+                              itemBuilder: (context) => const [
+                                PopupMenuItem(
+                                  value: 'edit',
+                                  child: ListTile(
+                                    leading: Icon(Icons.edit_outlined),
+                                    title: Text('Editar'),
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'deactivate',
+                                  child: ListTile(
+                                    leading: Icon(Icons.block_outlined),
+                                    title: Text('Desativar'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
                       ),
                     ),
                   ),
@@ -242,6 +341,176 @@ class _TreasuryViewData {
   final Map<String, dynamic> summary;
   final List<Map<String, dynamic>> movements;
   final List<Map<String, dynamic>> costCenters;
+}
+
+class _AccountDialog extends StatefulWidget {
+  const _AccountDialog({
+    required this.repository,
+    this.account,
+  });
+
+  final TreasuryRepository repository;
+  final Map<String, dynamic>? account;
+
+  @override
+  State<_AccountDialog> createState() => _AccountDialogState();
+}
+
+class _AccountDialogState extends State<_AccountDialog> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  late final TextEditingController _name;
+  late final TextEditingController _iban;
+  late final TextEditingController _icon;
+  late final TextEditingController _openingBalance;
+  String _type = 'fund';
+  bool _saving = false;
+
+  bool get _editing => widget.account != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final account = widget.account;
+    _name = TextEditingController(text: account?['name']?.toString() ?? '');
+    _iban = TextEditingController(text: account?['iban']?.toString() ?? '');
+    _icon = TextEditingController(text: account?['icon']?.toString() ?? '💰');
+    _openingBalance = TextEditingController(
+      text: account?['opening_balance']?.toString() ?? '0',
+    );
+    _type = account?['account_type']?.toString() ??
+        account?['type']?.toString() ??
+        'fund';
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _iban.dispose();
+    _icon.dispose();
+    _openingBalance.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+    try {
+      if (_editing) {
+        await widget.repository.updateAccount(
+          widget.account!['id'].toString(),
+          name: _name.text,
+          accountType: _type,
+          iban: _iban.text,
+          icon: _icon.text,
+        );
+      } else {
+        await widget.repository.createAccount(
+          name: _name.text,
+          accountType: _type,
+          iban: _iban.text,
+          icon: _icon.text,
+          openingBalance:
+              double.tryParse(_openingBalance.text.replaceAll(',', '.')) ?? 0,
+        );
+      }
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível guardar: $error')),
+      );
+      setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(_editing ? 'Editar conta' : 'Nova conta'),
+      content: SizedBox(
+        width: 500,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _name,
+                  decoration: const InputDecoration(labelText: 'Nome da conta'),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Campo obrigatório.'
+                      : null,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: _type,
+                  decoration: const InputDecoration(labelText: 'Tipo de conta'),
+                  items: const [
+                    DropdownMenuItem(value: 'cash', child: Text('Caixa / Dinheiro')),
+                    DropdownMenuItem(value: 'bank', child: Text('Conta bancária')),
+                    DropdownMenuItem(value: 'fund', child: Text('Conta interna')),
+                    DropdownMenuItem(value: 'reserve', child: Text('Reserva')),
+                  ],
+                  onChanged: (value) => setState(() => _type = value ?? 'fund'),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _icon,
+                  decoration: const InputDecoration(
+                    labelText: 'Ícone',
+                    hintText: 'Ex.: 💰',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _iban,
+                  decoration: const InputDecoration(
+                    labelText: 'IBAN (opcional)',
+                  ),
+                ),
+                if (!_editing) ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _openingBalance,
+                    decoration: const InputDecoration(
+                      labelText: 'Saldo inicial',
+                    ),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    validator: (value) =>
+                        double.tryParse((value ?? '').replaceAll(',', '.')) == null
+                            ? 'Introduz um valor válido.'
+                            : null,
+                  ),
+                ],
+                const SizedBox(height: 12),
+                const Text(
+                  'Apenas uma conta com o nome Caixa pode ficar com saldo negativo.',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: _saving
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Guardar'),
+        ),
+      ],
+    );
+  }
 }
 
 class _MovementDialog extends StatefulWidget {
