@@ -45,9 +45,12 @@ class PermissionPolicy {
       AppPermission.viewLottery => role != AppRole.unknown,
       AppPermission.manageLottery => role == AppRole.treasurer,
       AppPermission.viewEvents => role != AppRole.unknown,
-      AppPermission.manageEvents => role == AppRole.secretary,
+      AppPermission.manageEvents =>
+        role == AppRole.secretary || role == AppRole.eventsManager,
       AppPermission.manageEventParticipants =>
-        role == AppRole.secretary || role == AppRole.roadCaptain,
+        role == AppRole.secretary ||
+        role == AppRole.roadCaptain ||
+        role == AppRole.eventsManager,
       AppPermission.manageMembers => role == AppRole.secretary,
       AppPermission.manageFinancialAccounts || AppPermission.manageSettings =>
         false,
