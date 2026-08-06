@@ -31,6 +31,16 @@ class TreasuryRepository {
     return rows;
   }
 
+  Future<List<Map<String, dynamic>>> listMovements() async {
+    _require(AppPermission.viewTreasury);
+    final rows = await _dataService.list('financial_transactions');
+    rows.sort(
+      (a, b) => (b['transaction_date']?.toString() ?? '')
+          .compareTo(a['transaction_date']?.toString() ?? ''),
+    );
+    return rows;
+  }
+
   Future<void> transfer({
     required String sourceAccountId,
     required String destinationAccountId,
@@ -50,7 +60,11 @@ class TreasuryRepository {
     Map<String, dynamic> values,
   ) {
     _require(AppPermission.createTreasuryMovement);
-    return _dataService.insert('financial_transactions', values);
+    return _dataService.insert('financial_transactions', {
+      ...values,
+      'created_by': AppSession.instance.profileId,
+      'status': values['status'] ?? 'confirmed',
+    });
   }
 
   Future<Map<String, dynamic>> approveExpenseRequest(
@@ -76,7 +90,6 @@ class TreasuryRepository {
       'transaction_date': request['request_date'] ??
           DateTime.now().toIso8601String().split('T').first,
       'kind': 'expense',
-      'status': 'confirmed',
       'description': request['description'] ?? 'Despesa aprovada',
       'amount': request['requested_amount'] ?? 0,
       'account_id': request['account_id'],
@@ -86,7 +99,6 @@ class TreasuryRepository {
       'member_id': request['requester_member_id'],
       'member_name': request['requester_name'],
       'expense_request_id': id,
-      'created_by': AppSession.instance.profileId,
     });
 
     return updated;
