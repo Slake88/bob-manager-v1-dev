@@ -31,6 +31,10 @@ class MemberRepository {
     return _dataService.update('members', memberId, values);
   }
 
+  Future<void> deleteMember(String memberId) {
+    return _dataService.delete('members', memberId);
+  }
+
   Future<List<Map<String, dynamic>>> related(
     String table,
     String memberId,
