@@ -2,6 +2,7 @@ import '../core/app_role.dart';
 import '../core/app_session.dart';
 import '../core/permissions.dart';
 import '../services/data_service.dart';
+import '../services/rc1_data_extensions.dart';
 
 class TreasuryRepository {
   TreasuryRepository({DataService? dataService})
@@ -18,7 +19,10 @@ class TreasuryRepository {
 
   Future<List<Map<String, dynamic>>> listAccounts() async {
     _require(AppPermission.viewTreasury);
-    final rows = await _dataService.list('financial_accounts');
+    final summaryData = await _dataService.treasurySummary();
+    final rows = List<Map<String, dynamic>>.from(
+      summaryData['accounts'] as List<dynamic>? ?? const [],
+    );
     rows.sort((a, b) {
       final aOrder = int.tryParse(a['display_order']?.toString() ?? '') ?? 999;
       final bOrder = int.tryParse(b['display_order']?.toString() ?? '') ?? 999;
