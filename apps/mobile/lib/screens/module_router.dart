@@ -7,6 +7,7 @@ import 'emergency_screen.dart';
 import 'entity_crud_screen.dart';
 import 'events_screen.dart';
 import 'fees_screen.dart';
+import 'inventory_screen.dart';
 import 'lottery_screen.dart';
 import 'members_screen.dart';
 import 'treasury_screen.dart';
@@ -25,7 +26,7 @@ class ModuleRouter extends StatelessWidget {
       'fees' => const FeesScreen(),
       'lottery' => const LotteryScreen(),
       'events' => const EventsScreen(),
-      'inventory' => const EntityCrudScreen(definition: inventoryDefinition),
+      'inventory' => const InventoryScreen(),
       'documents' => const EntityCrudScreen(definition: documentsDefinition),
       'communication' =>
         const EntityCrudScreen(definition: communicationDefinition),
@@ -96,6 +97,7 @@ class _SettingsScreen extends StatelessWidget {
       ),
       ('Centros de custo', 'Club House, Representação, Eventos e restantes centros.'),
       ('Quotas', '25 € mensais e inscrição manual de Prospect.'),
+      ('Inventário', 'Artigos, stock mínimo, reservas, vendas e Club House.'),
       ('Armazenamento', '500 MB pessoais e arquivo geral do clube.'),
       ('Auditoria e backups', 'Histórico, exportação integral e recuperação.'),
     ];
