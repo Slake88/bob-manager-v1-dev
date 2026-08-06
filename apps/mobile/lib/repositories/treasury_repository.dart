@@ -1,3 +1,6 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../core/app_config.dart';
 import '../core/app_role.dart';
 import '../core/app_session.dart';
 import '../core/permissions.dart';
@@ -5,40 +8,130 @@ import '../services/data_service.dart';
 import '../services/rc1_data_extensions.dart';
 
 class TreasuryRepository {
-  TreasuryRepository({DataService? dataService})
-      : _dataService = dataService ?? DataService.instance;
+  TreasuryRepository({DataService? dataService, SupabaseClient? client})
+      : _dataService = dataService ?? DataService.instance,
+        _client = client;
 
   final DataService _dataService;
+  final SupabaseClient? _client;
 
+  SupabaseClient get _supabase => _client ?? Supabase.instance.client;
   AppRole get currentRole => AppRole.fromValue(AppSession.instance.role);
 
-  Future<Map<String, dynamic>> summary() {
+  Future<Map<String, dynamic>> summary() async {
     _require(AppPermission.viewTreasury);
-    return _dataService.treasurySummary();
+    if (AppConfig.demoMode) return _dataService.treasurySummary();
+
+    final accounts = await listAccounts();
+    final movements = await listMovements();
+    final now = DateTime.now();
+    var monthlyIncome = 0.0;
+    var monthlyExpense = 0.0;
+
+    for (final movement in movements) {
+      final date = DateTime.tryParse(
+        movement['transaction_date']?.toString() ?? '',
+      );
+      if (date == null || date.year != now.year || date.month != now.month) {
+        continue;
+      }
+      final amount = _asDouble(movement['amount']);
+      if (movement['kind'] == 'income') monthlyIncome += amount;
+      if (movement['kind'] == 'expense') monthlyExpense += amount;
+    }
+
+    return <String, dynamic>{
+      'accounts': accounts,
+      'total_balance': accounts.fold<double>(
+        0,
+        (total, account) => total + _asDouble(account['balance']),
+      ),
+      'monthly_income': monthlyIncome,
+      'monthly_expense': monthlyExpense,
+      'pending_approvals': 0,
+      'recent_transactions': movements.take(8).toList(),
+    };
   }
 
   Future<List<Map<String, dynamic>>> listAccounts() async {
     _require(AppPermission.viewTreasury);
-    final summaryData = await _dataService.treasurySummary();
-    final rows = List<Map<String, dynamic>>.from(
-      summaryData['accounts'] as List<dynamic>? ?? const [],
+    if (AppConfig.demoMode) {
+      final summaryData = await _dataService.treasurySummary();
+      return _sortAccounts(List<Map<String, dynamic>>.from(
+        summaryData['accounts'] as List<dynamic>? ?? const [],
+      ));
+    }
+
+    final accountResponse = await _supabase
+        .from('treasury_accounts')
+        .select()
+        .eq('club_id', AppSession.instance.clubId)
+        .eq('active', true);
+    final balanceResponse = await _supabase.rpc(
+      'treasury_account_balances_v1',
+      params: {'target_club': AppSession.instance.clubId},
     );
-    rows.sort((a, b) {
-      final aOrder = int.tryParse(a['display_order']?.toString() ?? '') ?? 999;
-      final bOrder = int.tryParse(b['display_order']?.toString() ?? '') ?? 999;
-      return aOrder.compareTo(bOrder);
-    });
-    return rows;
+
+    final balances = <String, dynamic>{
+      for (final row in List<Map<String, dynamic>>.from(balanceResponse as List))
+        row['id'].toString(): row['balance'],
+    };
+
+    final accounts = List<Map<String, dynamic>>.from(accountResponse)
+        .map((row) => _normaliseAccount(row, balances[row['id'].toString()]))
+        .toList();
+    return _sortAccounts(accounts);
+  }
+
+  Future<List<Map<String, dynamic>>> listCostCenters() async {
+    _require(AppPermission.viewTreasury);
+    if (AppConfig.demoMode) {
+      final rows = await _dataService.list('cost_centers');
+      rows.sort((a, b) => (a['name']?.toString() ?? '')
+          .compareTo(b['name']?.toString() ?? ''));
+      return rows;
+    }
+
+    final response = await _supabase
+        .from('cost_centers')
+        .select()
+        .eq('club_id', AppSession.instance.clubId)
+        .eq('active', true)
+        .order('name');
+    return List<Map<String, dynamic>>.from(response);
   }
 
   Future<List<Map<String, dynamic>>> listMovements() async {
     _require(AppPermission.viewTreasury);
-    final rows = await _dataService.list('financial_transactions');
-    rows.sort(
-      (a, b) => (b['transaction_date']?.toString() ?? '')
-          .compareTo(a['transaction_date']?.toString() ?? ''),
-    );
-    return rows;
+    if (AppConfig.demoMode) {
+      final rows = await _dataService.list('financial_transactions');
+      rows.sort((a, b) => (b['transaction_date']?.toString() ?? '')
+          .compareTo(a['transaction_date']?.toString() ?? ''));
+      return rows;
+    }
+
+    final response = await _supabase
+        .from('treasury_transactions')
+        .select(
+          '*, source_account:treasury_accounts!treasury_transactions_account_id_fkey(name), destination_account:treasury_accounts!treasury_transactions_destination_account_id_fkey(name), cost_center:cost_centers(name)',
+        )
+        .eq('club_id', AppSession.instance.clubId)
+        .order('transaction_date', ascending: false)
+        .order('created_at', ascending: false)
+        .limit(250);
+
+    return List<Map<String, dynamic>>.from(response).map((row) {
+      final source = row['source_account'];
+      final destination = row['destination_account'];
+      final costCenter = row['cost_center'];
+      return <String, dynamic>{
+        ...row,
+        'account_name': source is Map ? source['name'] : null,
+        'destination_account_name':
+            destination is Map ? destination['name'] : null,
+        'cost_center_name': costCenter is Map ? costCenter['name'] : null,
+      };
+    }).toList();
   }
 
   Future<void> transfer({
@@ -46,62 +139,130 @@ class TreasuryRepository {
     required String destinationAccountId,
     required double amount,
     required String description,
-  }) {
+  }) async {
     _require(AppPermission.transferBetweenAccounts);
-    return _dataService.transferBetweenAccounts(
-      sourceAccountId: sourceAccountId,
-      destinationAccountId: destinationAccountId,
-      amount: amount,
-      description: description,
+    if (AppConfig.demoMode) {
+      return _dataService.transferBetweenAccounts(
+        sourceAccountId: sourceAccountId,
+        destinationAccountId: destinationAccountId,
+        amount: amount,
+        description: description,
+      );
+    }
+
+    await _supabase.rpc(
+      'create_transaction_v1',
+      params: {
+        'target_club': AppSession.instance.clubId,
+        'p_kind': 'transfer',
+        'p_account': sourceAccountId,
+        'p_destination_account': destinationAccountId,
+        'p_description': description.trim().isEmpty
+            ? 'Transferência entre contas'
+            : description.trim(),
+        'p_amount': amount,
+      },
     );
   }
 
   Future<Map<String, dynamic>> createMovement(
     Map<String, dynamic> values,
-  ) {
-    _require(AppPermission.createTreasuryMovement);
-    return _dataService.insert('financial_transactions', {
-      ...values,
-      'created_by': AppSession.instance.profileId,
-      'status': values['status'] ?? 'confirmed',
-    });
-  }
-
-  Future<Map<String, dynamic>> approveExpenseRequest(
-    Map<String, dynamic> request,
   ) async {
-    _require(AppPermission.approveExpenseRequests);
-    final id = request['id']?.toString();
-    if (id == null || id.isEmpty) {
-      throw ArgumentError('Pedido de despesa sem identificador.');
+    _require(AppPermission.createTreasuryMovement);
+    if (AppConfig.demoMode) {
+      return _dataService.insert('financial_transactions', {
+        ...values,
+        'created_by': AppSession.instance.profileId,
+        'status': values['status'] ?? 'confirmed',
+      });
     }
 
-    final updated = await _dataService.update(
-      'expense_requests',
-      id,
-      {
-        'status': 'approved',
-        'approved_by': AppSession.instance.profileId,
-        'approved_at': DateTime.now().toIso8601String(),
-      },
-    );
+    final kind = values['kind']?.toString();
+    final accountId = values['account_id']?.toString();
+    final amount = _asDouble(values['amount']);
+    if (kind != 'income' && kind != 'expense') {
+      throw ArgumentError('Tipo de movimento inválido.');
+    }
+    if (accountId == null || accountId.isEmpty) {
+      throw ArgumentError('Seleciona uma conta.');
+    }
+    if (amount <= 0) throw ArgumentError('O valor deve ser superior a zero.');
 
-    await createMovement({
-      'transaction_date': request['request_date'] ??
-          DateTime.now().toIso8601String().split('T').first,
-      'kind': 'expense',
-      'description': request['description'] ?? 'Despesa aprovada',
-      'amount': request['requested_amount'] ?? 0,
-      'account_id': request['account_id'],
-      'account_name': request['account_name'],
-      'cost_center_id': request['cost_center_id'],
-      'cost_center_name': request['cost_center_name'],
-      'member_id': request['requester_member_id'],
-      'member_name': request['requester_name'],
-      'expense_request_id': id,
+    if (kind == 'expense') {
+      final accounts = await listAccounts();
+      final account = accounts.firstWhere(
+        (row) => row['id']?.toString() == accountId,
+        orElse: () => throw StateError('Conta não encontrada.'),
+      );
+      if (account['allows_negative'] != true &&
+          _asDouble(account['balance']) < amount) {
+        throw StateError('Saldo insuficiente na conta ${account['name']}.');
+      }
+    }
+
+    final response = await _supabase
+        .from('treasury_transactions')
+        .insert({
+          'club_id': AppSession.instance.clubId,
+          'kind': kind,
+          'account_id': accountId,
+          'transaction_date': values['transaction_date'] ??
+              DateTime.now().toIso8601String().split('T').first,
+          'description': values['description']?.toString().trim(),
+          'amount': amount,
+          'cost_center_id': values['cost_center_id'],
+          'payment_method': values['payment_method'],
+          'notes': values['notes'],
+          'created_by': AppSession.instance.profileId,
+        })
+        .select()
+        .single();
+    return Map<String, dynamic>.from(response);
+  }
+
+  Map<String, dynamic> _normaliseAccount(
+    Map<String, dynamic> row,
+    Object? balance,
+  ) {
+    final name = row['name']?.toString() ?? 'Conta';
+    final defaults = _accountDefaults(name);
+    return <String, dynamic>{
+      ...row,
+      'type': row['account_type'],
+      'icon': row['icon'] ?? defaults.$1,
+      'display_order': row['display_order'] ?? defaults.$2,
+      'allows_negative': row['allows_negative'] ??
+          name.toLowerCase() == 'caixa',
+      'protected': row['protected'] ?? defaults.$3,
+      'balance': _asDouble(balance),
+    };
+  }
+
+  List<Map<String, dynamic>> _sortAccounts(
+    List<Map<String, dynamic>> accounts,
+  ) {
+    accounts.sort((a, b) {
+      final aOrder = int.tryParse(a['display_order']?.toString() ?? '') ?? 999;
+      final bOrder = int.tryParse(b['display_order']?.toString() ?? '') ?? 999;
+      if (aOrder != bOrder) return aOrder.compareTo(bOrder);
+      return (a['name']?.toString() ?? '')
+          .compareTo(b['name']?.toString() ?? '');
     });
+    return accounts;
+  }
 
-    return updated;
+  (String, int, bool) _accountDefaults(String name) {
+    return switch (name.toLowerCase()) {
+      'caixa' => ('💵', 1, true),
+      'banco cgd' => ('🏦', 2, true),
+      'quotas' => ('👥', 3, true),
+      'reserva' => ('🛡️', 4, false),
+      'representação' => ('🤝', 5, false),
+      'marketing' => ('📣', 6, false),
+      'euromilhões' => ('🍀', 7, false),
+      'club house' => ('🍺', 8, false),
+      _ => ('💰', 999, false),
+    };
   }
 
   void _require(AppPermission permission) {
@@ -109,4 +270,9 @@ class TreasuryRepository {
       throw StateError('Sem permissão para executar esta operação.');
     }
   }
+}
+
+double _asDouble(Object? value) {
+  if (value is num) return value.toDouble();
+  return double.tryParse(value?.toString() ?? '') ?? 0;
 }
