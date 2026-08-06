@@ -1,3 +1,6 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../core/app_config.dart';
 import '../core/app_role.dart';
 import '../core/app_session.dart';
 import '../core/permissions.dart';
@@ -8,40 +11,103 @@ class AdminRepository {
       : _dataService = dataService ?? DataService.instance;
 
   final DataService _dataService;
-
+  SupabaseClient get _client => Supabase.instance.client;
   AppRole get currentRole => AppRole.fromValue(AppSession.instance.role);
 
   Future<List<Map<String, dynamic>>> listSettings() async {
     _require(AppPermission.manageSettings);
-    final rows = await _dataService.list('club_settings');
-    rows.sort((a, b) => (a['key']?.toString() ?? '')
-        .compareTo(b['key']?.toString() ?? ''));
-    return rows;
+    if (AppConfig.demoMode) {
+      final rows = await _dataService.list('club_settings');
+      rows.sort((a, b) => (a['key']?.toString() ?? '')
+          .compareTo(b['key']?.toString() ?? ''));
+      return rows;
+    }
+    final response = await _client
+        .from('club_settings')
+        .select()
+        .eq('club_id', AppSession.instance.clubId)
+        .order('key');
+    return List<Map<String, dynamic>>.from(response);
   }
 
   Future<Map<String, dynamic>> saveSetting({
     required String key,
     required String value,
     String? settingId,
-  }) {
+  }) async {
     _require(AppPermission.manageSettings);
-    final values = {
-      'key': key.trim(),
+    final normalizedKey = key.trim();
+    if (normalizedKey.isEmpty) {
+      throw ArgumentError('A chave da configuração é obrigatória.');
+    }
+    if (AppConfig.demoMode) {
+      final values = {
+        'key': normalizedKey,
+        'value': value.trim(),
+        'updated_by': AppSession.instance.profileId,
+      };
+      if (settingId == null) return _dataService.insert('club_settings', values);
+      return _dataService.update('club_settings', settingId, values);
+    }
+
+    final payload = <String, dynamic>{
+      'club_id': AppSession.instance.clubId,
+      'key': normalizedKey,
       'value': value.trim(),
       'updated_by': AppSession.instance.profileId,
+      'updated_at': DateTime.now().toIso8601String(),
     };
+    final Map<String, dynamic> saved;
     if (settingId == null) {
-      return _dataService.insert('club_settings', values);
+      final response = await _client
+          .from('club_settings')
+          .upsert(payload, onConflict: 'club_id,key')
+          .select()
+          .single();
+      saved = Map<String, dynamic>.from(response);
+    } else {
+      final response = await _client
+          .from('club_settings')
+          .update(payload)
+          .eq('id', settingId)
+          .eq('club_id', AppSession.instance.clubId)
+          .select()
+          .single();
+      saved = Map<String, dynamic>.from(response);
     }
-    return _dataService.update('club_settings', settingId, values);
+
+    await _client.from('audit_log').insert({
+      'club_id': AppSession.instance.clubId,
+      'actor_id': AppSession.instance.profileId,
+      'entity_type': 'club_setting',
+      'entity_id': saved['id']?.toString(),
+      'action': settingId == null ? 'upsert' : 'update',
+      'after_data': saved,
+      'data': {'key': normalizedKey},
+    });
+    return saved;
   }
 
   Future<List<Map<String, dynamic>>> listAuditLog({int limit = 100}) async {
     _require(AppPermission.manageSettings);
-    final rows = await _dataService.list('audit_log', limit: limit);
-    rows.sort((a, b) => (b['created_at']?.toString() ?? '')
-        .compareTo(a['created_at']?.toString() ?? ''));
-    return rows.take(limit).toList();
+    if (AppConfig.demoMode) {
+      final rows = await _dataService.list('audit_log', limit: limit);
+      rows.sort((a, b) => (b['created_at']?.toString() ?? '')
+          .compareTo(a['created_at']?.toString() ?? ''));
+      return rows.take(limit).toList();
+    }
+    final response = await _client
+        .from('audit_log')
+        .select()
+        .eq('club_id', AppSession.instance.clubId)
+        .order('created_at', ascending: false)
+        .limit(limit);
+    return List<Map<String, dynamic>>.from(response).map((row) {
+      return <String, dynamic>{
+        ...row,
+        'description': '${row['action'] ?? 'Alteração'} — ${row['entity_type'] ?? 'registo'}',
+      };
+    }).toList();
   }
 
   void _require(AppPermission permission) {
