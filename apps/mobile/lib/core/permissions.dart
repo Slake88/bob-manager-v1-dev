@@ -18,6 +18,9 @@ enum AppPermission {
   viewEvents,
   manageEvents,
   manageEventParticipants,
+  viewInventory,
+  manageInventory,
+  sellInventory,
   manageSettings,
 }
 
@@ -51,6 +54,10 @@ class PermissionPolicy {
         role == AppRole.secretary ||
         role == AppRole.roadCaptain ||
         role == AppRole.eventsManager,
+      AppPermission.viewInventory => role != AppRole.unknown,
+      AppPermission.manageInventory => role == AppRole.inventoryManager,
+      AppPermission.sellInventory =>
+        role == AppRole.inventoryManager || role == AppRole.treasurer,
       AppPermission.manageMembers => role == AppRole.secretary,
       AppPermission.manageFinancialAccounts || AppPermission.manageSettings =>
         false,
