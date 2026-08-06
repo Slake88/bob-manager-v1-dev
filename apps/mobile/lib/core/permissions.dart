@@ -15,6 +15,9 @@ enum AppPermission {
   manageFees,
   viewLottery,
   manageLottery,
+  viewEvents,
+  manageEvents,
+  manageEventParticipants,
   manageSettings,
 }
 
@@ -41,6 +44,10 @@ class PermissionPolicy {
         role == AppRole.treasurer || role == AppRole.secretary,
       AppPermission.viewLottery => role != AppRole.unknown,
       AppPermission.manageLottery => role == AppRole.treasurer,
+      AppPermission.viewEvents => role != AppRole.unknown,
+      AppPermission.manageEvents => role == AppRole.secretary,
+      AppPermission.manageEventParticipants =>
+        role == AppRole.secretary || role == AppRole.roadCaptain,
       AppPermission.manageMembers => role == AppRole.secretary,
       AppPermission.manageFinancialAccounts || AppPermission.manageSettings =>
         false,
