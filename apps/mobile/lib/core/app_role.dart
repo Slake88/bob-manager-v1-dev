@@ -45,12 +45,13 @@ enum AppRole {
       'inventory manager' => AppRole.inventoryManager,
       'responsavel eventos' ||
       'responsavel de eventos' ||
+      'event manager' ||
       'events manager' => AppRole.eventsManager,
       'responsavel euromilhoes' ||
       'responsavel de euromilhoes' ||
       'euromillions manager' => AppRole.euromillionsManager,
       'prospect' => AppRole.prospect,
-      'membro' || 'member' => AppRole.member,
+      'membro' || 'member' || 'full color' => AppRole.member,
       _ => AppRole.unknown,
     };
   }
