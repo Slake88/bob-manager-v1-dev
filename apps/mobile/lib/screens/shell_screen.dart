@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../core/app_session.dart';
 import '../core/module_definition.dart';
 import '../core/permissions.dart';
+import '../repositories/activity_repository.dart';
 import '../services/auth_service.dart';
+import 'activity_screen.dart';
 import 'login_screen.dart';
 import 'module_router.dart';
 
@@ -16,6 +18,14 @@ class ShellScreen extends StatefulWidget {
 
 class _ShellScreenState extends State<ShellScreen> {
   int selected = 0;
+  final ActivityRepository _activity = ActivityRepository();
+  late Future<int> _unreadFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _unreadFuture = _activity.unreadCount();
+  }
 
   List<ModuleDefinition> get _visibleModules {
     return appModules.where(_canViewModule).toList();
@@ -24,7 +34,7 @@ class _ShellScreenState extends State<ShellScreen> {
   bool _canViewModule(ModuleDefinition module) {
     final session = AppSession.instance;
     return switch (module.code) {
-      'dashboard' => session.authenticated,
+      'dashboard' || 'activity' => session.authenticated,
       'members' => session.can(AppPermission.viewMembers),
       'treasury' => session.can(AppPermission.viewTreasury),
       'fees' => session.can(AppPermission.viewFees),
@@ -44,9 +54,19 @@ class _ShellScreenState extends State<ShellScreen> {
     await AuthService.instance.refreshPermissions();
     if (!mounted) return;
     setState(() {
+      _unreadFuture = _activity.unreadCount();
       final modules = _visibleModules;
       if (selected >= modules.length) selected = 0;
     });
+  }
+
+  Future<void> _openNotifications() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
+    );
+    if (mounted) {
+      setState(() => _unreadFuture = _activity.unreadCount());
+    }
   }
 
   @override
@@ -66,6 +86,21 @@ class _ShellScreenState extends State<ShellScreen> {
       appBar: AppBar(
         title: Text(module.title),
         actions: [
+          FutureBuilder<int>(
+            future: _unreadFuture,
+            builder: (context, snapshot) {
+              final count = snapshot.data ?? 0;
+              return IconButton(
+                tooltip: count > 0 ? '$count notificações por ler' : 'Notificações',
+                onPressed: _openNotifications,
+                icon: Badge(
+                  isLabelVisible: count > 0,
+                  label: Text(count > 99 ? '99+' : '$count'),
+                  child: const Icon(Icons.notifications_none_outlined),
+                ),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'Atualizar permissões',
             onPressed: _refreshPermissions,
