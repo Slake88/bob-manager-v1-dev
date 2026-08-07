@@ -7,6 +7,15 @@ import '../core/permissions.dart';
 import '../services/data_service.dart';
 import '../services/rc1_data_extensions.dart';
 
+class TreasuryUserException implements Exception {
+  const TreasuryUserException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 class TreasuryRepository {
   TreasuryRepository({DataService? dataService, SupabaseClient? client})
       : _dataService = dataService ?? DataService.instance,
@@ -113,12 +122,14 @@ class TreasuryRepository {
   }) async {
     _require(AppPermission.manageFinancialAccounts);
     final cleanName = name.trim();
-    if (cleanName.isEmpty) throw ArgumentError('Indica o nome da conta.');
+    if (cleanName.isEmpty) {
+      throw const TreasuryUserException('Indica o nome da conta.');
+    }
 
     final existing = await listAccounts();
     if (existing.any((row) =>
         row['name']?.toString().toLowerCase() == cleanName.toLowerCase())) {
-      throw StateError('Já existe uma conta com esse nome.');
+      throw const TreasuryUserException('Já existe uma conta com esse nome.');
     }
 
     final values = <String, dynamic>{
@@ -137,22 +148,26 @@ class TreasuryRepository {
       return _dataService.insert('financial_accounts', values);
     }
 
-    final response = await _supabase
-        .from('treasury_accounts')
-        .insert({
-          'club_id': AppSession.instance.clubId,
-          'name': cleanName,
-          'account_type': accountType,
-          'iban': values['iban'],
-          'icon': values['icon'],
-          'opening_balance': openingBalance,
-          'opening_date': values['opening_date'],
-          'allows_negative': values['allows_negative'],
-          'active': true,
-        })
-        .select()
-        .single();
-    return Map<String, dynamic>.from(response);
+    try {
+      final response = await _supabase
+          .from('treasury_accounts')
+          .insert({
+            'club_id': AppSession.instance.clubId,
+            'name': cleanName,
+            'account_type': accountType,
+            'iban': values['iban'],
+            'icon': values['icon'],
+            'opening_balance': openingBalance,
+            'opening_date': values['opening_date'],
+            'allows_negative': values['allows_negative'],
+            'active': true,
+          })
+          .select()
+          .single();
+      return Map<String, dynamic>.from(response);
+    } on PostgrestException catch (error) {
+      throw TreasuryUserException(_friendlyDatabaseMessage(error.message));
+    }
   }
 
   Future<Map<String, dynamic>> updateAccount(
@@ -164,13 +179,15 @@ class TreasuryRepository {
   }) async {
     _require(AppPermission.manageFinancialAccounts);
     final cleanName = name.trim();
-    if (cleanName.isEmpty) throw ArgumentError('Indica o nome da conta.');
+    if (cleanName.isEmpty) {
+      throw const TreasuryUserException('Indica o nome da conta.');
+    }
 
     final accounts = await listAccounts();
     if (accounts.any((row) =>
         row['id']?.toString() != id &&
         row['name']?.toString().toLowerCase() == cleanName.toLowerCase())) {
-      throw StateError('Já existe uma conta com esse nome.');
+      throw const TreasuryUserException('Já existe uma conta com esse nome.');
     }
 
     final values = <String, dynamic>{
@@ -186,28 +203,34 @@ class TreasuryRepository {
       return _dataService.update('financial_accounts', id, values);
     }
 
-    final response = await _supabase
-        .from('treasury_accounts')
-        .update({
-          'name': cleanName,
-          'account_type': accountType,
-          'iban': values['iban'],
-          'icon': values['icon'],
-          'allows_negative': values['allows_negative'],
-        })
-        .eq('id', id)
-        .eq('club_id', AppSession.instance.clubId)
-        .select()
-        .single();
-    return Map<String, dynamic>.from(response);
+    try {
+      final response = await _supabase
+          .from('treasury_accounts')
+          .update({
+            'name': cleanName,
+            'account_type': accountType,
+            'iban': values['iban'],
+            'icon': values['icon'],
+            'allows_negative': values['allows_negative'],
+          })
+          .eq('id', id)
+          .eq('club_id', AppSession.instance.clubId)
+          .select()
+          .single();
+      return Map<String, dynamic>.from(response);
+    } on PostgrestException catch (error) {
+      throw TreasuryUserException(_friendlyDatabaseMessage(error.message));
+    }
   }
 
   Future<void> deactivateAccount(Map<String, dynamic> account) async {
     _require(AppPermission.manageFinancialAccounts);
     final id = account['id']?.toString();
-    if (id == null || id.isEmpty) throw ArgumentError('Conta inválida.');
+    if (id == null || id.isEmpty) {
+      throw const TreasuryUserException('Conta inválida.');
+    }
     if (_asDouble(account['balance']).abs() > 0.0001) {
-      throw StateError(
+      throw const TreasuryUserException(
         'A conta só pode ser desativada quando tiver saldo igual a zero.',
       );
     }
@@ -217,11 +240,15 @@ class TreasuryRepository {
       return;
     }
 
-    await _supabase
-        .from('treasury_accounts')
-        .update({'active': false})
-        .eq('id', id)
-        .eq('club_id', AppSession.instance.clubId);
+    try {
+      await _supabase
+          .from('treasury_accounts')
+          .update({'active': false})
+          .eq('id', id)
+          .eq('club_id', AppSession.instance.clubId);
+    } on PostgrestException catch (error) {
+      throw TreasuryUserException(_friendlyDatabaseMessage(error.message));
+    }
   }
 
   Future<List<Map<String, dynamic>>> listMovements() async {
@@ -273,19 +300,23 @@ class TreasuryRepository {
       );
     }
 
-    await _supabase.rpc(
-      'create_transaction_v1',
-      params: {
-        'target_club': AppSession.instance.clubId,
-        'p_kind': 'transfer',
-        'p_account': sourceAccountId,
-        'p_destination_account': destinationAccountId,
-        'p_description': description.trim().isEmpty
-            ? 'Transferência entre contas'
-            : description.trim(),
-        'p_amount': amount,
-      },
-    );
+    try {
+      await _supabase.rpc(
+        'create_transaction_v1',
+        params: {
+          'target_club': AppSession.instance.clubId,
+          'p_kind': 'transfer',
+          'p_account': sourceAccountId,
+          'p_destination_account': destinationAccountId,
+          'p_description': description.trim().isEmpty
+              ? 'Transferência entre contas'
+              : description.trim(),
+          'p_amount': amount,
+        },
+      );
+    } on PostgrestException catch (error) {
+      throw TreasuryUserException(_friendlyDatabaseMessage(error.message));
+    }
   }
 
   Future<Map<String, dynamic>> createMovement(
@@ -304,43 +335,52 @@ class TreasuryRepository {
     final accountId = values['account_id']?.toString();
     final amount = _asDouble(values['amount']);
     if (kind != 'income' && kind != 'expense') {
-      throw ArgumentError('Tipo de movimento inválido.');
+      throw const TreasuryUserException('Tipo de movimento inválido.');
     }
     if (accountId == null || accountId.isEmpty) {
-      throw ArgumentError('Seleciona uma conta.');
+      throw const TreasuryUserException('Seleciona uma conta.');
     }
-    if (amount <= 0) throw ArgumentError('O valor deve ser superior a zero.');
+    if (amount <= 0) {
+      throw const TreasuryUserException('O valor deve ser superior a zero.');
+    }
 
     if (kind == 'expense') {
       final accounts = await listAccounts();
       final account = accounts.firstWhere(
         (row) => row['id']?.toString() == accountId,
-        orElse: () => throw StateError('Conta não encontrada.'),
+        orElse: () => throw const TreasuryUserException('Conta não encontrada.'),
       );
       if (account['allows_negative'] != true &&
           _asDouble(account['balance']) < amount) {
-        throw StateError('Saldo insuficiente na conta ${account['name']}.');
+        throw TreasuryUserException(
+          'Saldo insuficiente na conta ${account['name']}. '
+          'Esta conta não pode ficar com saldo negativo.',
+        );
       }
     }
 
-    final response = await _supabase
-        .from('treasury_transactions')
-        .insert({
-          'club_id': AppSession.instance.clubId,
-          'kind': kind,
-          'account_id': accountId,
-          'transaction_date': values['transaction_date'] ??
-              DateTime.now().toIso8601String().split('T').first,
-          'description': values['description']?.toString().trim(),
-          'amount': amount,
-          'cost_center_id': values['cost_center_id'],
-          'payment_method': values['payment_method'],
-          'notes': values['notes'],
-          'created_by': AppSession.instance.profileId,
-        })
-        .select()
-        .single();
-    return Map<String, dynamic>.from(response);
+    try {
+      final response = await _supabase
+          .from('treasury_transactions')
+          .insert({
+            'club_id': AppSession.instance.clubId,
+            'kind': kind,
+            'account_id': accountId,
+            'transaction_date': values['transaction_date'] ??
+                DateTime.now().toIso8601String().split('T').first,
+            'description': values['description']?.toString().trim(),
+            'amount': amount,
+            'cost_center_id': values['cost_center_id'],
+            'payment_method': values['payment_method'],
+            'notes': values['notes'],
+            'created_by': AppSession.instance.profileId,
+          })
+          .select()
+          .single();
+      return Map<String, dynamic>.from(response);
+    } on PostgrestException catch (error) {
+      throw TreasuryUserException(_friendlyDatabaseMessage(error.message));
+    }
   }
 
   Map<String, dynamic> _normaliseAccount(
@@ -354,8 +394,7 @@ class TreasuryRepository {
       'type': row['account_type'],
       'icon': row['icon'] ?? defaults.$1,
       'display_order': row['display_order'] ?? defaults.$2,
-      'allows_negative': row['allows_negative'] ??
-          name.toLowerCase() == 'caixa',
+      'allows_negative': row['allows_negative'] ?? name.toLowerCase() == 'caixa',
       'protected': row['protected'] ?? defaults.$3,
       'balance': _asDouble(balance),
     };
@@ -388,9 +427,33 @@ class TreasuryRepository {
     };
   }
 
+  String _friendlyDatabaseMessage(String message) {
+    final normalized = message.toLowerCase();
+
+    if (normalized.contains('saldo insuficiente')) {
+      return 'Saldo insuficiente. Esta conta não pode ficar com saldo negativo.';
+    }
+    if (normalized.contains('origem') && normalized.contains('destino')) {
+      return 'As contas de origem e destino têm de ser diferentes.';
+    }
+    if (normalized.contains('conta') && normalized.contains('inativa')) {
+      return 'A conta selecionada está inativa.';
+    }
+    if (normalized.contains('valor') && normalized.contains('superior a zero')) {
+      return 'O valor tem de ser superior a zero.';
+    }
+    if (normalized.contains('permiss')) {
+      return 'Não tens permissão para executar esta operação.';
+    }
+
+    return 'Não foi possível concluir a operação. Verifica os dados e tenta novamente.';
+  }
+
   void _require(AppPermission permission) {
     if (!PermissionPolicy.allows(currentRole, permission)) {
-      throw StateError('Sem permissão para executar esta operação.');
+      throw const TreasuryUserException(
+        'Não tens permissão para executar esta operação.',
+      );
     }
   }
 }
