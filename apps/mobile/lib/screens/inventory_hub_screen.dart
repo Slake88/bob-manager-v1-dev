@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../repositories/inventory_foundation_repository.dart';
-import 'assets_screen.dart';
+import 'assets_module_screen.dart';
 import 'bar_screen_v3.dart';
 import 'shop_management_screen.dart';
 import 'shop_screen.dart';
@@ -57,7 +57,7 @@ class _InventoryHubScreenState extends State<InventoryHubScreen> {
                 _SummaryTab(future: _future, onRefresh: _reload),
                 const ShopScreen(),
                 const BarScreenV3(),
-                const AssetsScreen(),
+                const AssetsModuleScreen(),
                 const _FoundationPlaceholder(
                   icon: Icons.swap_horiz_outlined,
                   title: 'Movimentos',
