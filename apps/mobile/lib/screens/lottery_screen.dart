@@ -91,10 +91,7 @@ class _LotteryScreenState extends State<LotteryScreen> {
   Future<void> _processResult(DateTime date) async {
     final changed = await showDialog<bool>(
       context: context,
-      builder: (_) => _ResultDialog(
-        repository: _repository,
-        drawDate: date,
-      ),
+      builder: (_) => _ResultDialog(repository: _repository, drawDate: date),
     );
     if (changed == true && mounted) setState(_reload);
   }
@@ -186,10 +183,7 @@ class _LotteryScreenState extends State<LotteryScreen> {
                       label: 'Total previsto do mês',
                       value: _money(totalExpected),
                     ),
-                    _MetricCard(
-                      label: 'Multas apuradas',
-                      value: _money(fineTotal),
-                    ),
+                    _MetricCard(label: 'Multas apuradas', value: _money(fineTotal)),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -277,9 +271,7 @@ class _MonthlyBoard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (players.isEmpty) {
-      return const Center(
-        child: Text('Ainda não existem jogadores ativos neste mês.'),
-      );
+      return const Center(child: Text('Ainda não existem jogadores ativos neste mês.'));
     }
 
     return LayoutBuilder(
@@ -292,7 +284,9 @@ class _MonthlyBoard extends StatelessWidget {
               columns: [
                 const DataColumn(label: Text('Jogador')),
                 for (final date in dates)
-                  DataColumn(label: Text('${_weekday(date)}\n${date.day.toString().padLeft(2, '0')}')),
+                  DataColumn(
+                    label: Text('${_weekday(date)}\n${date.day.toString().padLeft(2, '0')}'),
+                  ),
                 const DataColumn(label: Text('Mês')),
               ],
               rows: players.map((player) {
@@ -333,7 +327,8 @@ class _MonthlyBoard extends StatelessWidget {
     final week = _dateOnly(repository.weekStart(drawDate));
     Map<String, dynamic>? charge;
     for (final row in charges) {
-      if (row['player_id']?.toString() == playerId && row['week_start']?.toString() == week) {
+      if (row['player_id']?.toString() == playerId &&
+          row['week_start']?.toString() == week) {
         charge = row;
         break;
       }
@@ -346,13 +341,11 @@ class _MonthlyBoard extends StatelessWidget {
         child: Icon(Icons.check_circle, color: Colors.green),
       );
     }
-    if (onPayWeek == null) {
-      return const Icon(Icons.cancel, color: Colors.red);
-    }
+    if (onPayWeek == null) return const Icon(Icons.cancel, color: Colors.red);
     final current = charge;
     return IconButton(
       tooltip: 'Registar pagamento desta semana',
-      onPressed: () => onPayWeek!(current!),
+      onPressed: () => onPayWeek!(current),
       icon: const Icon(Icons.cancel, color: Colors.red),
     );
   }
@@ -432,7 +425,9 @@ class _ResultsView extends StatelessWidget {
           }
         }
         final resultId = result?['id']?.toString();
-        final resultFines = fines.where((row) => row['result_id']?.toString() == resultId).toList();
+        final resultFines = fines
+            .where((row) => row['result_id']?.toString() == resultId)
+            .toList();
         return Card(
           child: ExpansionTile(
             leading: const Icon(Icons.casino_outlined),
@@ -446,20 +441,25 @@ class _ResultsView extends StatelessWidget {
                 ? IconButton(
                     tooltip: result == null ? 'Registar resultado' : 'Editar resultado',
                     onPressed: () => onProcess(date),
-                    icon: Icon(result == null ? Icons.add_circle_outline : Icons.edit_outlined),
+                    icon: Icon(result == null
+                        ? Icons.add_circle_outline
+                        : Icons.edit_outlined),
                   )
                 : null,
             children: result == null
                 ? const [
                     Padding(
                       padding: EdgeInsets.all(16),
-                      child: Text('Sem comparação de chaves enquanto o resultado não for registado.'),
+                      child: Text(
+                        'Sem comparação de chaves enquanto o resultado não for registado.',
+                      ),
                     ),
                   ]
                 : players.map((player) {
                     Map<String, dynamic>? fine;
                     for (final row in resultFines) {
-                      if (row['player_id']?.toString() == player['player_id']?.toString()) {
+                      if (row['player_id']?.toString() ==
+                          player['player_id']?.toString()) {
                         fine = row;
                         break;
                       }
@@ -473,13 +473,19 @@ class _ResultsView extends StatelessWidget {
                         runSpacing: 6,
                         children: [
                           for (final number in _intList(player['numbers']))
-                            _NumberChip(value: '$number', hit: resultNumbers.contains(number)),
+                            _NumberChip(
+                              value: '$number',
+                              hit: resultNumbers.contains(number),
+                            ),
                           for (final star in _intList(player['stars']))
-                            _NumberChip(value: '★$star', hit: resultStars.contains(star)),
+                            _NumberChip(
+                              value: '★$star',
+                              hit: resultStars.contains(star),
+                            ),
                         ],
                       ),
                       trailing: Text(
-                        fine == null ? '—' : _money(_asDouble(fine['fine_amount'])),
+                        fine == null ? '—' : _money(fine['fine_amount']),
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                     );
@@ -501,19 +507,20 @@ class _RankingView extends StatelessWidget {
   Widget build(BuildContext context) {
     final rows = players.map((player) {
       final playerId = player['player_id']?.toString();
-      final playerFines = fines.where((row) => row['player_id']?.toString() == playerId);
-      final totalFine = playerFines.fold<double>(0, (sum, row) => sum + _asDouble(row['fine_amount']));
+      final playerFines =
+          fines.where((row) => row['player_id']?.toString() == playerId);
+      final totalFine = playerFines.fold<double>(
+        0,
+        (sum, row) => sum + _asDouble(row['fine_amount']),
+      );
       final misses = playerFines.fold<int>(
         0,
-        (sum, row) => sum +
+        (sum, row) =>
+            sum +
             (int.tryParse(row['missed_numbers']?.toString() ?? '') ?? 0) +
             (int.tryParse(row['missed_stars']?.toString() ?? '') ?? 0),
       );
-      return {
-        'name': player['member_name'],
-        'fine': totalFine,
-        'misses': misses,
-      };
+      return {'name': player['member_name'], 'fine': totalFine, 'misses': misses};
     }).toList()
       ..sort((a, b) => (a['fine'] as double).compareTo(b['fine'] as double));
 
@@ -553,7 +560,6 @@ class _RankingView extends StatelessWidget {
 
 class _PlayerDialog extends StatefulWidget {
   const _PlayerDialog({required this.repository, required this.player});
-
   final LotteryRepository repository;
   final Map<String, dynamic> player;
 
@@ -571,8 +577,12 @@ class _PlayerDialogState extends State<_PlayerDialog> {
   void initState() {
     super.initState();
     _status = widget.player['status']?.toString() ?? 'non_player';
-    _numbers = TextEditingController(text: widget.player['numbers_text']?.toString() ?? '');
-    _stars = TextEditingController(text: widget.player['stars_text']?.toString() ?? '');
+    _numbers = TextEditingController(
+      text: widget.player['numbers_text']?.toString() ?? '',
+    );
+    _stars = TextEditingController(
+      text: widget.player['stars_text']?.toString() ?? '',
+    );
   }
 
   @override
@@ -594,7 +604,9 @@ class _PlayerDialogState extends State<_PlayerDialog> {
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error')),
+        );
         setState(() => _saving = false);
       }
     }
@@ -616,9 +628,13 @@ class _PlayerDialogState extends State<_PlayerDialog> {
                 items: const [
                   DropdownMenuItem(value: 'active', child: Text('Ativo')),
                   DropdownMenuItem(value: 'inactive', child: Text('Inativo')),
-                  DropdownMenuItem(value: 'non_player', child: Text('Não jogador')),
+                  DropdownMenuItem(
+                    value: 'non_player',
+                    child: Text('Não jogador'),
+                  ),
                 ],
-                onChanged: (value) => setState(() => _status = value ?? _status),
+                onChanged: (value) =>
+                    setState(() => _status = value ?? _status),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -641,8 +657,14 @@ class _PlayerDialogState extends State<_PlayerDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Cancelar')),
-        FilledButton(onPressed: _saving ? null : _save, child: const Text('Guardar')),
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context, false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: const Text('Guardar'),
+        ),
       ],
     );
   }
@@ -654,7 +676,6 @@ class _SettingsDialog extends StatefulWidget {
     required this.weeklyAmount,
     required this.finePerMiss,
   });
-
   final LotteryRepository repository;
   final double weeklyAmount;
   final double finePerMiss;
@@ -688,11 +709,16 @@ class _SettingsDialogState extends State<_SettingsDialog> {
     if (weekly == null || fine == null) return;
     setState(() => _saving = true);
     try {
-      await widget.repository.saveSettings(weeklyAmount: weekly, finePerMiss: fine);
+      await widget.repository.saveSettings(
+        weeklyAmount: weekly,
+        finePerMiss: fine,
+      );
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error')),
+        );
         setState(() => _saving = false);
       }
     }
@@ -710,13 +736,17 @@ class _SettingsDialogState extends State<_SettingsDialog> {
             TextField(
               controller: _weekly,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Valor semanal por jogador (€)'),
+              decoration: const InputDecoration(
+                labelText: 'Valor semanal por jogador (€)',
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _fine,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Multa por elemento falhado (€)'),
+              decoration: const InputDecoration(
+                labelText: 'Multa por elemento falhado (€)',
+              ),
             ),
             const SizedBox(height: 12),
             const Text('Sorteios: terça-feira e sexta-feira.'),
@@ -724,8 +754,14 @@ class _SettingsDialogState extends State<_SettingsDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Cancelar')),
-        FilledButton(onPressed: _saving ? null : _save, child: const Text('Guardar')),
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context, false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: const Text('Guardar'),
+        ),
       ],
     );
   }
@@ -733,7 +769,6 @@ class _SettingsDialogState extends State<_SettingsDialog> {
 
 class _ResultDialog extends StatefulWidget {
   const _ResultDialog({required this.repository, required this.drawDate});
-
   final LotteryRepository repository;
   final DateTime drawDate;
 
@@ -764,7 +799,9 @@ class _ResultDialogState extends State<_ResultDialog> {
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error')),
+        );
         setState(() => _saving = false);
       }
     }
@@ -781,19 +818,31 @@ class _ResultDialogState extends State<_ResultDialog> {
           children: [
             TextField(
               controller: _numbers,
-              decoration: const InputDecoration(labelText: '5 números sorteados', hintText: '5, 12, 21, 33, 48'),
+              decoration: const InputDecoration(
+                labelText: '5 números sorteados',
+                hintText: '5, 12, 21, 33, 48',
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _stars,
-              decoration: const InputDecoration(labelText: '2 estrelas', hintText: '2, 9'),
+              decoration: const InputDecoration(
+                labelText: '2 estrelas',
+                hintText: '2, 9',
+              ),
             ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Cancelar')),
-        FilledButton(onPressed: _saving ? null : _save, child: const Text('Processar sorteio')),
+        TextButton(
+          onPressed: _saving ? null : () => Navigator.pop(context, false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _save,
+          child: const Text('Processar sorteio'),
+        ),
       ],
     );
   }
@@ -807,7 +856,11 @@ class _NumberChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Chip(
-      avatar: Icon(hit ? Icons.check_circle : Icons.cancel, color: hit ? Colors.green : Colors.red, size: 18),
+      avatar: Icon(
+        hit ? Icons.check_circle : Icons.cancel,
+        color: hit ? Colors.green : Colors.red,
+        size: 18,
+      ),
       label: Text(value),
     );
   }
@@ -882,12 +935,14 @@ String _statusLabel(String status) => switch (status) {
       _ => 'Não jogador',
     };
 
-String _weekday(DateTime date) => date.weekday == DateTime.tuesday ? 'Ter' : 'Sex';
+String _weekday(DateTime date) =>
+    date.weekday == DateTime.tuesday ? 'Ter' : 'Sex';
 String _dateOnly(DateTime date) =>
     '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 String _datePt(DateTime date) =>
     '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
-String _money(Object? value) => '${_asDouble(value).toStringAsFixed(2).replaceAll('.', ',')} €';
+String _money(Object? value) =>
+    '${_asDouble(value).toStringAsFixed(2).replaceAll('.', ',')} €';
 String _listText(Object? value) => _intList(value).join(', ');
 
 double _asDouble(Object? value) {
@@ -896,7 +951,9 @@ double _asDouble(Object? value) {
 }
 
 List<int> _intList(Object? value) {
-  if (value is List) return value.map((item) => int.parse(item.toString())).toList();
+  if (value is List) {
+    return value.map((item) => int.parse(item.toString())).toList();
+  }
   return const [];
 }
 
