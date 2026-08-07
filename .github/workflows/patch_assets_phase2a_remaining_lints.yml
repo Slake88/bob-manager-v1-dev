@@ -1,0 +1,37 @@
+name: Patch Assets Phase2A remaining lints
+
+on:
+  push:
+    branches: [rc1-rebuild]
+    paths:
+      - '.github/workflows/patch_assets_phase2a_remaining_lints.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rc1-rebuild
+      - name: Fix remaining analyzer braces
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('apps/mobile/lib/screens/assets_phase2_screen.dart')
+          s = p.read_text(encoding='utf-8')
+          old = "if(caixa.isNotEmpty)accountId=caixa.first['id'].toString();else if(widget.data.accounts.isNotEmpty)accountId=widget.data.accounts.first['id'].toString();"
+          new = "if(caixa.isNotEmpty){accountId=caixa.first['id'].toString();}else if(widget.data.accounts.isNotEmpty){accountId=widget.data.accounts.first['id'].toString();}"
+          if old not in s:
+              raise SystemExit('Sequência esperada não encontrada.')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+          git diff --check
+          git add apps/mobile/lib/screens/assets_phase2_screen.dart
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "RC1: corrigir lints restantes Património fase 2A"
+          git push origin HEAD:rc1-rebuild
