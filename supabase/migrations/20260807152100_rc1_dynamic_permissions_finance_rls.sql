@@ -67,7 +67,8 @@ USING (
   )
 );
 
--- Configurações funcionais usadas por Quotas e Euromilhões
+-- Configurações funcionais usadas por Quotas e Euromilhões.
+-- Cada gestor só pode alterar as chaves do respetivo módulo.
 DROP POLICY IF EXISTS club_settings_read ON public.club_settings;
 CREATE POLICY club_settings_read ON public.club_settings FOR SELECT TO authenticated
 USING (public.has_club_access(club_id));
@@ -75,11 +76,23 @@ DROP POLICY IF EXISTS club_settings_manage ON public.club_settings;
 CREATE POLICY club_settings_manage ON public.club_settings FOR ALL TO authenticated
 USING (
   public.has_club_permission(club_id,'manageSettings')
-  or public.has_club_permission(club_id,'manageFees')
-  or public.has_club_permission(club_id,'manageLottery')
+  OR (
+    public.has_club_permission(club_id,'manageFees')
+    AND key IN ('fee_due_day','monthly_fee_amount','registration_fee_amount')
+  )
+  OR (
+    public.has_club_permission(club_id,'manageLottery')
+    AND key IN ('euromillions_weekly_amount','euromillions_fine_per_miss')
+  )
 )
 WITH CHECK (
   public.has_club_permission(club_id,'manageSettings')
-  or public.has_club_permission(club_id,'manageFees')
-  or public.has_club_permission(club_id,'manageLottery')
+  OR (
+    public.has_club_permission(club_id,'manageFees')
+    AND key IN ('fee_due_day','monthly_fee_amount','registration_fee_amount')
+  )
+  OR (
+    public.has_club_permission(club_id,'manageLottery')
+    AND key IN ('euromillions_weekly_amount','euromillions_fine_per_miss')
+  )
 );
