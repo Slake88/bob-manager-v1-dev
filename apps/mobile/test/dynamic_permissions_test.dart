@@ -1,6 +1,6 @@
+import 'package:bob_manager_mobile/core/app_role.dart';
+import 'package:bob_manager_mobile/core/permissions.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mobile/core/app_role.dart';
-import 'package:mobile/core/permissions.dart';
 
 void main() {
   tearDown(PermissionPolicy.reset);
