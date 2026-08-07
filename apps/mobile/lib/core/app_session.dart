@@ -11,6 +11,8 @@ class AppSession {
   String fullName = 'Administração Blue On Black';
   String role = 'Administrador';
   bool authenticated = false;
+  bool superAdmin = false;
+  Set<String> permissionKeys = <String>{};
 
   AppRole get currentRole => AppRole.fromValue(role);
 
@@ -29,6 +31,15 @@ class AppSession {
     fullName = newFullName;
     role = newRole;
     authenticated = true;
+    superAdmin = _isSuperAdmin(newRole);
+  }
+
+  void applyPermissions(Iterable<String> keys) {
+    permissionKeys = keys.toSet();
+    PermissionPolicy.configure(
+      permissionKeys: permissionKeys,
+      superAdmin: superAdmin,
+    );
   }
 
   void clear() {
@@ -37,5 +48,13 @@ class AppSession {
     fullName = 'Administração Blue On Black';
     role = 'Administrador';
     authenticated = false;
+    superAdmin = false;
+    permissionKeys = <String>{};
+    PermissionPolicy.reset();
+  }
+
+  bool _isSuperAdmin(String value) {
+    final normalized = value.trim().toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+    return normalized == 'super_admin';
   }
 }
