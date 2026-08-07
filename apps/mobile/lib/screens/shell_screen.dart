@@ -24,11 +24,29 @@ class _ShellScreenState extends State<ShellScreen> {
   bool _canViewModule(ModuleDefinition module) {
     final session = AppSession.instance;
     return switch (module.code) {
+      'dashboard' => session.authenticated,
+      'members' => session.can(AppPermission.viewMembers),
       'treasury' => session.can(AppPermission.viewTreasury),
-      'settings' => session.can(AppPermission.manageSettings),
+      'fees' => session.can(AppPermission.viewFees),
+      'lottery' => session.can(AppPermission.viewLottery),
+      'events' => session.can(AppPermission.viewEvents),
+      'inventory' => session.can(AppPermission.viewInventory),
+      'documents' => session.can(AppPermission.viewDocuments),
+      'communication' => session.can(AppPermission.viewCommunication),
       'reports' => session.can(AppPermission.viewFinancialReports),
-      _ => session.authenticated,
+      'settings' => session.can(AppPermission.manageSettings),
+      'emergency' => session.can(AppPermission.viewEmergencyData),
+      _ => false,
     };
+  }
+
+  Future<void> _refreshPermissions() async {
+    await AuthService.instance.refreshPermissions();
+    if (!mounted) return;
+    setState(() {
+      final modules = _visibleModules;
+      if (selected >= modules.length) selected = 0;
+    });
   }
 
   @override
@@ -40,9 +58,7 @@ class _ShellScreenState extends State<ShellScreen> {
       );
     }
 
-    if (selected >= modules.length) {
-      selected = 0;
-    }
+    if (selected >= modules.length) selected = 0;
     final module = modules[selected];
     final session = AppSession.instance;
 
@@ -51,8 +67,8 @@ class _ShellScreenState extends State<ShellScreen> {
         title: Text(module.title),
         actions: [
           IconButton(
-            tooltip: 'Atualizar',
-            onPressed: () => setState(() {}),
+            tooltip: 'Atualizar permissões',
+            onPressed: _refreshPermissions,
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -71,10 +87,7 @@ class _ShellScreenState extends State<ShellScreen> {
               children: [
                 const Text(
                   'BLUE ON BLACK',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 18,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -83,10 +96,7 @@ class _ShellScreenState extends State<ShellScreen> {
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
-                Text(
-                  session.role,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
+                Text(session.role, style: Theme.of(context).textTheme.bodySmall),
               ],
             ),
           ),
