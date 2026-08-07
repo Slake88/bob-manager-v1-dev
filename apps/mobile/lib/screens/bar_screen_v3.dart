@@ -881,7 +881,7 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
     );
     if (widget.canSelectAccount && widget.accounts.isNotEmpty) {
       final preferred = widget.accounts.where(
-        (a) => a['name']?.toString().toLowerCase() == 'club house',
+        (a) => a['name']?.toString().toLowerCase() == 'caixa',
       );
       _accountId = (preferred.isNotEmpty ? preferred.first : widget.accounts.first)['id']
           ?.toString();
@@ -1078,7 +1078,7 @@ class _ConsumptionDialogState extends State<_ConsumptionDialog> {
     _financial = widget.operation == 'sale';
     if (widget.canSelectAccount && widget.accounts.isNotEmpty) {
       final preferred = widget.accounts.where(
-        (a) => a['name']?.toString().toLowerCase() == 'club house',
+        (a) => a['name']?.toString().toLowerCase() == 'caixa',
       );
       _accountId = (preferred.isNotEmpty ? preferred.first : widget.accounts.first)['id']
           ?.toString();
