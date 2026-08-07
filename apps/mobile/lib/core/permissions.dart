@@ -30,12 +30,102 @@ enum AppPermission {
   manageSettings,
 }
 
+extension AppPermissionMeta on AppPermission {
+  String get key => name;
+
+  String get module => switch (this) {
+        AppPermission.viewMembers ||
+        AppPermission.editOwnMemberProfile ||
+        AppPermission.manageMembers => 'Membros',
+        AppPermission.viewEmergencyData => 'Emergência',
+        AppPermission.viewTreasury ||
+        AppPermission.createTreasuryMovement ||
+        AppPermission.transferBetweenAccounts ||
+        AppPermission.manageFinancialAccounts ||
+        AppPermission.approveExpenseRequests ||
+        AppPermission.viewFinancialReports => 'Tesouraria',
+        AppPermission.viewFees || AppPermission.manageFees => 'Quotas',
+        AppPermission.viewLottery || AppPermission.manageLottery => 'Euromilhões',
+        AppPermission.viewEvents ||
+        AppPermission.manageEvents ||
+        AppPermission.manageEventParticipants => 'Eventos',
+        AppPermission.viewInventory ||
+        AppPermission.manageInventory ||
+        AppPermission.sellInventory => 'Inventário',
+        AppPermission.viewDocuments ||
+        AppPermission.viewSensitiveDocuments ||
+        AppPermission.manageDocuments => 'Documentos',
+        AppPermission.viewCommunication ||
+        AppPermission.manageCommunication ||
+        AppPermission.acknowledgeCommunication => 'Comunicação',
+        AppPermission.manageSettings => 'Administração',
+      };
+
+  String get label => switch (this) {
+        AppPermission.viewMembers => 'Ver membros',
+        AppPermission.editOwnMemberProfile => 'Editar o próprio perfil',
+        AppPermission.manageMembers => 'Criar e editar membros',
+        AppPermission.viewEmergencyData => 'Ver dados de emergência',
+        AppPermission.viewTreasury => 'Ver tesouraria',
+        AppPermission.createTreasuryMovement => 'Criar receitas e despesas',
+        AppPermission.transferBetweenAccounts => 'Transferir entre contas',
+        AppPermission.manageFinancialAccounts => 'Gerir contas e centros de custo',
+        AppPermission.approveExpenseRequests => 'Aprovar pedidos de despesa',
+        AppPermission.viewFinancialReports => 'Ver relatórios financeiros',
+        AppPermission.viewFees => 'Ver quotas',
+        AppPermission.manageFees => 'Gerir quotas e pagamentos',
+        AppPermission.viewLottery => 'Ver Euromilhões',
+        AppPermission.manageLottery => 'Gerir Euromilhões e pagamentos',
+        AppPermission.viewEvents => 'Ver eventos',
+        AppPermission.manageEvents => 'Criar e editar eventos',
+        AppPermission.manageEventParticipants => 'Gerir participantes e voluntários',
+        AppPermission.viewInventory => 'Ver inventário',
+        AppPermission.manageInventory => 'Gerir inventário',
+        AppPermission.sellInventory => 'Registar vendas de inventário',
+        AppPermission.viewDocuments => 'Ver documentos',
+        AppPermission.viewSensitiveDocuments => 'Ver documentos sensíveis',
+        AppPermission.manageDocuments => 'Gerir documentos',
+        AppPermission.viewCommunication => 'Ver comunicação',
+        AppPermission.manageCommunication => 'Gerir comunicação',
+        AppPermission.acknowledgeCommunication => 'Confirmar leitura',
+        AppPermission.manageSettings => 'Gerir configurações',
+      };
+}
+
 class PermissionPolicy {
   const PermissionPolicy._();
 
-  static bool allows(AppRole role, AppPermission permission) {
-    if (_fullAccessRoles.contains(role)) return true;
+  static Set<AppPermission>? _effectivePermissions;
+  static bool _superAdmin = false;
 
+  static void configure({
+    required Iterable<String> permissionKeys,
+    required bool superAdmin,
+  }) {
+    _superAdmin = superAdmin;
+    _effectivePermissions = permissionKeys
+        .map((key) {
+          for (final permission in AppPermission.values) {
+            if (permission.key == key) return permission;
+          }
+          return null;
+        })
+        .whereType<AppPermission>()
+        .toSet();
+  }
+
+  static void reset() {
+    _effectivePermissions = null;
+    _superAdmin = false;
+  }
+
+  static bool allows(AppRole role, AppPermission permission) {
+    if (_superAdmin) return true;
+    final effective = _effectivePermissions;
+    if (effective != null) return effective.contains(permission);
+
+    // Fallback apenas para Demo/arranque antes da hidratação da sessão.
+    if (_legacyFullAccessRoles.contains(role)) return true;
     return switch (permission) {
       AppPermission.viewMembers => role != AppRole.unknown,
       AppPermission.editOwnMemberProfile => role != AppRole.unknown,
@@ -45,12 +135,12 @@ class PermissionPolicy {
       AppPermission.transferBetweenAccounts => role == AppRole.treasurer,
       AppPermission.approveExpenseRequests => role == AppRole.treasurer,
       AppPermission.viewFinancialReports => role == AppRole.treasurer,
-      AppPermission.viewFees =>
-        role == AppRole.treasurer || role == AppRole.secretary,
+      AppPermission.viewFees => role != AppRole.unknown,
       AppPermission.manageFees =>
         role == AppRole.treasurer || role == AppRole.secretary,
       AppPermission.viewLottery => role != AppRole.unknown,
-      AppPermission.manageLottery => role == AppRole.treasurer,
+      AppPermission.manageLottery =>
+        role == AppRole.treasurer || role == AppRole.euromillionsManager,
       AppPermission.viewEvents => role != AppRole.unknown,
       AppPermission.manageEvents =>
         role == AppRole.secretary || role == AppRole.eventsManager,
@@ -75,7 +165,7 @@ class PermissionPolicy {
     };
   }
 
-  static const Set<AppRole> _fullAccessRoles = {
+  static const Set<AppRole> _legacyFullAccessRoles = {
     AppRole.president,
     AppRole.vicePresident,
     AppRole.administrator,
