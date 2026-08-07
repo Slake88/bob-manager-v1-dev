@@ -17,7 +17,68 @@ class FeesRepository {
   SupabaseClient get _supabase => _client ?? Supabase.instance.client;
   AppRole get currentRole => AppRole.fromValue(AppSession.instance.role);
 
-  Future<List<Map<String, dynamic>>> listObligations() async {
+  bool get canDeleteObligations {
+    final role = AppSession.instance.role
+        .trim()
+        .toLowerCase()
+        .replaceAll('-', '_')
+        .replaceAll(' ', '_');
+    return role == 'super_admin';
+  }
+
+  bool get canConfigureFees => canDeleteObligations;
+
+  Future<void> ensureYear(int year) async {
+    _require(AppPermission.viewFees);
+    if (AppConfig.demoMode) return;
+    await _supabase.rpc(
+      'sync_member_fee_obligations_v1',
+      params: {
+        'target_club': AppSession.instance.clubId,
+        'p_year': year,
+        'p_member': null,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> settings() async {
+    _require(AppPermission.viewFees);
+    if (AppConfig.demoMode) {
+      return <String, dynamic>{
+        'due_day': 8,
+        'monthly_amount': 25.0,
+        'registration_amount': 0.0,
+      };
+    }
+    final response = await _supabase.rpc(
+      'fee_settings_v1',
+      params: {'target_club': AppSession.instance.clubId},
+    );
+    return Map<String, dynamic>.from(response as Map);
+  }
+
+  Future<void> updateSettings({
+    required int dueDay,
+    required double monthlyAmount,
+    required double registrationAmount,
+  }) async {
+    if (!canConfigureFees) {
+      throw StateError('Apenas o Super Admin pode alterar as definições de quotas.');
+    }
+    if (AppConfig.demoMode) return;
+    await _supabase.rpc(
+      'update_fee_settings_v1',
+      params: {
+        'target_club': AppSession.instance.clubId,
+        'p_due_day': dueDay,
+        'p_monthly_amount': monthlyAmount,
+        'p_registration_amount': registrationAmount,
+      },
+    );
+    await ensureYear(DateTime.now().year);
+  }
+
+  Future<List<Map<String, dynamic>>> listObligations({int? year}) async {
     _require(AppPermission.viewFees);
     if (AppConfig.demoMode) {
       final rows = await _dataService.list('fee_obligations');
@@ -26,10 +87,14 @@ class FeesRepository {
       return rows;
     }
 
-    final response = await _supabase
+    var query = _supabase
         .from('fee_obligations')
         .select('*, member:members!fee_obligations_member_id_fkey(full_name)')
-        .eq('club_id', AppSession.instance.clubId)
+        .eq('club_id', AppSession.instance.clubId);
+    if (year != null) {
+      query = query.eq('reference_year', year);
+    }
+    final response = await query
         .order('reference_year', ascending: false)
         .order('reference_month', ascending: false)
         .order('due_date', ascending: false);
@@ -38,13 +103,13 @@ class FeesRepository {
       final member = row['member'];
       final amount = _asDouble(row['amount']);
       final paid = _asDouble(row['paid_amount']);
+      final type = row['obligation_type']?.toString() ?? 'monthly';
       return <String, dynamic>{
         ...row,
         'member_name': member is Map ? member['full_name'] : null,
-        'period_label': _periodLabel(
-          row['reference_year'],
-          row['reference_month'],
-        ),
+        'period_label': type == 'registration'
+            ? 'Inscrição'
+            : _periodLabel(row['reference_year'], row['reference_month']),
         'credit_amount': 0.0,
         'balance': (amount - paid).clamp(0, double.infinity),
         'status': _displayStatus(row),
@@ -63,7 +128,7 @@ class FeesRepository {
 
     final response = await _supabase
         .from('members')
-        .select('id, full_name, member_number, status')
+        .select('id, full_name, member_number, status, prospect_joined_at, joined_at')
         .eq('club_id', AppSession.instance.clubId)
         .order('full_name');
     return List<Map<String, dynamic>>.from(response);
@@ -83,38 +148,90 @@ class FeesRepository {
       return _dataService.update('fee_obligations', id, normalized);
     }
 
-    final period = _parsePeriod(values['period_label']);
+    final type = values['obligation_type']?.toString() ?? 'monthly';
+    final feeSettings = await settings();
+    final dueDay = int.tryParse(feeSettings['due_day']?.toString() ?? '') ?? 8;
+    final period = type == 'registration'
+        ? (DateTime.now().year, null)
+        : _parsePeriod(values['period_label']);
+    final dueDate = type == 'registration'
+        ? _nullableText(values['due_date']) ??
+            DateTime.now().toIso8601String().split('T').first
+        : DateTime(period.$1, period.$2!, dueDay)
+            .toIso8601String()
+            .split('T')
+            .first;
+
     final payload = <String, dynamic>{
       'club_id': AppSession.instance.clubId,
       'member_id': values['member_id'],
       'reference_year': period.$1,
       'reference_month': period.$2,
-      'due_date': _nullableText(values['due_date']),
+      'due_date': dueDate,
       'amount': normalized['amount'],
       'paid_amount': normalized['paid_amount'],
       'status': normalized['status'] == 'overdue'
           ? 'pending'
           : normalized['status'],
+      'obligation_type': type,
       'notes': _nullableText(values['notes']),
     };
 
-    if (id == null) {
+    try {
+      if (id == null) {
+        final response = await _supabase
+            .from('fee_obligations')
+            .insert(payload)
+            .select()
+            .single();
+        return Map<String, dynamic>.from(response);
+      }
+
       final response = await _supabase
           .from('fee_obligations')
-          .insert(payload)
+          .update(payload)
+          .eq('id', id)
+          .eq('club_id', AppSession.instance.clubId)
           .select()
           .single();
       return Map<String, dynamic>.from(response);
+    } on PostgrestException catch (error) {
+      if (error.code == '23505') {
+        throw StateError('Já existe uma quota para este membro nesse mês.');
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> deleteObligation(Map<String, dynamic> obligation) async {
+    if (!canDeleteObligations) {
+      throw StateError('Apenas o Super Admin pode apagar quotas.');
+    }
+    final id = obligation['id']?.toString();
+    if (id == null || id.isEmpty) throw ArgumentError('Quota inválida.');
+
+    if (AppConfig.demoMode) {
+      await _dataService.delete('fee_obligations', id);
+      return;
     }
 
-    final response = await _supabase
-        .from('fee_obligations')
-        .update(payload)
-        .eq('id', id)
-        .eq('club_id', AppSession.instance.clubId)
-        .select()
-        .single();
-    return Map<String, dynamic>.from(response);
+    try {
+      await _supabase.rpc(
+        'delete_fee_obligation_v1',
+        params: {
+          'target_club': AppSession.instance.clubId,
+          'p_obligation': id,
+        },
+      );
+    } on PostgrestException catch (error) {
+      final message = error.message;
+      if (message.contains('pagamentos')) {
+        throw StateError(
+          'Esta quota já tem pagamentos e não pode ser apagada. Deve ser anulada.',
+        );
+      }
+      throw StateError(message);
+    }
   }
 
   Future<Map<String, dynamic>> registerPayment({
@@ -153,7 +270,9 @@ class FeesRepository {
         'transaction_date': DateTime.now().toIso8601String().split('T').first,
         'kind': 'income',
         'status': 'confirmed',
-        'description': 'Pagamento de quota - ${obligation['member_name'] ?? ''}',
+        'description': obligation['obligation_type'] == 'registration'
+            ? 'Pagamento de inscrição - ${obligation['member_name'] ?? ''}'
+            : 'Pagamento de quota - ${obligation['member_name'] ?? ''}',
         'amount': amount,
         'account_id': 'acc-fees',
         'account_name': 'Quotas',
