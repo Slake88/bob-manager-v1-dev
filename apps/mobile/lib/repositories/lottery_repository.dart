@@ -45,10 +45,15 @@ class LotteryRepository {
         'charges': <Map<String, dynamic>>[],
         'results': <Map<String, dynamic>>[],
         'fines': <Map<String, dynamic>>[],
+        'prizes': <Map<String, dynamic>>[],
         'weekly_amount': 4.40,
         'fine_per_miss': 0.10,
       };
     }
+
+    // A importação oficial não deve bloquear o módulo se o portal estiver
+    // temporariamente indisponível ou se o último sorteio for de outro mês.
+    await importOfficial(year: year, month: month, silent: true);
 
     await _supabase.rpc(
       'generate_euromillions_charges_v1',
@@ -89,7 +94,9 @@ class LotteryRepository {
       _supabase
           .from('euromillions_fines')
           .select('*, result:euromillions_results!inner(draw_date)')
-          .eq('club_id', AppSession.instance.clubId),
+          .eq('club_id', AppSession.instance.clubId)
+          .gte('result.draw_date', firstIso)
+          .lt('result.draw_date', nextIso),
       _supabase
           .from('club_settings')
           .select('key,value')
@@ -98,6 +105,12 @@ class LotteryRepository {
         'euromillions_weekly_amount',
         'euromillions_fine_per_miss',
       ]),
+      _supabase
+          .from('euromillions_prizes')
+          .select('*, result:euromillions_results!inner(draw_date,official_draw_number)')
+          .eq('club_id', AppSession.instance.clubId)
+          .gte('result.draw_date', firstIso)
+          .lt('result.draw_date', nextIso),
     ]);
 
     final players = List<Map<String, dynamic>>.from(results[0] as List)
@@ -125,11 +138,36 @@ class LotteryRepository {
       'charges': List<Map<String, dynamic>>.from(results[1] as List),
       'results': List<Map<String, dynamic>>.from(results[2] as List),
       'fines': List<Map<String, dynamic>>.from(results[3] as List),
+      'prizes': List<Map<String, dynamic>>.from(results[5] as List),
       'weekly_amount':
           double.tryParse(settings['euromillions_weekly_amount'] ?? '') ?? 4.40,
       'fine_per_miss':
           double.tryParse(settings['euromillions_fine_per_miss'] ?? '') ?? 0.10,
     };
+  }
+
+  Future<bool> importOfficial({
+    required int year,
+    required int month,
+    bool silent = false,
+  }) async {
+    if (AppConfig.demoMode) return false;
+    try {
+      final response = await _supabase.functions.invoke(
+        'euromillions-official-import',
+        body: {
+          'club_id': AppSession.instance.clubId,
+          'year': year,
+          'month': month,
+        },
+      );
+      final data = response.data;
+      if (data is Map) return data['imported'] == true;
+      return false;
+    } catch (error) {
+      if (silent) return false;
+      throw StateError(_friendlyError(error));
+    }
   }
 
   Future<void> updatePlayer({
@@ -236,6 +274,56 @@ class LotteryRepository {
     );
   }
 
+  Future<void> payFines({
+    required String playerId,
+    required String paymentMethod,
+    double? amount,
+  }) async {
+    if (!canOperateMoney) {
+      throw StateError(
+        'Apenas o Tesoureiro ou Super Admin pode receber multas.',
+      );
+    }
+    if (amount != null && amount <= 0) {
+      throw ArgumentError('O valor deve ser superior a zero.');
+    }
+    if (AppConfig.demoMode) return;
+    await _supabase.rpc(
+      'register_euromillions_fine_payment_v1',
+      params: {
+        'target_club': AppSession.instance.clubId,
+        'p_player': playerId,
+        'p_amount': amount,
+        'p_payment_method': paymentMethod,
+      },
+    );
+  }
+
+  Future<void> receivePrize({
+    required String prizeId,
+    required String paymentMethod,
+    double? amount,
+  }) async {
+    if (!canOperateMoney) {
+      throw StateError(
+        'Apenas o Tesoureiro ou Super Admin pode registar prémios.',
+      );
+    }
+    if (amount != null && amount <= 0) {
+      throw ArgumentError('O valor deve ser superior a zero.');
+    }
+    if (AppConfig.demoMode) return;
+    await _supabase.rpc(
+      'register_euromillions_prize_receipt_v1',
+      params: {
+        'target_club': AppSession.instance.clubId,
+        'p_prize': prizeId,
+        'p_amount': amount,
+        'p_payment_method': paymentMethod,
+      },
+    );
+  }
+
   Future<void> processResult({
     required DateTime drawDate,
     required String numbers,
@@ -254,12 +342,15 @@ class LotteryRepository {
     }
     if (AppConfig.demoMode) return;
     await _supabase.rpc(
-      'process_euromillions_result_v1',
+      'process_euromillions_official_result_v1',
       params: {
         'target_club': AppSession.instance.clubId,
         'p_draw_date': _dateOnly(drawDate),
+        'p_draw_number': null,
         'p_numbers': parsedNumbers,
         'p_stars': parsedStars,
+        'p_prizes': <String, dynamic>{},
+        'p_source': 'manual',
       },
     );
   }
@@ -428,6 +519,20 @@ class LotteryRepository {
     }
     values.sort();
     return values;
+  }
+
+  String _friendlyError(Object error) {
+    final text = error.toString();
+    if (text.contains('Portal oficial indisponível')) {
+      return 'O portal oficial está temporariamente indisponível. Tenta novamente mais tarde.';
+    }
+    if (text.contains('interpretar o resultado oficial')) {
+      return 'O formato do portal oficial mudou e o resultado não pôde ser importado automaticamente.';
+    }
+    return text
+        .replaceFirst('Bad state: ', '')
+        .replaceFirst('FunctionException(status: 500, details: ', '')
+        .replaceFirst(RegExp(r'\)$'), '');
   }
 
   void _require(AppPermission permission) {
