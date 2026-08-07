@@ -88,6 +88,102 @@ class _LotteryScreenState extends State<LotteryScreen> {
     }
   }
 
+  Future<void> _payFines(Map<String, dynamic> player, double debt) async {
+    if (debt <= 0) return;
+    final method = await _paymentMethod();
+    if (method == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Receber multas'),
+        content: Text(
+          'Registar o pagamento de ${_money(debt)} de multas de '
+          '${player['member_name'] ?? 'este jogador'}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Receber'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _repository.payFines(
+        playerId: player['player_id'].toString(),
+        paymentMethod: method,
+      );
+      if (mounted) setState(_reload);
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
+  Future<void> _receivePrize(Map<String, dynamic> prize) async {
+    final remaining = (_asDouble(prize['prize_amount']) -
+            _asDouble(prize['received_amount']))
+        .clamp(0, double.infinity);
+    if (remaining <= 0) return;
+    final method = await _paymentMethod();
+    if (method == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Receber prémio'),
+        content: Text(
+          'Registar a entrada de ${_money(remaining)} na conta Euromilhões?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Receber prémio'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await _repository.receivePrize(
+        prizeId: prize['id'].toString(),
+        paymentMethod: method,
+      );
+      if (mounted) setState(_reload);
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
+  Future<void> _importOfficial() async {
+    try {
+      final imported = await _repository.importOfficial(
+        year: _month.year,
+        month: _month.month,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            imported
+                ? 'Resultado oficial importado e processado.'
+                : 'O último resultado oficial não pertence a este mês ou já está atualizado.',
+          ),
+        ),
+      );
+      setState(_reload);
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
   Future<void> _processResult(DateTime date) async {
     final changed = await showDialog<bool>(
       context: context,
@@ -142,6 +238,7 @@ class _LotteryScreenState extends State<LotteryScreen> {
           final charges = List<Map<String, dynamic>>.from(data['charges'] as List);
           final results = List<Map<String, dynamic>>.from(data['results'] as List);
           final fines = List<Map<String, dynamic>>.from(data['fines'] as List);
+          final prizes = List<Map<String, dynamic>>.from(data['prizes'] as List);
           final drawDates = _repository.drawDates(_month.year, _month.month);
           final weeklyAmount = _asDouble(data['weekly_amount']);
           final weeks = drawDates.map(_repository.weekStart).map(_dateOnly).toSet();
@@ -150,6 +247,21 @@ class _LotteryScreenState extends State<LotteryScreen> {
           final fineTotal = fines.fold<double>(
             0,
             (total, row) => total + _asDouble(row['fine_amount']),
+          );
+          final fineDebt = fines.fold<double>(
+            0,
+            (total, row) =>
+                total +
+                (_asDouble(row['fine_amount']) - _asDouble(row['paid_amount']))
+                    .clamp(0, double.infinity),
+          );
+          final pendingPrizes = prizes.fold<double>(
+            0,
+            (total, row) =>
+                total +
+                (_asDouble(row['prize_amount']) -
+                        _asDouble(row['received_amount']))
+                    .clamp(0, double.infinity),
           );
 
           return RefreshIndicator(
@@ -184,17 +296,32 @@ class _LotteryScreenState extends State<LotteryScreen> {
                       value: _money(totalExpected),
                     ),
                     _MetricCard(label: 'Multas apuradas', value: _money(fineTotal)),
+                    _MetricCard(label: 'Multas por receber', value: _money(fineDebt)),
+                    if (pendingPrizes > 0)
+                      _MetricCard(
+                        label: 'Prémios por receber',
+                        value: _money(pendingPrizes),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 12),
                 if (_repository.canOperateMoney)
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _configure(data),
-                      icon: const Icon(Icons.tune),
-                      label: const Text('Configurar'),
-                    ),
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _importOfficial,
+                        icon: const Icon(Icons.cloud_download_outlined),
+                        label: const Text('Atualizar oficial'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () => _configure(data),
+                        icon: const Icon(Icons.tune),
+                        label: const Text('Configurar'),
+                      ),
+                    ],
                   ),
                 const SizedBox(height: 8),
                 DefaultTabController(
@@ -211,7 +338,7 @@ class _LotteryScreenState extends State<LotteryScreen> {
                         ],
                       ),
                       SizedBox(
-                        height: 610,
+                        height: 650,
                         child: TabBarView(
                           children: [
                             _MonthlyBoard(
@@ -232,10 +359,18 @@ class _LotteryScreenState extends State<LotteryScreen> {
                               players: active,
                               results: results,
                               fines: fines,
+                              prizes: prizes,
                               canProcess: _repository.canOperateMoney,
                               onProcess: _processResult,
+                              onReceivePrize:
+                                  _repository.canOperateMoney ? _receivePrize : null,
                             ),
-                            _RankingView(players: active, fines: fines),
+                            _RankingView(
+                              players: active,
+                              fines: fines,
+                              canReceive: _repository.canOperateMoney,
+                              onReceiveFines: _payFines,
+                            ),
                           ],
                         ),
                       ),
@@ -285,7 +420,9 @@ class _MonthlyBoard extends StatelessWidget {
                 const DataColumn(label: Text('Jogador')),
                 for (final date in dates)
                   DataColumn(
-                    label: Text('${_weekday(date)}\n${date.day.toString().padLeft(2, '0')}'),
+                    label: Text(
+                      '${_weekday(date)}\n${date.day.toString().padLeft(2, '0')}',
+                    ),
                   ),
                 const DataColumn(label: Text('Mês')),
               ],
@@ -400,16 +537,20 @@ class _ResultsView extends StatelessWidget {
     required this.players,
     required this.results,
     required this.fines,
+    required this.prizes,
     required this.canProcess,
     required this.onProcess,
+    required this.onReceivePrize,
   });
 
   final List<DateTime> dates;
   final List<Map<String, dynamic>> players;
   final List<Map<String, dynamic>> results;
   final List<Map<String, dynamic>> fines;
+  final List<Map<String, dynamic>> prizes;
   final bool canProcess;
   final Future<void> Function(DateTime) onProcess;
+  final Future<void> Function(Map<String, dynamic>)? onReceivePrize;
 
   @override
   Widget build(BuildContext context) {
@@ -428,6 +569,12 @@ class _ResultsView extends StatelessWidget {
         final resultFines = fines
             .where((row) => row['result_id']?.toString() == resultId)
             .toList();
+        final resultPrizes = prizes
+            .where((row) => row['result_id']?.toString() == resultId)
+            .toList();
+        final drawNumber = result?['official_draw_number']?.toString();
+        final source = result?['source']?.toString();
+
         return Card(
           child: ExpansionTile(
             leading: const Icon(Icons.casino_outlined),
@@ -435,15 +582,19 @@ class _ResultsView extends StatelessWidget {
             subtitle: result == null
                 ? const Text('Resultado ainda não registado')
                 : Text(
+                    '${source == 'jogossantacasa.pt' ? 'Oficial' : 'Manual'}'
+                    '${drawNumber == null || drawNumber.isEmpty ? '' : ' • Sorteio $drawNumber'}\n'
                     'Números: ${_listText(result['numbers'])} • Estrelas: ${_listText(result['stars'])}',
                   ),
             trailing: canProcess
                 ? IconButton(
                     tooltip: result == null ? 'Registar resultado' : 'Editar resultado',
                     onPressed: () => onProcess(date),
-                    icon: Icon(result == null
-                        ? Icons.add_circle_outline
-                        : Icons.edit_outlined),
+                    icon: Icon(
+                      result == null
+                          ? Icons.add_circle_outline
+                          : Icons.edit_outlined,
+                    ),
                   )
                 : null,
             children: result == null
@@ -464,29 +615,93 @@ class _ResultsView extends StatelessWidget {
                         break;
                       }
                     }
+                    Map<String, dynamic>? prize;
+                    for (final row in resultPrizes) {
+                      if (row['player_id']?.toString() ==
+                          player['player_id']?.toString()) {
+                        prize = row;
+                        break;
+                      }
+                    }
                     final resultNumbers = _intList(result!['numbers']).toSet();
                     final resultStars = _intList(result['stars']).toSet();
-                    return ListTile(
-                      title: Text(player['member_name']?.toString() ?? 'Membro'),
-                      subtitle: Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
+                    final fineAmount = _asDouble(fine?['fine_amount']);
+                    final finePaid = _asDouble(fine?['paid_amount']);
+                    final prizeAmount = _asDouble(prize?['prize_amount']);
+                    final prizeReceived = _asDouble(prize?['received_amount']);
+                    final prizePending =
+                        (prizeAmount - prizeReceived).clamp(0, double.infinity);
+
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          for (final number in _intList(player['numbers']))
-                            _NumberChip(
-                              value: '$number',
-                              hit: resultNumbers.contains(number),
-                            ),
-                          for (final star in _intList(player['stars']))
-                            _NumberChip(
-                              value: '★$star',
-                              hit: resultStars.contains(star),
-                            ),
+                          Text(
+                            player['member_name']?.toString() ?? 'Membro',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 6),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              for (final number in _intList(player['numbers']))
+                                _NumberChip(
+                                  value: '$number',
+                                  hit: resultNumbers.contains(number),
+                                ),
+                              for (final star in _intList(player['stars']))
+                                _NumberChip(
+                                  value: '★$star',
+                                  hit: resultStars.contains(star),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Chip(
+                                avatar: Icon(
+                                  fineAmount > finePaid
+                                      ? Icons.warning_amber_outlined
+                                      : Icons.check_circle_outline,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  fineAmount == 0
+                                      ? 'Sem multa'
+                                      : 'Multa ${_money(fineAmount)}'
+                                          '${finePaid >= fineAmount ? ' • paga' : ''}',
+                                ),
+                              ),
+                              if (prizeAmount > 0)
+                                Chip(
+                                  avatar: const Icon(
+                                    Icons.emoji_events_outlined,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    'Prémio ${_money(prizeAmount)} • ${prize!['category']}.º',
+                                  ),
+                                ),
+                              if (prize != null &&
+                                  prizePending > 0 &&
+                                  onReceivePrize != null)
+                                FilledButton.tonalIcon(
+                                  onPressed: () => onReceivePrize!(prize!),
+                                  icon: const Icon(Icons.payments_outlined),
+                                  label: Text('Receber ${_money(prizePending)}'),
+                                ),
+                              if (prize != null && prizePending == 0)
+                                const Chip(label: Text('Prémio recebido')),
+                            ],
+                          ),
+                          const Divider(height: 20),
                         ],
-                      ),
-                      trailing: Text(
-                        fine == null ? '—' : _money(fine['fine_amount']),
-                        style: Theme.of(context).textTheme.titleMedium,
                       ),
                     );
                   }).toList(),
@@ -498,10 +713,17 @@ class _ResultsView extends StatelessWidget {
 }
 
 class _RankingView extends StatelessWidget {
-  const _RankingView({required this.players, required this.fines});
+  const _RankingView({
+    required this.players,
+    required this.fines,
+    required this.canReceive,
+    required this.onReceiveFines,
+  });
 
   final List<Map<String, dynamic>> players;
   final List<Map<String, dynamic>> fines;
+  final bool canReceive;
+  final Future<void> Function(Map<String, dynamic>, double) onReceiveFines;
 
   @override
   Widget build(BuildContext context) {
@@ -513,6 +735,10 @@ class _RankingView extends StatelessWidget {
         0,
         (sum, row) => sum + _asDouble(row['fine_amount']),
       );
+      final paidFine = playerFines.fold<double>(
+        0,
+        (sum, row) => sum + _asDouble(row['paid_amount']),
+      );
       final misses = playerFines.fold<int>(
         0,
         (sum, row) =>
@@ -520,7 +746,14 @@ class _RankingView extends StatelessWidget {
             (int.tryParse(row['missed_numbers']?.toString() ?? '') ?? 0) +
             (int.tryParse(row['missed_stars']?.toString() ?? '') ?? 0),
       );
-      return {'name': player['member_name'], 'fine': totalFine, 'misses': misses};
+      return {
+        'player': player,
+        'name': player['member_name'],
+        'fine': totalFine,
+        'paid': paidFine,
+        'debt': (totalFine - paidFine).clamp(0, double.infinity),
+        'misses': misses,
+      };
     }).toList()
       ..sort((a, b) => (a['fine'] as double).compareTo(b['fine'] as double));
 
@@ -539,8 +772,21 @@ class _RankingView extends StatelessWidget {
             child: ListTile(
               leading: CircleAvatar(child: Text('${index + 1}º')),
               title: Text(rows[index]['name']?.toString() ?? 'Membro'),
-              subtitle: Text('${rows[index]['misses']} elementos falhados'),
-              trailing: Text(_money(rows[index]['fine'] as double)),
+              subtitle: Text(
+                '${rows[index]['misses']} elementos falhados • '
+                'Multas ${_money(rows[index]['fine'])} • '
+                'Dívida ${_money(rows[index]['debt'])}',
+              ),
+              trailing: canReceive && (rows[index]['debt'] as double) > 0
+                  ? FilledButton.tonalIcon(
+                      onPressed: () => onReceiveFines(
+                        Map<String, dynamic>.from(rows[index]['player'] as Map),
+                        rows[index]['debt'] as double,
+                      ),
+                      icon: const Icon(Icons.payments_outlined),
+                      label: const Text('Receber'),
+                    )
+                  : const Icon(Icons.check_circle_outline),
             ),
           ),
         const SizedBox(height: 12),
@@ -816,6 +1062,10 @@ class _ResultDialogState extends State<_ResultDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const Text(
+              'Usa este formulário apenas se a importação oficial não estiver disponível.',
+            ),
+            const SizedBox(height: 12),
             TextField(
               controller: _numbers,
               decoration: const InputDecoration(
