@@ -30,21 +30,25 @@ enum AppRole {
         .replaceAll('_', ' ');
 
     return switch (normalized) {
-      'presidente' => AppRole.president,
-      'vice presidente' => AppRole.vicePresident,
+      'presidente' || 'president' => AppRole.president,
+      'vice presidente' || 'vice president' => AppRole.vicePresident,
       'super admin' ||
       'super administrador' ||
       'administrador' ||
-      'administrator' => AppRole.administrator,
-      'tesoureiro' => AppRole.treasurer,
-      'secretario' => AppRole.secretary,
+      'administrator' ||
+      'admin' => AppRole.administrator,
+      'tesoureiro' || 'treasurer' => AppRole.treasurer,
+      'secretario' || 'secretary' => AppRole.secretary,
       'road captain' => AppRole.roadCaptain,
-      'responsavel inventario' || 'responsavel de inventario' =>
-        AppRole.inventoryManager,
-      'responsavel eventos' || 'responsavel de eventos' =>
-        AppRole.eventsManager,
-      'responsavel euromilhoes' || 'responsavel de euromilhoes' =>
-        AppRole.euromillionsManager,
+      'responsavel inventario' ||
+      'responsavel de inventario' ||
+      'inventory manager' => AppRole.inventoryManager,
+      'responsavel eventos' ||
+      'responsavel de eventos' ||
+      'events manager' => AppRole.eventsManager,
+      'responsavel euromilhoes' ||
+      'responsavel de euromilhoes' ||
+      'euromillions manager' => AppRole.euromillionsManager,
       'prospect' => AppRole.prospect,
       'membro' || 'member' => AppRole.member,
       _ => AppRole.unknown,
