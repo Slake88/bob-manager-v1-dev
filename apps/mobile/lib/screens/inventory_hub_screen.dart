@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../repositories/inventory_foundation_repository.dart';
+import 'shop_management_screen.dart';
 import 'shop_screen.dart';
 
 class InventoryHubScreen extends StatefulWidget {
@@ -36,9 +37,15 @@ class _InventoryHubScreenState extends State<InventoryHubScreen> {
                 Tab(text: 'Resumo', icon: Icon(Icons.dashboard_outlined)),
                 Tab(text: 'Loja', icon: Icon(Icons.storefront_outlined)),
                 Tab(text: 'Bar', icon: Icon(Icons.local_bar_outlined)),
-                Tab(text: 'Património', icon: Icon(Icons.home_repair_service_outlined)),
+                Tab(
+                  text: 'Património',
+                  icon: Icon(Icons.home_repair_service_outlined),
+                ),
                 Tab(text: 'Movimentos', icon: Icon(Icons.swap_horiz_outlined)),
-                Tab(text: 'Inventário físico', icon: Icon(Icons.fact_check_outlined)),
+                Tab(
+                  text: 'Inventário físico',
+                  icon: Icon(Icons.fact_check_outlined),
+                ),
               ],
             ),
           ),
@@ -113,20 +120,68 @@ class _SummaryTab extends StatelessWidget {
                     ),
               ),
               const SizedBox(height: 4),
-              const Text('Visão global da Loja, Bar e património relevante do clube.'),
+              const Text(
+                'Visão global da Loja, Bar e património relevante do clube.',
+              ),
               const SizedBox(height: 16),
               Wrap(
                 spacing: 10,
                 runSpacing: 10,
                 children: [
-                  _Metric('Loja', '${data['shop_products'] ?? 0}', Icons.storefront_outlined),
-                  _Metric('Bar', '${data['bar_products'] ?? 0}', Icons.local_bar_outlined),
-                  _Metric('Património', '${data['assets'] ?? 0}', Icons.home_repair_service_outlined),
-                  _Metric('Stock baixo', '${data['low_stock'] ?? 0}', Icons.warning_amber_outlined),
-                  _Metric('Reservado', _number(data['reserved_units']), Icons.bookmark_outline),
-                  _Metric('Valor stock', '${_money(data['stock_value'])} €', Icons.euro_outlined),
-                  _Metric('Valor património', '${_money(data['asset_value'])} €', Icons.account_balance_outlined),
+                  _Metric(
+                    'Loja',
+                    '${data['shop_products'] ?? 0}',
+                    Icons.storefront_outlined,
+                  ),
+                  _Metric(
+                    'Bar',
+                    '${data['bar_products'] ?? 0}',
+                    Icons.local_bar_outlined,
+                  ),
+                  _Metric(
+                    'Património',
+                    '${data['assets'] ?? 0}',
+                    Icons.home_repair_service_outlined,
+                  ),
+                  _Metric(
+                    'Stock baixo',
+                    '${data['low_stock'] ?? 0}',
+                    Icons.warning_amber_outlined,
+                  ),
+                  _Metric(
+                    'Reservado',
+                    _number(data['reserved_units']),
+                    Icons.bookmark_outline,
+                  ),
+                  _Metric(
+                    'Valor stock',
+                    '${_money(data['stock_value'])} €',
+                    Icons.euro_outlined,
+                  ),
+                  _Metric(
+                    'Valor património',
+                    '${_money(data['asset_value'])} €',
+                    Icons.account_balance_outlined,
+                  ),
                 ],
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: ListTile(
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.manage_search_outlined),
+                  ),
+                  title: const Text('Gestão avançada da Loja'),
+                  subtitle: const Text(
+                    'Definir artigos para Público / Prospect / Full Color, preços próprios e ver o que falta encomendar ao fornecedor.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) => const ShopManagementScreen(),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
