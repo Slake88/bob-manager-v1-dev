@@ -26,39 +26,60 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
     _future = Future.wait([
       _repository.roleMatrix(),
       _repository.users(),
-    ]).then((values) => _PermissionsData(
-          matrix: values[0] as Map<String, Map<String, bool>>,
-          users: List<Map<String, dynamic>>.from(values[1] as List),
-        ));
+    ]).then(
+      (values) => _PermissionsData(
+        matrix: values[0] as Map<String, Map<String, bool>>,
+        users: List<Map<String, dynamic>>.from(values[1] as List),
+      ),
+    );
   }
 
-  Future<void> _setRolePermission(AppPermission permission, bool value) async {
-    await _repository.setRolePermission(
-      roleKey: _role,
-      permission: permission,
-      allowed: value,
-    );
-    if (mounted) setState(_reload);
+  Future<void> _setRolePermission(
+    AppPermission permission,
+    bool value,
+  ) async {
+    try {
+      await _repository.setRolePermission(
+        roleKey: _role,
+        permission: permission,
+        allowed: value,
+      );
+      if (mounted) setState(_reload);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$error')),
+      );
+    }
   }
 
   Future<void> _openUser(Map<String, dynamic> user) async {
     final profileId = user['profile_id'].toString();
     setState(() => _selectedProfile = profileId);
-    final overrides = await _repository.userOverrides(profileId);
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (context) => _UserPermissionDialog(
-        repository: _repository,
-        user: user,
-        initialOverrides: overrides,
-      ),
-    );
-    if (mounted) {
-      setState(() {
-        _selectedProfile = null;
-        _reload();
-      });
+    try {
+      final overrides = await _repository.userOverrides(profileId);
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => _UserPermissionDialog(
+          repository: _repository,
+          user: user,
+          initialOverrides: overrides,
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _selectedProfile = null;
+          _reload();
+        });
+      }
     }
   }
 
@@ -75,6 +96,7 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
+
           final data = snapshot.data!;
           final roleValues = data.matrix[_role] ?? const <String, bool>{};
           final grouped = <String, List<AppPermission>>{};
@@ -90,7 +112,10 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
                   child: TabBar(
                     tabs: [
                       Tab(text: 'Por cargo', icon: Icon(Icons.badge_outlined)),
-                      Tab(text: 'Por utilizador', icon: Icon(Icons.person_outline)),
+                      Tab(
+                        text: 'Por utilizador',
+                        icon: Icon(Icons.person_outline),
+                      ),
                     ],
                   ),
                 ),
@@ -102,7 +127,9 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
                         children: [
                           const Card(
                             child: ListTile(
-                              leading: Icon(Icons.admin_panel_settings_outlined),
+                              leading: Icon(
+                                Icons.admin_panel_settings_outlined,
+                              ),
                               title: Text('Super Admin'),
                               subtitle: Text(
                                 'Tem sempre acesso total. As suas permissões não podem ser removidas.',
@@ -112,22 +139,40 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
                             initialValue: _role,
-                            decoration: const InputDecoration(labelText: 'Cargo / perfil'),
+                            decoration: const InputDecoration(
+                              labelText: 'Cargo / perfil',
+                            ),
                             items: _roles
-                                .map((role) => DropdownMenuItem(
-                                      value: role.key,
-                                      child: Text(role.label),
-                                    ))
+                                .map(
+                                  (role) => DropdownMenuItem(
+                                    value: role.key,
+                                    child: Text(role.label),
+                                  ),
+                                )
                                 .toList(),
                             onChanged: (value) {
-                              if (value != null) setState(() => _role = value);
+                              if (value != null) {
+                                setState(() => _role = value);
+                              }
                             },
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 12),
+                          const Card(
+                            child: ListTile(
+                              leading: Icon(Icons.sync_outlined),
+                              title: Text('Aplicação das alterações'),
+                              subtitle: Text(
+                                'Os utilizadores recebem a nova matriz ao iniciar sessão ou ao carregar em Atualizar permissões.',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
                           for (final entry in grouped.entries)
                             Card(
                               child: ExpansionTile(
-                                initiallyExpanded: entry.key == 'Tesouraria' || entry.key == 'Eventos',
+                                initiallyExpanded:
+                                    entry.key == 'Tesouraria' ||
+                                    entry.key == 'Eventos',
                                 title: Text(entry.key),
                                 subtitle: Text(
                                   '${entry.value.where((p) => roleValues[p.key] == true).length} de ${entry.value.length} permissões ativas',
@@ -136,9 +181,13 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
                                   for (final permission in entry.value)
                                     SwitchListTile.adaptive(
                                       title: Text(permission.label),
-                                      value: roleValues[permission.key] == true,
+                                      value:
+                                          roleValues[permission.key] == true,
                                       onChanged: (value) =>
-                                          _setRolePermission(permission, value),
+                                          _setRolePermission(
+                                        permission,
+                                        value,
+                                      ),
                                     ),
                                 ],
                               ),
@@ -159,22 +208,43 @@ class _PermissionsScreenState extends State<PermissionsScreen> {
                           ),
                           const SizedBox(height: 8),
                           if (data.users.isEmpty)
-                            const Card(child: ListTile(title: Text('Sem utilizadores ativos.')))
+                            const Card(
+                              child: ListTile(
+                                title: Text('Sem utilizadores ativos.'),
+                              ),
+                            )
                           else
                             for (final user in data.users)
                               Card(
                                 child: ListTile(
-                                  leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-                                  title: Text(user['full_name']?.toString() ?? 'Utilizador'),
-                                  subtitle: Text(_roleLabel(user['access_role']?.toString() ?? 'member')),
-                                  trailing: _selectedProfile == user['profile_id']?.toString()
+                                  leading: const CircleAvatar(
+                                    child: Icon(Icons.person_outline),
+                                  ),
+                                  title: Text(
+                                    user['full_name']?.toString() ??
+                                        'Utilizador',
+                                  ),
+                                  subtitle: Text(
+                                    _roleLabel(
+                                      user['access_role']?.toString() ??
+                                          'member',
+                                    ),
+                                  ),
+                                  trailing: _selectedProfile ==
+                                          user['profile_id']?.toString()
                                       ? const SizedBox(
                                           width: 24,
                                           height: 24,
-                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
                                         )
-                                      : const Icon(Icons.chevron_right),
-                                  onTap: user['access_role']?.toString() == 'super_admin'
+                                      : user['access_role']?.toString() ==
+                                              'super_admin'
+                                          ? const Icon(Icons.lock_outline)
+                                          : const Icon(Icons.chevron_right),
+                                  onTap: user['access_role']?.toString() ==
+                                          'super_admin'
                                       ? null
                                       : () => _openUser(user),
                                 ),
@@ -205,7 +275,8 @@ class _UserPermissionDialog extends StatefulWidget {
   final Map<String, bool> initialOverrides;
 
   @override
-  State<_UserPermissionDialog> createState() => _UserPermissionDialogState();
+  State<_UserPermissionDialog> createState() =>
+      _UserPermissionDialogState();
 }
 
 class _UserPermissionDialogState extends State<_UserPermissionDialog> {
@@ -226,6 +297,7 @@ class _UserPermissionDialogState extends State<_UserPermissionDialog> {
         permission: permission,
         allowed: value,
       );
+      if (!mounted) return;
       setState(() {
         if (value == null) {
           _overrides.remove(permission.key);
@@ -234,55 +306,119 @@ class _UserPermissionDialogState extends State<_UserPermissionDialog> {
         }
         _saving = false;
       });
-    } catch (_) {
-      if (mounted) setState(() => _saving = false);
-      rethrow;
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$error')),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.sizeOf(context);
+    final dialogHeight = (screenSize.height * 0.72).clamp(360.0, 620.0);
+
     return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       title: Text(widget.user['full_name']?.toString() ?? 'Utilizador'),
-      content: SizedBox(
-        width: 650,
-        height: 620,
-        child: Column(
-          children: [
-            Text(
-              'Cargo base: ${_roleLabel(widget.user['access_role']?.toString() ?? 'member')}\n'
-              'Herdar = usa a configuração do cargo.',
-            ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: ListView(
-                children: [
-                  for (final permission in AppPermission.values)
-                    Card(
-                      child: ListTile(
-                        title: Text(permission.label),
-                        subtitle: Text(permission.module),
-                        trailing: DropdownButton<bool?>(
-                          value: _overrides.containsKey(permission.key)
-                              ? _overrides[permission.key]
-                              : null,
-                          items: const [
-                            DropdownMenuItem<bool?>(value: null, child: Text('Herdar')),
-                            DropdownMenuItem<bool?>(value: true, child: Text('Permitir')),
-                            DropdownMenuItem<bool?>(value: false, child: Text('Bloquear')),
-                          ],
-                          onChanged: _saving ? null : (value) => _set(permission, value),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 650),
+        child: SizedBox(
+          width: screenSize.width,
+          height: dialogHeight,
+          child: Column(
+            children: [
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Cargo base: ${_roleLabel(widget.user['access_role']?.toString() ?? 'member')}\n'
+                  'Herdar = usa a configuração do cargo.',
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView(
+                  children: [
+                    for (final permission in AppPermission.values)
+                      Card(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final narrow = constraints.maxWidth < 430;
+                            final selector = DropdownButton<bool?>(
+                              value: _overrides.containsKey(permission.key)
+                                  ? _overrides[permission.key]
+                                  : null,
+                              items: const [
+                                DropdownMenuItem<bool?>(
+                                  value: null,
+                                  child: Text('Herdar'),
+                                ),
+                                DropdownMenuItem<bool?>(
+                                  value: true,
+                                  child: Text('Permitir'),
+                                ),
+                                DropdownMenuItem<bool?>(
+                                  value: false,
+                                  child: Text('Bloquear'),
+                                ),
+                              ],
+                              onChanged: _saving
+                                  ? null
+                                  : (value) => _set(permission, value),
+                            );
+
+                            if (narrow) {
+                              return Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  12,
+                                  16,
+                                  10,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      permission.label,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall,
+                                    ),
+                                    Text(
+                                      permission.module,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    selector,
+                                  ],
+                                ),
+                              );
+                            }
+
+                            return ListTile(
+                              title: Text(permission.label),
+                              subtitle: Text(permission.module),
+                              trailing: selector,
+                            );
+                          },
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Fechar')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Fechar'),
+        ),
       ],
     );
   }
@@ -290,12 +426,14 @@ class _UserPermissionDialogState extends State<_UserPermissionDialog> {
 
 class _PermissionsData {
   const _PermissionsData({required this.matrix, required this.users});
+
   final Map<String, Map<String, bool>> matrix;
   final List<Map<String, dynamic>> users;
 }
 
 class _RoleOption {
   const _RoleOption(this.key, this.label);
+
   final String key;
   final String label;
 }
