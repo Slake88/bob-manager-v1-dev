@@ -167,66 +167,172 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
               ),
             );
           }
+
+          final unreadCount = rows.where((row) => row['read_at'] == null).length;
+          final urgentCount = rows.where((row) {
+            return row['read_at'] == null &&
+                row['priority']?.toString().toLowerCase() == 'high';
+          }).length;
+
           return RefreshIndicator(
             onRefresh: () async {
               setState(_reload);
               await _future;
             },
-            child: ListView.builder(
+            child: ListView(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
-              itemCount: rows.length,
-              itemBuilder: (context, index) {
-                final row = rows[index];
-                final unread = row['read_at'] == null;
-                final module = row['module_code']?.toString() ?? 'general';
-                return Card(
-                  child: ListTile(
-                    leading: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        CircleAvatar(child: Icon(_moduleIcon(module))),
-                        if (unread)
-                          const Positioned(
-                            right: -1,
-                            top: -1,
-                            child: CircleAvatar(radius: 5),
+              children: [
+                if (unreadCount > 0)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Wrap(
+                        spacing: 10,
+                        runSpacing: 8,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Chip(
+                            avatar: const Icon(Icons.notifications_active_outlined, size: 18),
+                            label: Text('$unreadCount novas'),
                           ),
-                      ],
-                    ),
-                    title: Text(
-                      row['title']?.toString() ?? 'Notificação',
-                      style: TextStyle(
-                        fontWeight: unread ? FontWeight.w800 : FontWeight.w500,
+                          if (urgentCount > 0)
+                            Chip(
+                              avatar: const Icon(Icons.priority_high, size: 18),
+                              label: Text('$urgentCount urgentes'),
+                            ),
+                          TextButton.icon(
+                            onPressed: _markAll,
+                            icon: const Icon(Icons.done_all),
+                            label: const Text('Marcar todas como lidas'),
+                          ),
+                        ],
                       ),
                     ),
-                    subtitle: Text([
-                      row['body']?.toString(),
-                      _relativeTime(row['created_at']),
-                    ].where((value) => value != null && value.isNotEmpty).join('\n')),
-                    isThreeLine: true,
-                    onTap: () => _toggle(row),
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (value) {
-                        if (value == 'toggle') _toggle(row);
-                        if (value == 'archive') _archive(row);
-                      },
-                      itemBuilder: (context) => [
-                        PopupMenuItem(
-                          value: 'toggle',
-                          child: Text(unread ? 'Marcar como lida' : 'Marcar como não lida'),
-                        ),
-                        const PopupMenuItem(
-                          value: 'archive',
-                          child: Text('Arquivar'),
-                        ),
-                      ],
-                    ),
                   ),
-                );
-              },
+                for (final row in rows) _NotificationCard(
+                  row: row,
+                  onToggle: () => _toggle(row),
+                  onArchive: () => _archive(row),
+                ),
+              ],
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _NotificationCard extends StatelessWidget {
+  const _NotificationCard({
+    required this.row,
+    required this.onToggle,
+    required this.onArchive,
+  });
+
+  final Map<String, dynamic> row;
+  final VoidCallback onToggle;
+  final VoidCallback onArchive;
+
+  @override
+  Widget build(BuildContext context) {
+    final unread = row['read_at'] == null;
+    final module = row['module_code']?.toString() ?? 'general';
+    final priority = row['priority']?.toString().toLowerCase() ?? 'normal';
+    final colors = Theme.of(context).colorScheme;
+    final accent = _priorityColor(context, priority);
+    final background = unread
+        ? Color.alphaBlend(colors.primary.withValues(alpha: 0.14), colors.surface)
+        : colors.surfaceContainerLow;
+
+    return Card(
+      color: background,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: unread ? accent.withValues(alpha: 0.9) : colors.outlineVariant,
+          width: unread ? 1.4 : 0.5,
+        ),
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: unread ? 5 : 2,
+              decoration: BoxDecoration(
+                color: unread ? accent : Colors.transparent,
+                borderRadius: const BorderRadius.horizontal(
+                  left: Radius.circular(14),
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListTile(
+                contentPadding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+                leading: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: unread
+                          ? accent.withValues(alpha: 0.16)
+                          : colors.surfaceContainerHighest,
+                      child: Icon(
+                        _moduleIcon(module),
+                        color: unread ? accent : colors.onSurfaceVariant,
+                      ),
+                    ),
+                    if (unread)
+                      Positioned(
+                        right: -2,
+                        top: -2,
+                        child: Container(
+                          width: 11,
+                          height: 11,
+                          decoration: BoxDecoration(
+                            color: colors.primary,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: background, width: 2),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                title: Text(
+                  row['title']?.toString() ?? 'Notificação',
+                  style: TextStyle(
+                    fontWeight: unread ? FontWeight.w800 : FontWeight.w500,
+                  ),
+                ),
+                subtitle: Text([
+                  row['body']?.toString(),
+                  _relativeTime(row['created_at']),
+                ].where((value) => value != null && value.isNotEmpty).join('\n')),
+                isThreeLine: true,
+                onTap: onToggle,
+                trailing: PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'toggle') onToggle();
+                    if (value == 'archive') onArchive();
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'toggle',
+                      child: Text(
+                        unread ? 'Marcar como lida' : 'Marcar como não lida',
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'archive',
+                      child: Text('Arquivar'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -241,7 +347,9 @@ class _ActivityCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final metadata = row['metadata'];
     final module = metadata is Map
-        ? metadata['module_code']?.toString() ?? row['activity_type']?.toString() ?? 'general'
+        ? metadata['module_code']?.toString() ??
+            row['activity_type']?.toString() ??
+            'general'
         : row['activity_type']?.toString() ?? 'general';
     final actor = row['actor'];
     final actorName = actor is Map ? actor['full_name']?.toString() : null;
@@ -258,6 +366,15 @@ class _ActivityCard extends StatelessWidget {
       ),
     );
   }
+}
+
+Color _priorityColor(BuildContext context, String priority) {
+  final colors = Theme.of(context).colorScheme;
+  return switch (priority) {
+    'high' || 'urgent' => colors.error,
+    'medium' => Colors.orange,
+    _ => colors.primary,
+  };
 }
 
 String _relativeTime(Object? raw) {
