@@ -21,6 +21,10 @@ enum AppPermission {
   viewInventory,
   manageInventory,
   sellInventory,
+  manageMerchandising,
+  manageBar,
+  manageAssets,
+  performInventoryCount,
   viewDocuments,
   viewSensitiveDocuments,
   manageDocuments,
@@ -51,7 +55,11 @@ extension AppPermissionMeta on AppPermission {
         AppPermission.manageEventParticipants => 'Eventos',
         AppPermission.viewInventory ||
         AppPermission.manageInventory ||
-        AppPermission.sellInventory => 'Inventário',
+        AppPermission.sellInventory ||
+        AppPermission.manageMerchandising ||
+        AppPermission.manageBar ||
+        AppPermission.manageAssets ||
+        AppPermission.performInventoryCount => 'Património & Inventário',
         AppPermission.viewDocuments ||
         AppPermission.viewSensitiveDocuments ||
         AppPermission.manageDocuments => 'Documentos',
@@ -79,9 +87,13 @@ extension AppPermissionMeta on AppPermission {
         AppPermission.viewEvents => 'Ver eventos',
         AppPermission.manageEvents => 'Criar e editar eventos',
         AppPermission.manageEventParticipants => 'Gerir participantes e voluntários',
-        AppPermission.viewInventory => 'Ver inventário',
-        AppPermission.manageInventory => 'Gerir inventário',
-        AppPermission.sellInventory => 'Registar vendas de inventário',
+        AppPermission.viewInventory => 'Ver Património & Inventário',
+        AppPermission.manageInventory => 'Gerir inventário geral',
+        AppPermission.sellInventory => 'Registar vendas',
+        AppPermission.manageMerchandising => 'Gerir Loja e merchandising',
+        AppPermission.manageBar => 'Gerir Bar e consumíveis',
+        AppPermission.manageAssets => 'Gerir património e equipamentos',
+        AppPermission.performInventoryCount => 'Realizar inventário físico',
         AppPermission.viewDocuments => 'Ver documentos',
         AppPermission.viewSensitiveDocuments => 'Ver documentos sensíveis',
         AppPermission.manageDocuments => 'Gerir documentos',
@@ -124,7 +136,6 @@ class PermissionPolicy {
     final effective = _effectivePermissions;
     if (effective != null) return effective.contains(permission);
 
-    // Fallback apenas para Demo/arranque antes da hidratação da sessão.
     if (_legacyFullAccessRoles.contains(role)) return true;
     return switch (permission) {
       AppPermission.viewMembers => role != AppRole.unknown,
@@ -149,7 +160,11 @@ class PermissionPolicy {
         role == AppRole.roadCaptain ||
         role == AppRole.eventsManager,
       AppPermission.viewInventory => role != AppRole.unknown,
-      AppPermission.manageInventory => role == AppRole.inventoryManager,
+      AppPermission.manageInventory ||
+      AppPermission.manageMerchandising ||
+      AppPermission.manageBar ||
+      AppPermission.manageAssets ||
+      AppPermission.performInventoryCount => role == AppRole.inventoryManager,
       AppPermission.sellInventory =>
         role == AppRole.inventoryManager || role == AppRole.treasurer,
       AppPermission.viewDocuments => role != AppRole.unknown,
