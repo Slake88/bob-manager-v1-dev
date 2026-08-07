@@ -33,48 +33,189 @@ class EventsRepository {
     return List<Map<String, dynamic>>.from(response);
   }
 
+  Future<List<Map<String, dynamic>>> listMonth(int year, int month) async {
+    _require(AppPermission.viewEvents);
+    final first = DateTime(year, month, 1);
+    final next = month == 12
+        ? DateTime(year + 1, 1, 1)
+        : DateTime(year, month + 1, 1);
+
+    final rows = <Map<String, dynamic>>[];
+
+    if (AppConfig.demoMode) {
+      final events = await _dataService.list('events');
+      for (final event in events) {
+        final date = _parseDate(event['starts_at']);
+        if (date != null && date.year == year && date.month == month) {
+          rows.add({...event, 'calendar_type': 'event'});
+        }
+      }
+      final members = await _dataService.list('members');
+      rows.addAll(_anniversariesForMonth(members, year, month));
+    } else {
+      final result = await Future.wait([
+        _client
+            .from('events')
+            .select()
+            .eq('club_id', AppSession.instance.clubId)
+            .gte('starts_at', first.toIso8601String())
+            .lt('starts_at', next.toIso8601String())
+            .order('starts_at'),
+        _client
+            .from('members')
+            .select(
+              'id,full_name,nickname,birth_date,prospect_joined_at,full_colors_at,status',
+            )
+            .eq('club_id', AppSession.instance.clubId)
+            .order('full_name'),
+      ]);
+
+      rows.addAll(
+        List<Map<String, dynamic>>.from(result[0] as List)
+            .map((event) => {...event, 'calendar_type': 'event'}),
+      );
+      rows.addAll(
+        _anniversariesForMonth(
+          List<Map<String, dynamic>>.from(result[1] as List),
+          year,
+          month,
+        ),
+      );
+    }
+
+    rows.sort((a, b) {
+      final da = _parseDate(a['starts_at']) ?? DateTime(9999);
+      final db = _parseDate(b['starts_at']) ?? DateTime(9999);
+      final byDate = da.compareTo(db);
+      if (byDate != 0) return byDate;
+      return (a['name']?.toString() ?? '')
+          .compareTo(b['name']?.toString() ?? '');
+    });
+    return rows;
+  }
+
+  List<Map<String, dynamic>> _anniversariesForMonth(
+    List<Map<String, dynamic>> members,
+    int year,
+    int month,
+  ) {
+    final rows = <Map<String, dynamic>>[];
+    for (final member in members) {
+      final name = member['nickname']?.toString().trim().isNotEmpty == true
+          ? member['nickname'].toString().trim()
+          : member['full_name']?.toString() ?? 'Membro';
+
+      void addAnniversary(
+        String field,
+        String type,
+        String label,
+      ) {
+        final original = _parseDate(member[field]);
+        if (original == null || original.month != month) return;
+        final years = year - original.year;
+        if (years < 0) return;
+        final date = DateTime(year, month, original.day);
+        rows.add({
+          'id': 'anniversary:${member['id']}:$type:$year',
+          'member_id': member['id'],
+          'name': '$label — $name',
+          'starts_at': _dateOnly(date),
+          'location': null,
+          'status': 'anniversary',
+          'calendar_type': type,
+          'anniversary_years': years,
+          'original_date': _dateOnly(original),
+          'is_virtual': true,
+        });
+      }
+
+      addAnniversary('birth_date', 'birthday', 'Aniversário');
+      addAnniversary(
+        'prospect_joined_at',
+        'prospect_anniversary',
+        'Aniversário de Prospect',
+      );
+      addAnniversary(
+        'full_colors_at',
+        'full_color_anniversary',
+        'Aniversário de Full Color',
+      );
+    }
+    return rows;
+  }
+
   Future<Map<String, dynamic>> saveEvent(
     Map<String, dynamic> values, {
     String? eventId,
   }) async {
     _require(AppPermission.manageEvents);
+    final name = values['name']?.toString().trim() ?? '';
+    if (name.isEmpty) throw ArgumentError('Indica o nome do evento.');
+
+    final startsAt = _parseDate(values['starts_at']);
+    if (startsAt == null) throw ArgumentError('Seleciona a data do evento.');
+
+    final status = values['status']?.toString() ?? 'draft';
+    const allowedStatuses = {
+      'draft',
+      'published',
+      'active',
+      'completed',
+      'cancelled',
+    };
+    if (!allowedStatuses.contains(status)) {
+      throw ArgumentError('Estado do evento inválido.');
+    }
+
+    final normalized = <String, dynamic>{
+      ...values,
+      'name': name,
+      'starts_at': startsAt.toIso8601String(),
+      'status': status,
+      'budget': _asDouble(values['budget']),
+    };
+
     if (AppConfig.demoMode) {
-      if (eventId == null) return _dataService.insert('events', values);
-      return _dataService.update('events', eventId, values);
+      if (eventId == null) return _dataService.insert('events', normalized);
+      return _dataService.update('events', eventId, normalized);
     }
 
     final payload = <String, dynamic>{
       'club_id': AppSession.instance.clubId,
-      'name': values['name'],
-      'description': values['description'],
-      'location': values['location'],
-      'starts_at': values['starts_at'],
-      'ends_at': values['ends_at'],
-      'status': values['status'] ?? 'draft',
-      'capacity': values['capacity'] ?? values['expected_attendance'],
-      'budget': _asDouble(values['budget']),
-      'banner_path': values['banner_path'],
-      'event_mode_enabled': values['event_mode_enabled'] == true,
+      'name': normalized['name'],
+      'description': normalized['description'],
+      'location': normalized['location'],
+      'starts_at': normalized['starts_at'],
+      'ends_at': normalized['ends_at'],
+      'status': normalized['status'],
+      'capacity': normalized['capacity'] ?? normalized['expected_attendance'],
+      'budget': normalized['budget'],
+      'banner_path': normalized['banner_path'],
+      'event_mode_enabled': normalized['event_mode_enabled'] == true,
       'updated_at': DateTime.now().toIso8601String(),
     };
 
-    if (eventId == null) {
+    try {
+      if (eventId == null) {
+        final response = await _client
+            .from('events')
+            .insert(payload)
+            .select()
+            .single();
+        return Map<String, dynamic>.from(response);
+      }
+
       final response = await _client
           .from('events')
-          .insert(payload)
+          .update(payload)
+          .eq('id', eventId)
+          .eq('club_id', AppSession.instance.clubId)
           .select()
           .single();
       return Map<String, dynamic>.from(response);
+    } on PostgrestException catch (error) {
+      throw StateError(_friendlyEventError(error));
     }
-
-    final response = await _client
-        .from('events')
-        .update(payload)
-        .eq('id', eventId)
-        .eq('club_id', AppSession.instance.clubId)
-        .select()
-        .single();
-    return Map<String, dynamic>.from(response);
   }
 
   Future<void> deleteEvent(String eventId) async {
@@ -101,7 +242,9 @@ class EventsRepository {
 
     final response = await _client
         .from('event_registrations')
-        .select('id,event_id,member_id,guest_name,status,checked_in_at,notes,created_at,members(full_name)')
+        .select(
+          'id,event_id,member_id,guest_name,status,checked_in_at,notes,created_at,members(full_name)',
+        )
         .eq('event_id', eventId)
         .order('created_at');
     return List<Map<String, dynamic>>.from(response).map((row) {
@@ -164,7 +307,9 @@ class EventsRepository {
 
     final response = await _client
         .from('event_volunteers')
-        .select('id,event_id,member_id,function_name,status,created_at,members(full_name)')
+        .select(
+          'id,event_id,member_id,function_name,status,created_at,members(full_name)',
+        )
         .eq('event_id', eventId)
         .order('created_at');
     return List<Map<String, dynamic>>.from(response).map((row) {
@@ -254,7 +399,28 @@ class EventsRepository {
   }
 }
 
+DateTime? _parseDate(Object? value) {
+  if (value is DateTime) return value;
+  final text = value?.toString().trim() ?? '';
+  if (text.isEmpty) return null;
+  return DateTime.tryParse(text);
+}
+
+String _dateOnly(DateTime value) =>
+    '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
+
 double _asDouble(Object? value) {
   if (value is num) return value.toDouble();
   return double.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+String _friendlyEventError(PostgrestException error) {
+  final message = error.message.toLowerCase();
+  if (message.contains('event_status') || message.contains('invalid input value')) {
+    return 'O estado selecionado para o evento não é válido.';
+  }
+  if (message.contains('row-level security') || message.contains('permission')) {
+    return 'Não tens permissão para guardar este evento.';
+  }
+  return 'Não foi possível guardar o evento. Confirma os dados e tenta novamente.';
 }
