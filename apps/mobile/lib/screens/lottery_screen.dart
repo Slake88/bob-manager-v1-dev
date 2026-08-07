@@ -91,7 +91,7 @@ class _LotteryScreenState extends State<LotteryScreen> {
   Future<void> _payFines(Map<String, dynamic> player, double debt) async {
     if (debt <= 0) return;
     final method = await _paymentMethod();
-    if (method == null) return;
+    if (method == null || !mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -130,7 +130,7 @@ class _LotteryScreenState extends State<LotteryScreen> {
         .clamp(0, double.infinity);
     if (remaining <= 0) return;
     final method = await _paymentMethod();
-    if (method == null) return;
+    if (method == null || !mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
