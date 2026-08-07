@@ -14,10 +14,11 @@ class ShopScreen extends StatefulWidget {
 }
 
 class _ShopScreenState extends State<ShopScreen> {
-  final ShopRepository _repository = ShopRepository();
+  final _repository = ShopRepository();
   late Future<_ShopData> _future;
 
-  bool get _canManage => AppSession.instance.can(AppPermission.manageMerchandising);
+  bool get _canManage =>
+      AppSession.instance.can(AppPermission.manageMerchandising);
 
   @override
   void initState() {
@@ -30,11 +31,13 @@ class _ShopScreenState extends State<ShopScreen> {
       _repository.products(),
       _repository.orders(),
       _repository.members(),
-    ]).then((values) => _ShopData(
-          products: List<Map<String, dynamic>>.from(values[0]),
-          orders: List<Map<String, dynamic>>.from(values[1]),
-          members: List<Map<String, dynamic>>.from(values[2]),
-        ));
+    ]).then(
+      (values) => _ShopData(
+        products: List<Map<String, dynamic>>.from(values[0]),
+        orders: List<Map<String, dynamic>>.from(values[1]),
+        members: List<Map<String, dynamic>>.from(values[2]),
+      ),
+    );
   }
 
   Future<void> _refresh() async {
@@ -69,15 +72,18 @@ class _ShopScreenState extends State<ShopScreen> {
             appBar: const TabBar(
               tabs: [
                 Tab(text: 'Artigos', icon: Icon(Icons.storefront_outlined)),
-                Tab(text: 'Encomendas', icon: Icon(Icons.shopping_bag_outlined)),
+                Tab(
+                  text: 'Encomendas',
+                  icon: Icon(Icons.shopping_bag_outlined),
+                ),
               ],
             ),
             body: TabBarView(
               children: [
                 _ProductsTab(
                   products: data.products,
-                  repository: _repository,
                   members: data.members,
+                  repository: _repository,
                   onChanged: _refresh,
                 ),
                 _OrdersTab(
@@ -104,21 +110,24 @@ class _ShopScreenState extends State<ShopScreen> {
 class _ProductsTab extends StatelessWidget {
   const _ProductsTab({
     required this.products,
-    required this.repository,
     required this.members,
+    required this.repository,
     required this.onChanged,
   });
 
   final List<Map<String, dynamic>> products;
-  final ShopRepository repository;
   final List<Map<String, dynamic>> members;
+  final ShopRepository repository;
   final Future<void> Function() onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final variants = products.expand(_variants).toList();
-    final low = variants.where((v) => _available(v) <= _double(v['minimum_stock'])).length;
-    final pendingNeed = variants.where((v) => _available(v) <= 0).length;
+    final allVariants = products.expand(_variants).toList();
+    final low = allVariants
+        .where((v) => _available(v) <= _double(v['minimum_stock']))
+        .length;
+    final empty = allVariants.where((v) => _available(v) <= 0).length;
+
     return RefreshIndicator(
       onRefresh: onChanged,
       child: ListView(
@@ -128,10 +137,10 @@ class _ProductsTab extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              _Metric('Artigos', '${products.length}', Icons.inventory_2_outlined),
-              _Metric('Variantes', '${variants.length}', Icons.style_outlined),
-              _Metric('Stock baixo', '$low', Icons.warning_amber_outlined),
-              _Metric('Sem stock', '$pendingNeed', Icons.remove_shopping_cart_outlined),
+              _Metric('Artigos', products.length.toString(), Icons.inventory_2_outlined),
+              _Metric('Variantes', allVariants.length.toString(), Icons.style_outlined),
+              _Metric('Stock baixo', low.toString(), Icons.warning_amber_outlined),
+              _Metric('Sem stock', empty.toString(), Icons.remove_shopping_cart_outlined),
             ],
           ),
           const SizedBox(height: 16),
@@ -140,15 +149,17 @@ class _ProductsTab extends StatelessWidget {
               child: ListTile(
                 leading: Icon(Icons.storefront_outlined),
                 title: Text('Ainda não existem artigos na Loja.'),
-                subtitle: Text('Cria um artigo e adiciona depois tamanhos/variantes.'),
+                subtitle: Text(
+                  'Cria um artigo e adiciona depois tamanhos/variantes.',
+                ),
               ),
             )
           else
             for (final product in products)
               _ProductCard(
                 product: product,
-                repository: repository,
                 members: members,
+                repository: repository,
                 onChanged: onChanged,
               ),
         ],
@@ -160,14 +171,14 @@ class _ProductsTab extends StatelessWidget {
 class _ProductCard extends StatelessWidget {
   const _ProductCard({
     required this.product,
-    required this.repository,
     required this.members,
+    required this.repository,
     required this.onChanged,
   });
 
   final Map<String, dynamic> product;
-  final ShopRepository repository;
   final List<Map<String, dynamic>> members;
+  final ShopRepository repository;
   final Future<void> Function() onChanged;
 
   @override
@@ -176,7 +187,8 @@ class _ProductCard extends StatelessWidget {
     final imageUrl = repository.publicImageUrl(product['photo_path']);
     final available = variants.isEmpty
         ? _double(product['current_stock']) - _double(product['reserved_stock'])
-        : variants.fold<double>(0, (sum, v) => sum + _available(v));
+        : variants.fold<double>(0, (sum, row) => sum + _available(row));
+
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -220,7 +232,10 @@ class _ProductCard extends StatelessWidget {
                         Expanded(
                           child: Text(
                             product['name']?.toString() ?? 'Artigo',
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w800),
                           ),
                         ),
                         if (product['institutional_delivery'] == true)
@@ -233,7 +248,9 @@ class _ProductCard extends StatelessWidget {
                     Text(product['category']?.toString() ?? 'Merchandising'),
                     const SizedBox(height: 6),
                     if (variants.isEmpty)
-                      Text('Disponível: ${_number(available)} · ${_money(product['sale_price'])}')
+                      Text(
+                        'Disponível: ${_number(available)} · ${_money(product['sale_price'])}',
+                      )
                     else
                       Wrap(
                         spacing: 6,
@@ -242,12 +259,20 @@ class _ProductCard extends StatelessWidget {
                           final stock = _available(variant);
                           return Chip(
                             visualDensity: VisualDensity.compact,
-                            avatar: Icon(stock > 0 ? Icons.check_circle_outline : Icons.schedule_outlined, size: 17),
-                            label: Text('${variant['name']} · ${_number(stock)}'),
+                            avatar: Icon(
+                              stock > 0
+                                  ? Icons.check_circle_outline
+                                  : Icons.schedule_outlined,
+                              size: 17,
+                            ),
+                            label: Text(
+                              '${variant['name']} · ${_number(stock)}',
+                            ),
                           );
                         }).toList(),
                       ),
-                    if (variants.length > 8) Text('+ ${variants.length - 8} variantes'),
+                    if (variants.length > 8)
+                      Text('+ ${variants.length - 8} variantes'),
                   ],
                 ),
               ),
@@ -278,7 +303,9 @@ class ProductDetailScreen extends StatefulWidget {
 
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
   late Map<String, dynamic> _product;
-  bool get _canManage => AppSession.instance.can(AppPermission.manageMerchandising);
+
+  bool get _canManage =>
+      AppSession.instance.can(AppPermission.manageMerchandising);
 
   @override
   void initState() {
@@ -288,8 +315,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   Future<void> _reloadProduct() async {
     final rows = await widget.repository.products();
-    final updated = rows.where((p) => p['id'] == _product['id']).firstOrNull;
-    if (updated != null && mounted) setState(() => _product = updated);
+    Map<String, dynamic>? updated;
+    for (final row in rows) {
+      if (row['id'] == _product['id']) {
+        updated = row;
+        break;
+      }
+    }
+    if (updated != null && mounted) setState(() => _product = updated!);
   }
 
   Future<void> _pickImage() async {
@@ -314,17 +347,26 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
     if (source == null) return;
     try {
-      final file = await ImagePicker().pickImage(source: source, imageQuality: 85, maxWidth: 1600);
+      final file = await ImagePicker().pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1600,
+      );
       if (file == null) return;
-      await widget.repository.uploadProductImage(productId: _product['id'].toString(), file: file);
+      await widget.repository.uploadProductImage(
+        productId: _product['id'].toString(),
+        file: file,
+      );
       await _reloadProduct();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Não foi possível carregar a imagem: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível carregar a imagem: $error')),
+      );
     }
   }
 
-  Future<void> _variant([Map<String, dynamic>? variant]) async {
+  Future<void> _editVariant([Map<String, dynamic>? variant]) async {
     final result = await showDialog<_VariantInput>(
       context: context,
       builder: (_) => _VariantDialog(product: _product, variant: variant),
@@ -344,7 +386,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       await _reloadProduct();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
@@ -359,7 +402,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
     if (result == null) return;
     try {
-      final id = await widget.repository.createOrder(
+      final orderId = await widget.repository.createOrder(
         productId: _product['id'].toString(),
         variantId: variant?['id']?.toString(),
         quantity: result.quantity,
@@ -371,16 +414,19 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       );
       if (result.payNow > 0) {
         await widget.repository.payOrder(
-          orderId: id,
+          orderId: orderId,
           amount: result.payNow,
           paymentMethod: result.paymentMethod,
         );
       }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Encomenda registada.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Encomenda registada.')),
+      );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
@@ -399,9 +445,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, double.tryParse(controller.text.replaceAll(',', '.'))),
+            onPressed: () => Navigator.pop(
+              context,
+              double.tryParse(controller.text.replaceAll(',', '.')),
+            ),
             child: const Text('Reservar'),
           ),
         ],
@@ -418,7 +470,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       await _reloadProduct();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
@@ -426,6 +479,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   Widget build(BuildContext context) {
     final variants = _variants(_product);
     final imageUrl = widget.repository.publicImageUrl(_product['photo_path']);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_product['name']?.toString() ?? 'Artigo'),
@@ -436,7 +490,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               onPressed: () async {
                 final changed = await Navigator.of(context).push<bool>(
                   MaterialPageRoute(
-                    builder: (_) => ProductEditorScreen(repository: widget.repository, product: _product),
+                    builder: (_) => ProductEditorScreen(
+                      repository: widget.repository,
+                      product: _product,
+                    ),
                   ),
                 );
                 if (changed == true) await _reloadProduct();
@@ -491,16 +548,23 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               child: ListTile(
                 leading: Icon(Icons.workspace_premium_outlined),
                 title: Text('Artigo de entrega institucional'),
-                subtitle: Text('Preparado para atribuição automática a membros, sem venda.'),
+                subtitle: Text(
+                  'Preparado para atribuição automática a membros, sem venda.',
+                ),
               ),
             ),
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: Text('Variantes / tamanhos', style: Theme.of(context).textTheme.titleLarge)),
+              Expanded(
+                child: Text(
+                  'Variantes / tamanhos',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+              ),
               if (_canManage)
                 FilledButton.tonalIcon(
-                  onPressed: _variant,
+                  onPressed: _editVariant,
                   icon: const Icon(Icons.add),
                   label: const Text('Variante'),
                 ),
@@ -511,9 +575,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             Card(
               child: ListTile(
                 title: const Text('Sem variantes'),
-                subtitle: const Text('Adiciona tamanhos como S, M, L, XL ou outras versões deste artigo.'),
+                subtitle: const Text(
+                  'Adiciona tamanhos como S, M, L, XL ou outras versões deste artigo.',
+                ),
                 trailing: _canManage
-                    ? TextButton(onPressed: _variant, child: const Text('Adicionar'))
+                    ? TextButton(
+                        onPressed: _editVariant,
+                        child: const Text('Adicionar'),
+                      )
                     : null,
               ),
             )
@@ -523,11 +592,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 child: ListTile(
                   title: Text(variant['name']?.toString() ?? 'Variante'),
                   subtitle: Text(
-                    'Stock: ${_number(variant['current_stock'])} · Reservado: ${_number(variant['reserved_stock'])} · Disponível: ${_number(_available(variant))}\n'
+                    'Stock: ${_number(variant['current_stock'])} · '
+                    'Reservado: ${_number(variant['reserved_stock'])} · '
+                    'Disponível: ${_number(_available(variant))}\n'
                     'Preço: ${_money(variant['sale_price'] ?? _product['sale_price'])}',
                   ),
                   isThreeLine: true,
-                  onTap: _canManage ? () => _variant(variant) : null,
+                  onTap: _canManage ? () => _editVariant(variant) : null,
                   trailing: _canManage
                       ? PopupMenuButton<String>(
                           onSelected: (value) {
@@ -536,17 +607,23 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           },
                           itemBuilder: (_) => [
                             if (_available(variant) > 0)
-                              const PopupMenuItem(value: 'reserve', child: Text('Reservar stock')),
-                            const PopupMenuItem(value: 'order', child: Text('Encomendar para cliente')),
+                              const PopupMenuItem(
+                                value: 'reserve',
+                                child: Text('Reservar stock'),
+                              ),
+                            const PopupMenuItem(
+                              value: 'order',
+                              child: Text('Encomendar para cliente'),
+                            ),
                           ],
                         )
                       : null,
                 ),
               ),
           const SizedBox(height: 12),
-          if (_canManage)
+          if (_canManage && variants.isEmpty)
             FilledButton.icon(
-              onPressed: () => _order(variants.isEmpty ? null : variants.first),
+              onPressed: () => _order(null),
               icon: const Icon(Icons.shopping_bag_outlined),
               label: const Text('Registar encomenda'),
             ),
@@ -557,7 +634,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 }
 
 class ProductEditorScreen extends StatefulWidget {
-  const ProductEditorScreen({super.key, required this.repository, this.product});
+  const ProductEditorScreen({
+    super.key,
+    required this.repository,
+    this.product,
+  });
+
   final ShopRepository repository;
   final Map<String, dynamic>? product;
 
@@ -580,22 +662,43 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
   @override
   void initState() {
     super.initState();
-    final p = widget.product;
-    _name = TextEditingController(text: p?['name']?.toString() ?? '');
-    _sku = TextEditingController(text: p?['sku']?.toString() ?? '');
-    _category = TextEditingController(text: p?['category']?.toString() ?? 'Merchandising');
-    _description = TextEditingController(text: p?['description']?.toString() ?? '');
-    _supplier = TextEditingController(text: p?['supplier']?.toString() ?? '');
-    _cost = TextEditingController(text: _double(p?['cost']).toStringAsFixed(2));
-    _price = TextEditingController(text: _double(p?['sale_price']).toStringAsFixed(2));
-    _minimum = TextEditingController(text: _double(p?['minimum_stock']).toStringAsFixed(0));
-    _institutional = p?['institutional_delivery'] == true;
+    final product = widget.product;
+    _name = TextEditingController(text: product?['name']?.toString() ?? '');
+    _sku = TextEditingController(text: product?['sku']?.toString() ?? '');
+    _category = TextEditingController(
+      text: product?['category']?.toString() ?? 'Merchandising',
+    );
+    _description = TextEditingController(
+      text: product?['description']?.toString() ?? '',
+    );
+    _supplier = TextEditingController(
+      text: product?['supplier']?.toString() ?? '',
+    );
+    _cost = TextEditingController(
+      text: _double(product?['cost']).toStringAsFixed(2),
+    );
+    _price = TextEditingController(
+      text: _double(product?['sale_price']).toStringAsFixed(2),
+    );
+    _minimum = TextEditingController(
+      text: _double(product?['minimum_stock']).toStringAsFixed(0),
+    );
+    _institutional = product?['institutional_delivery'] == true;
   }
 
   @override
   void dispose() {
-    for (final c in [_name, _sku, _category, _description, _supplier, _cost, _price, _minimum]) {
-      c.dispose();
+    for (final controller in [
+      _name,
+      _sku,
+      _category,
+      _description,
+      _supplier,
+      _cost,
+      _price,
+      _minimum,
+    ]) {
+      controller.dispose();
     }
     super.dispose();
   }
@@ -604,7 +707,7 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
     if (_name.text.trim().isEmpty) return;
     setState(() => _saving = true);
     try {
-      final saved = await widget.repository.saveProduct(
+      await widget.repository.saveProduct(
         id: widget.product?['id']?.toString(),
         name: _name.text,
         sku: _sku.text,
@@ -616,62 +719,86 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
         minimumStock: _parse(_minimum.text),
         institutionalDelivery: _institutional,
       );
-      if (!mounted) return;
-      if (widget.product == null) {
-        final addVariants = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Artigo criado'),
-            content: const Text('Queres abrir já o artigo para adicionar fotografia e tamanhos/variantes?'),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Depois')),
-              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Abrir artigo')),
-            ],
-          ),
-        );
-        if (!mounted) return;
-        if (addVariants == true) {
-          await Navigator.of(context).push<void>(
-            MaterialPageRoute(
-              builder: (_) => ProductDetailScreen(repository: widget.repository, product: saved, members: const []),
-            ),
-          );
-        }
-      }
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
       if (!mounted) return;
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.product == null ? 'Novo artigo' : 'Editar artigo')),
+      appBar: AppBar(
+        title: Text(widget.product == null ? 'Novo artigo' : 'Editar artigo'),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          TextField(controller: _name, decoration: const InputDecoration(labelText: 'Nome / design *')),
-          TextField(controller: _sku, decoration: const InputDecoration(labelText: 'Código / SKU')),
-          TextField(controller: _category, decoration: const InputDecoration(labelText: 'Categoria')),
-          TextField(controller: _description, maxLines: 3, decoration: const InputDecoration(labelText: 'Descrição')),
-          TextField(controller: _supplier, decoration: const InputDecoration(labelText: 'Fornecedor')),
+          TextField(
+            controller: _name,
+            decoration: const InputDecoration(labelText: 'Nome / design *'),
+          ),
+          TextField(
+            controller: _sku,
+            decoration: const InputDecoration(labelText: 'Código / SKU'),
+          ),
+          TextField(
+            controller: _category,
+            decoration: const InputDecoration(labelText: 'Categoria'),
+          ),
+          TextField(
+            controller: _description,
+            maxLines: 3,
+            decoration: const InputDecoration(labelText: 'Descrição'),
+          ),
+          TextField(
+            controller: _supplier,
+            decoration: const InputDecoration(labelText: 'Fornecedor'),
+          ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 12,
             runSpacing: 12,
             children: [
-              SizedBox(width: 180, child: TextField(controller: _cost, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Custo base'))),
-              SizedBox(width: 180, child: TextField(controller: _price, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Preço base'))),
-              SizedBox(width: 180, child: TextField(controller: _minimum, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Stock mínimo base'))),
+              SizedBox(
+                width: 180,
+                child: TextField(
+                  controller: _cost,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Custo base'),
+                ),
+              ),
+              SizedBox(
+                width: 180,
+                child: TextField(
+                  controller: _price,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Preço base'),
+                ),
+              ),
+              SizedBox(
+                width: 180,
+                child: TextField(
+                  controller: _minimum,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration:
+                      const InputDecoration(labelText: 'Stock mínimo base'),
+                ),
+              ),
             ],
           ),
           SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
             title: const Text('Entrega institucional'),
-            subtitle: const Text('Ex.: Patch de costas entregue ao passar a Full Color; não é uma venda.'),
+            subtitle: const Text(
+              'Ex.: Patch de costas entregue ao passar a Full Color; não é uma venda.',
+            ),
             value: _institutional,
             onChanged: (value) => setState(() => _institutional = value),
           ),
@@ -679,7 +806,11 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
           FilledButton.icon(
             onPressed: _saving ? null : _save,
             icon: _saving
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Icon(Icons.save_outlined),
             label: const Text('Guardar artigo'),
           ),
@@ -690,14 +821,24 @@ class _ProductEditorScreenState extends State<ProductEditorScreen> {
 }
 
 class _OrdersTab extends StatelessWidget {
-  const _OrdersTab({required this.orders, required this.repository, required this.onChanged});
+  const _OrdersTab({
+    required this.orders,
+    required this.repository,
+    required this.onChanged,
+  });
+
   final List<Map<String, dynamic>> orders;
   final ShopRepository repository;
   final Future<void> Function() onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final outstanding = orders.fold<double>(0, (sum, o) => sum + (_double(o['total_amount']) - _double(o['paid_amount'])));
+    final outstanding = orders.fold<double>(
+      0,
+      (sum, order) =>
+          sum + _double(order['total_amount']) - _double(order['paid_amount']),
+    );
+
     return RefreshIndicator(
       onRefresh: onChanged,
       child: ListView(
@@ -707,15 +848,31 @@ class _OrdersTab extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              _Metric('Pendentes', '${orders.where((o) => o['status'] != 'delivered').length}', Icons.pending_actions_outlined),
+              _Metric(
+                'Pendentes',
+                orders
+                    .where((order) => order['status'] != 'delivered')
+                    .length
+                    .toString(),
+                Icons.pending_actions_outlined,
+              ),
               _Metric('Por receber', _money(outstanding), Icons.payments_outlined),
             ],
           ),
           const SizedBox(height: 14),
           if (orders.isEmpty)
-            const Card(child: ListTile(title: Text('Não existem encomendas pendentes.')))
+            const Card(
+              child: ListTile(
+                title: Text('Não existem encomendas pendentes.'),
+              ),
+            )
           else
-            for (final order in orders) _OrderCard(order: order, repository: repository, onChanged: onChanged),
+            for (final order in orders)
+              _OrderCard(
+                order: order,
+                repository: repository,
+                onChanged: onChanged,
+              ),
         ],
       ),
     );
@@ -723,7 +880,12 @@ class _OrdersTab extends StatelessWidget {
 }
 
 class _OrderCard extends StatelessWidget {
-  const _OrderCard({required this.order, required this.repository, required this.onChanged});
+  const _OrderCard({
+    required this.order,
+    required this.repository,
+    required this.onChanged,
+  });
+
   final Map<String, dynamic> order;
   final ShopRepository repository;
   final Future<void> Function() onChanged;
@@ -731,18 +893,26 @@ class _OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final member = order['members'];
-    final client = member is Map ? member['full_name']?.toString() : order['external_name']?.toString();
-    final items = List<Map<String, dynamic>>.from(order['shop_order_items'] as List? ?? const []);
+    final client = member is Map
+        ? member['full_name']?.toString()
+        : order['external_name']?.toString();
+    final items = List<Map<String, dynamic>>.from(
+      order['shop_order_items'] as List? ?? const [],
+    );
     final total = _double(order['total_amount']);
     final paid = _double(order['paid_amount']);
     final remaining = total - paid;
-    String itemLabel = 'Encomenda';
+    var itemLabel = 'Encomenda';
+
     if (items.isNotEmpty) {
       final item = items.first;
-      final p = item['products'];
-      final v = item['product_variants'];
-      itemLabel = '${p is Map ? p['name'] : 'Artigo'}${v is Map ? ' — ${v['name']}' : ''} × ${_number(item['quantity'])}';
+      final product = item['products'];
+      final variant = item['product_variants'];
+      final productName = product is Map ? product['name'] : 'Artigo';
+      final variantName = variant is Map ? ' — ${variant['name']}' : '';
+      itemLabel = '$productName$variantName × ${_number(item['quantity'])}';
     }
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -751,14 +921,30 @@ class _OrderCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Expanded(child: Text(client ?? 'Cliente', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800))),
+                Expanded(
+                  child: Text(
+                    client ?? 'Cliente',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                ),
                 _StatusChip(order['status']?.toString() ?? 'pending'),
               ],
             ),
             Text(itemLabel),
-            Text('Total: ${_money(total)} · Pago: ${_money(paid)} · Falta: ${_money(remaining)}'),
-            if ((order['notes']?.toString() ?? '').isNotEmpty) Text('Nota: ${order['notes']}'),
-            Text(DateFormat('dd/MM/yyyy HH:mm').format(DateTime.parse(order['created_at'].toString()).toLocal())),
+            Text(
+              'Total: ${_money(total)} · Pago: ${_money(paid)} · '
+              'Falta: ${_money(remaining)}',
+            ),
+            if ((order['notes']?.toString() ?? '').isNotEmpty)
+              Text('Nota: ${order['notes']}'),
+            Text(
+              DateFormat('dd/MM/yyyy HH:mm').format(
+                DateTime.parse(order['created_at'].toString()).toLocal(),
+              ),
+            ),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
@@ -772,14 +958,23 @@ class _OrderCard extends StatelessWidget {
                   ),
                 PopupMenuButton<String>(
                   onSelected: (status) async {
-                    await repository.updateOrderStatus(order['id'].toString(), status);
+                    await repository.updateOrderStatus(
+                      order['id'].toString(),
+                      status,
+                    );
                     await onChanged();
                   },
                   itemBuilder: (_) => const [
                     PopupMenuItem(value: 'pending', child: Text('Pendente')),
-                    PopupMenuItem(value: 'ordered', child: Text('Encomendado ao fornecedor')),
+                    PopupMenuItem(
+                      value: 'ordered',
+                      child: Text('Encomendado ao fornecedor'),
+                    ),
                     PopupMenuItem(value: 'received', child: Text('Recebido')),
-                    PopupMenuItem(value: 'delivered', child: Text('Entregue ao cliente')),
+                    PopupMenuItem(
+                      value: 'delivered',
+                      child: Text('Entregue ao cliente'),
+                    ),
                     PopupMenuItem(value: 'cancelled', child: Text('Cancelar')),
                   ],
                   child: const Chip(label: Text('Alterar estado')),
@@ -794,7 +989,7 @@ class _OrderCard extends StatelessWidget {
 
   Future<void> _receive(BuildContext context, double remaining) async {
     final amount = TextEditingController(text: remaining.toStringAsFixed(2));
-    String method = 'Dinheiro';
+    var method = 'Dinheiro';
     final result = await showDialog<(double, String)>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -803,18 +998,44 @@ class _OrderCard extends StatelessWidget {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: amount, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Valor')),
+              TextField(
+                controller: amount,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Valor'),
+              ),
               DropdownButtonFormField<String>(
                 initialValue: method,
                 decoration: const InputDecoration(labelText: 'Método'),
-                items: const ['Dinheiro', 'MB Way', 'Transferência bancária'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
-                onChanged: (value) => setState(() => method = value ?? method),
+                items: const [
+                  'Dinheiro',
+                  'MB Way',
+                  'Transferência bancária',
+                ]
+                    .map(
+                      (value) => DropdownMenuItem(
+                        value: value,
+                        child: Text(value),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) =>
+                    setState(() => method = value ?? method),
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-            FilledButton(onPressed: () => Navigator.pop(context, (_parse(amount.text), method)), child: const Text('Receber')),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(
+                context,
+                (_parse(amount.text), method),
+              ),
+              child: const Text('Receber'),
+            ),
           ],
         ),
       ),
@@ -822,17 +1043,23 @@ class _OrderCard extends StatelessWidget {
     amount.dispose();
     if (result == null || result.$1 <= 0) return;
     try {
-      await repository.payOrder(orderId: order['id'].toString(), amount: result.$1, paymentMethod: result.$2);
+      await repository.payOrder(
+        orderId: order['id'].toString(),
+        amount: result.$1,
+        paymentMethod: result.$2,
+      );
       await onChanged();
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$error')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 }
 
 class _VariantDialog extends StatefulWidget {
   const _VariantDialog({required this.product, this.variant});
+
   final Map<String, dynamic> product;
   final Map<String, dynamic>? variant;
 
@@ -841,29 +1068,46 @@ class _VariantDialog extends StatefulWidget {
 }
 
 class _VariantDialogState extends State<_VariantDialog> {
-  late final TextEditingController name;
-  late final TextEditingController sku;
-  late final TextEditingController stock;
-  late final TextEditingController minimum;
-  late final TextEditingController cost;
-  late final TextEditingController price;
+  late final TextEditingController _name;
+  late final TextEditingController _sku;
+  late final TextEditingController _stock;
+  late final TextEditingController _minimum;
+  late final TextEditingController _cost;
+  late final TextEditingController _price;
 
   @override
   void initState() {
     super.initState();
-    final v = widget.variant;
-    name = TextEditingController(text: v?['name']?.toString() ?? '');
-    sku = TextEditingController(text: v?['sku']?.toString() ?? '');
-    stock = TextEditingController(text: _double(v?['current_stock']).toStringAsFixed(0));
-    minimum = TextEditingController(text: _double(v?['minimum_stock']).toStringAsFixed(0));
-    cost = TextEditingController(text: _double(v?['cost'] ?? widget.product['cost']).toStringAsFixed(2));
-    price = TextEditingController(text: _double(v?['sale_price'] ?? widget.product['sale_price']).toStringAsFixed(2));
+    final variant = widget.variant;
+    _name = TextEditingController(text: variant?['name']?.toString() ?? '');
+    _sku = TextEditingController(text: variant?['sku']?.toString() ?? '');
+    _stock = TextEditingController(
+      text: _double(variant?['current_stock']).toStringAsFixed(0),
+    );
+    _minimum = TextEditingController(
+      text: _double(variant?['minimum_stock']).toStringAsFixed(0),
+    );
+    _cost = TextEditingController(
+      text: _double(variant?['cost'] ?? widget.product['cost'])
+          .toStringAsFixed(2),
+    );
+    _price = TextEditingController(
+      text: _double(variant?['sale_price'] ?? widget.product['sale_price'])
+          .toStringAsFixed(2),
+    );
   }
 
   @override
   void dispose() {
-    for (final c in [name, sku, stock, minimum, cost, price]) {
-      c.dispose();
+    for (final controller in [
+      _name,
+      _sku,
+      _stock,
+      _minimum,
+      _cost,
+      _price,
+    ]) {
+      controller.dispose();
     }
     super.dispose();
   }
@@ -871,26 +1115,71 @@ class _VariantDialogState extends State<_VariantDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.variant == null ? 'Nova variante / tamanho' : 'Editar variante'),
+      title: Text(
+        widget.variant == null
+            ? 'Nova variante / tamanho'
+            : 'Editar variante',
+      ),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: name, decoration: const InputDecoration(labelText: 'Tamanho / variante *')),
-            TextField(controller: sku, decoration: const InputDecoration(labelText: 'SKU da variante')),
-            TextField(controller: stock, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Stock atual')),
-            TextField(controller: minimum, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Stock mínimo')),
-            TextField(controller: cost, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Custo unitário')),
-            TextField(controller: price, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Preço de venda')),
+            TextField(
+              controller: _name,
+              decoration: const InputDecoration(
+                labelText: 'Tamanho / variante *',
+              ),
+            ),
+            TextField(
+              controller: _sku,
+              decoration: const InputDecoration(labelText: 'SKU da variante'),
+            ),
+            TextField(
+              controller: _stock,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Stock atual'),
+            ),
+            TextField(
+              controller: _minimum,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Stock mínimo'),
+            ),
+            TextField(
+              controller: _cost,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Custo unitário'),
+            ),
+            TextField(
+              controller: _price,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Preço de venda'),
+            ),
           ],
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
         FilledButton(
           onPressed: () {
-            if (name.text.trim().isEmpty) return;
-            Navigator.pop(context, _VariantInput(name.text, sku.text, _parse(stock.text), _parse(minimum.text), _parse(cost.text), _parse(price.text)));
+            if (_name.text.trim().isEmpty) return;
+            Navigator.pop(
+              context,
+              _VariantInput(
+                _name.text,
+                _sku.text,
+                _parse(_stock.text),
+                _parse(_minimum.text),
+                _parse(_cost.text),
+                _parse(_price.text),
+              ),
+            );
           },
           child: const Text('Guardar'),
         ),
@@ -900,7 +1189,12 @@ class _VariantDialogState extends State<_VariantDialog> {
 }
 
 class _OrderDialog extends StatefulWidget {
-  const _OrderDialog({required this.product, required this.variant, required this.members});
+  const _OrderDialog({
+    required this.product,
+    required this.variant,
+    required this.members,
+  });
+
   final Map<String, dynamic> product;
   final Map<String, dynamic>? variant;
   final List<Map<String, dynamic>> members;
@@ -910,37 +1204,48 @@ class _OrderDialog extends StatefulWidget {
 }
 
 class _OrderDialogState extends State<_OrderDialog> {
-  String? memberId;
-  bool external = false;
-  final name = TextEditingController();
-  final contact = TextEditingController();
-  final quantity = TextEditingController(text: '1');
-  late final TextEditingController price;
-  final payNow = TextEditingController(text: '0');
-  final notes = TextEditingController();
-  String method = 'Dinheiro';
+  String? _memberId;
+  bool _external = false;
+  final _name = TextEditingController();
+  final _contact = TextEditingController();
+  final _quantity = TextEditingController(text: '1');
+  late final TextEditingController _price;
+  final _payNow = TextEditingController(text: '0');
+  final _notes = TextEditingController();
+  String _method = 'Dinheiro';
 
   @override
   void initState() {
     super.initState();
-    price = TextEditingController(text: _double(widget.variant?['sale_price'] ?? widget.product['sale_price']).toStringAsFixed(2));
+    _price = TextEditingController(
+      text: _double(
+        widget.variant?['sale_price'] ?? widget.product['sale_price'],
+      ).toStringAsFixed(2),
+    );
   }
 
   @override
   void dispose() {
-    for (final c in [name, contact, quantity, price, payNow, notes]) {
-      c.dispose();
+    for (final controller in [
+      _name,
+      _contact,
+      _quantity,
+      _price,
+      _payNow,
+      _notes,
+    ]) {
+      controller.dispose();
     }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final q = _parse(quantity.text);
-    final p = _parse(price.text);
-    final total = q * p;
+    final total = _parse(_quantity.text) * _parse(_price.text);
+    final variantName = widget.variant == null ? '' : ' / ${widget.variant!['name']}';
+
     return AlertDialog(
-      title: Text('Encomendar — ${widget.product['name']}${widget.variant == null ? '' : ' / ${widget.variant!['name']}'}'),
+      title: Text('Encomendar — ${widget.product['name']}$variantName'),
       content: SizedBox(
         width: 520,
         child: SingleChildScrollView(
@@ -949,58 +1254,141 @@ class _OrderDialogState extends State<_OrderDialog> {
             children: [
               SegmentedButton<bool>(
                 segments: const [
-                  ButtonSegment(value: false, label: Text('Membro'), icon: Icon(Icons.person_outline)),
-                  ButtonSegment(value: true, label: Text('Externo'), icon: Icon(Icons.person_add_alt_outlined)),
+                  ButtonSegment(
+                    value: false,
+                    label: Text('Membro'),
+                    icon: Icon(Icons.person_outline),
+                  ),
+                  ButtonSegment(
+                    value: true,
+                    label: Text('Externo'),
+                    icon: Icon(Icons.person_add_alt_outlined),
+                  ),
                 ],
-                selected: {external},
-                onSelectionChanged: (values) => setState(() => external = values.first),
+                selected: {_external},
+                onSelectionChanged: (values) =>
+                    setState(() => _external = values.first),
               ),
-              if (!external)
+              if (!_external)
                 DropdownButtonFormField<String>(
-                  initialValue: memberId,
+                  initialValue: _memberId,
                   decoration: const InputDecoration(labelText: 'Membro'),
-                  items: widget.members.map((m) => DropdownMenuItem(value: m['id'].toString(), child: Text(m['full_name']?.toString() ?? 'Membro'))).toList(),
-                  onChanged: (value) => setState(() => memberId = value),
+                  items: widget.members
+                      .map(
+                        (member) => DropdownMenuItem(
+                          value: member['id'].toString(),
+                          child: Text(
+                            member['full_name']?.toString() ?? 'Membro',
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) => setState(() => _memberId = value),
                 )
               else ...[
-                TextField(controller: name, decoration: const InputDecoration(labelText: 'Nome do cliente *')),
-                TextField(controller: contact, decoration: const InputDecoration(labelText: 'Contacto (opcional)')),
+                TextField(
+                  controller: _name,
+                  decoration:
+                      const InputDecoration(labelText: 'Nome do cliente *'),
+                ),
+                TextField(
+                  controller: _contact,
+                  decoration: const InputDecoration(
+                    labelText: 'Contacto (opcional)',
+                  ),
+                ),
               ],
-              TextField(controller: quantity, onChanged: (_) => setState(() {}), keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Quantidade')),
-              TextField(controller: price, onChanged: (_) => setState(() {}), keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Preço unitário')),
-              Align(alignment: Alignment.centerLeft, child: Text('Total: ${_money(total)}', style: Theme.of(context).textTheme.titleMedium)),
-              TextField(controller: payNow, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Pagar agora (0 = não pago)')),
-              DropdownButtonFormField<String>(
-                initialValue: method,
-                decoration: const InputDecoration(labelText: 'Método do pagamento'),
-                items: const ['Dinheiro', 'MB Way', 'Transferência bancária'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
-                onChanged: (value) => setState(() => method = value ?? method),
+              TextField(
+                controller: _quantity,
+                onChanged: (_) => setState(() {}),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Quantidade'),
               ),
-              TextField(controller: notes, maxLines: 2, decoration: const InputDecoration(labelText: 'Nota / próxima encomenda')),
+              TextField(
+                controller: _price,
+                onChanged: (_) => setState(() {}),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Preço unitário'),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Total: ${_money(total)}',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              TextField(
+                controller: _payNow,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Pagar agora (0 = não pago)',
+                ),
+              ),
+              DropdownButtonFormField<String>(
+                initialValue: _method,
+                decoration:
+                    const InputDecoration(labelText: 'Método do pagamento'),
+                items: const [
+                  'Dinheiro',
+                  'MB Way',
+                  'Transferência bancária',
+                ]
+                    .map(
+                      (value) => DropdownMenuItem(
+                        value: value,
+                        child: Text(value),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) =>
+                    setState(() => _method = value ?? _method),
+              ),
+              TextField(
+                controller: _notes,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Nota / próxima encomenda',
+                ),
+              ),
             ],
           ),
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
         FilledButton(
           onPressed: () {
-            final qty = _parse(quantity.text);
-            final unitPrice = _parse(price.text);
-            final payment = _parse(payNow.text);
-            if (qty <= 0 || unitPrice < 0 || payment < 0 || payment > qty * unitPrice) return;
-            if ((!external && memberId == null) || (external && name.text.trim().isEmpty)) return;
+            final quantity = _parse(_quantity.text);
+            final unitPrice = _parse(_price.text);
+            final payment = _parse(_payNow.text);
+            final orderTotal = quantity * unitPrice;
+            if (quantity <= 0 ||
+                unitPrice < 0 ||
+                payment < 0 ||
+                payment > orderTotal) {
+              return;
+            }
+            if ((!_external && _memberId == null) ||
+                (_external && _name.text.trim().isEmpty)) {
+              return;
+            }
             Navigator.pop(
               context,
               _OrderInput(
-                memberId: external ? null : memberId,
-                externalName: external ? name.text.trim() : '',
-                externalContact: external ? contact.text.trim() : '',
-                quantity: qty,
+                memberId: _external ? null : _memberId,
+                externalName: _external ? _name.text.trim() : '',
+                externalContact: _external ? _contact.text.trim() : '',
+                quantity: quantity,
                 unitPrice: unitPrice,
                 payNow: payment,
-                paymentMethod: method,
-                notes: notes.text.trim(),
+                paymentMethod: _method,
+                notes: _notes.text.trim(),
               ),
             );
           },
@@ -1013,6 +1401,7 @@ class _OrderDialogState extends State<_OrderDialog> {
 
 class _Metric extends StatelessWidget {
   const _Metric(this.label, this.value, this.icon);
+
   final String label;
   final String value;
   final IconData icon;
@@ -1025,7 +1414,13 @@ class _Metric extends StatelessWidget {
         child: ListTile(
           leading: Icon(icon),
           title: Text(label),
-          subtitle: Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+          subtitle: Text(
+            value,
+            style: Theme.of(context)
+                .textTheme
+                .titleLarge
+                ?.copyWith(fontWeight: FontWeight.w900),
+          ),
         ),
       ),
     );
@@ -1034,7 +1429,9 @@ class _Metric extends StatelessWidget {
 
 class _StatusChip extends StatelessWidget {
   const _StatusChip(this.status);
+
   final String status;
+
   @override
   Widget build(BuildContext context) {
     final label = switch (status) {
@@ -1049,14 +1446,27 @@ class _StatusChip extends StatelessWidget {
 }
 
 class _ShopData {
-  const _ShopData({required this.products, required this.orders, required this.members});
+  const _ShopData({
+    required this.products,
+    required this.orders,
+    required this.members,
+  });
+
   final List<Map<String, dynamic>> products;
   final List<Map<String, dynamic>> orders;
   final List<Map<String, dynamic>> members;
 }
 
 class _VariantInput {
-  const _VariantInput(this.name, this.sku, this.stock, this.minimum, this.cost, this.price);
+  const _VariantInput(
+    this.name,
+    this.sku,
+    this.stock,
+    this.minimum,
+    this.cost,
+    this.price,
+  );
+
   final String name;
   final String sku;
   final double stock;
@@ -1076,6 +1486,7 @@ class _OrderInput {
     required this.paymentMethod,
     required this.notes,
   });
+
   final String? memberId;
   final String externalName;
   final String externalContact;
@@ -1090,15 +1501,29 @@ List<Map<String, dynamic>> _variants(Map<String, dynamic> product) {
   final raw = product['product_variants'];
   if (raw is! List) return const [];
   final rows = List<Map<String, dynamic>>.from(raw);
-  rows.sort((a, b) => (a['name']?.toString() ?? '').compareTo(b['name']?.toString() ?? ''));
-  return rows.where((v) => v['active'] != false).toList();
+  rows.sort(
+    (a, b) =>
+        (a['name']?.toString() ?? '').compareTo(b['name']?.toString() ?? ''),
+  );
+  return rows.where((row) => row['active'] != false).toList();
 }
 
-double _available(Map<String, dynamic> variant) => _double(variant['current_stock']) - _double(variant['reserved_stock']);
-double _double(Object? value) => value is num ? value.toDouble() : double.tryParse(value?.toString().replaceAll(',', '.') ?? '') ?? 0;
-double _parse(String value) => double.tryParse(value.replaceAll(',', '.')) ?? 0;
+double _available(Map<String, dynamic> variant) =>
+    _double(variant['current_stock']) - _double(variant['reserved_stock']);
+
+double _double(Object? value) => value is num
+    ? value.toDouble()
+    : double.tryParse(value?.toString().replaceAll(',', '.') ?? '') ?? 0;
+
+double _parse(String value) =>
+    double.tryParse(value.replaceAll(',', '.')) ?? 0;
+
 String _number(Object? value) {
-  final n = _double(value);
-  return n == n.roundToDouble() ? n.toInt().toString() : n.toStringAsFixed(2).replaceAll('.', ',');
+  final number = _double(value);
+  return number == number.roundToDouble()
+      ? number.toInt().toString()
+      : number.toStringAsFixed(2).replaceAll('.', ',');
 }
-String _money(Object? value) => '${NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(_double(value))}';
+
+String _money(Object? value) =>
+    NumberFormat.currency(locale: 'pt_PT', symbol: '€').format(_double(value));
