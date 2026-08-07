@@ -51,7 +51,9 @@ class BarRepository {
     _require(AppPermission.viewInventory);
     final response = await _client
         .from('bar_operations')
-        .select('id,operation_type,purchase_units,consumption_quantity,unit_price,total_amount,payment_method,notes,created_at,event_id,products(name,consumption_unit),events(name),treasury_transactions(account_id,treasury_accounts(name))')
+        .select(
+          'id,operation_type,purchase_units,consumption_quantity,unit_price,total_amount,payment_method,notes,created_at,event_id,products(name,consumption_unit),events(name),treasury_transactions(account_id,source_account:treasury_accounts!treasury_transactions_account_id_fkey(name))',
+        )
         .eq('club_id', _clubId)
         .order('created_at', ascending: false)
         .limit(limit);
