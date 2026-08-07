@@ -36,11 +36,22 @@ class BarRepository {
     return List<Map<String, dynamic>>.from(response);
   }
 
+  Future<List<Map<String, dynamic>>> treasuryAccounts() async {
+    _require(AppPermission.selectBarFinancialAccount);
+    final response = await _client
+        .from('treasury_accounts')
+        .select('id,name,account_type,icon,allows_negative')
+        .eq('club_id', _clubId)
+        .eq('active', true)
+        .order('name');
+    return List<Map<String, dynamic>>.from(response);
+  }
+
   Future<List<Map<String, dynamic>>> operations({int limit = 100}) async {
     _require(AppPermission.viewInventory);
     final response = await _client
         .from('bar_operations')
-        .select('id,operation_type,purchase_units,consumption_quantity,unit_price,total_amount,payment_method,notes,created_at,event_id,products(name,consumption_unit),events(name)')
+        .select('id,operation_type,purchase_units,consumption_quantity,unit_price,total_amount,payment_method,notes,created_at,event_id,products(name,consumption_unit),events(name),treasury_transactions(account_id,treasury_accounts(name))')
         .eq('club_id', _clubId)
         .order('created_at', ascending: false)
         .limit(limit);
@@ -64,7 +75,7 @@ class BarRepository {
     _require(AppPermission.manageBar);
     if (name.trim().isEmpty) throw ArgumentError('Indica o nome do artigo.');
     if (unitsPerPurchase <= 0) {
-      throw ArgumentError('A conversão por unidade de compra deve ser superior a zero.');
+      throw ArgumentError('A quantidade por embalagem de compra deve ser superior a zero.');
     }
     final unitCost = purchaseCost / unitsPerPurchase;
     final values = <String, dynamic>{
@@ -107,6 +118,7 @@ class BarRepository {
     required double purchaseUnits,
     required double costPerPurchaseUnit,
     String? eventId,
+    String? accountId,
     String paymentMethod = 'Dinheiro',
     String notes = '',
     bool postFinancial = true,
@@ -123,6 +135,7 @@ class BarRepository {
       purchaseUnits: purchaseUnits,
       unitPrice: costPerPurchaseUnit,
       eventId: eventId,
+      accountId: accountId,
       paymentMethod: paymentMethod,
       notes: notes,
       postFinancial: postFinancial,
@@ -134,6 +147,7 @@ class BarRepository {
     required String operation,
     required double quantity,
     String? eventId,
+    String? accountId,
     double? unitPrice,
     String? paymentMethod,
     String notes = '',
@@ -148,6 +162,7 @@ class BarRepository {
       operation: operation,
       quantity: quantity,
       eventId: eventId,
+      accountId: accountId,
       unitPrice: unitPrice,
       paymentMethod: paymentMethod,
       notes: notes,
@@ -160,6 +175,7 @@ class BarRepository {
     required String operation,
     required double quantity,
     String? eventId,
+    String? accountId,
     double? purchaseUnits,
     double? unitPrice,
     String? paymentMethod,
@@ -167,7 +183,8 @@ class BarRepository {
     required bool postFinancial,
   }) async {
     if (quantity <= 0) throw ArgumentError('A quantidade deve ser superior a zero.');
-    await _client.rpc('bar_operation_v1', params: {
+    if (accountId != null) _require(AppPermission.selectBarFinancialAccount);
+    await _client.rpc('bar_operation_v2', params: {
       'target_club': _clubId,
       'p_product': productId,
       'p_operation': operation,
@@ -178,6 +195,7 @@ class BarRepository {
       'p_payment_method': paymentMethod,
       'p_notes': notes.trim(),
       'p_post_financial': postFinancial,
+      'p_account': accountId,
     });
   }
 }
