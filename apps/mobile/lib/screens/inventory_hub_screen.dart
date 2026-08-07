@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../repositories/inventory_foundation_repository.dart';
+import 'bar_screen.dart';
 import 'shop_management_screen.dart';
 import 'shop_screen.dart';
 
@@ -54,12 +55,7 @@ class _InventoryHubScreenState extends State<InventoryHubScreen> {
               children: [
                 _SummaryTab(future: _future, onRefresh: _reload),
                 const ShopScreen(),
-                const _FoundationPlaceholder(
-                  icon: Icons.local_bar_outlined,
-                  title: 'Bar',
-                  description:
-                      'Estrutura criada. Nos próximos blocos entram consumíveis, unidades e conversões.',
-                ),
+                const BarScreen(),
                 const _FoundationPlaceholder(
                   icon: Icons.home_repair_service_outlined,
                   title: 'Património',
