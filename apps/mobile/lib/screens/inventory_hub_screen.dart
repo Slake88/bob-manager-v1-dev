@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../repositories/inventory_foundation_repository.dart';
+import 'assets_screen.dart';
 import 'bar_screen_v3.dart';
 import 'shop_management_screen.dart';
 import 'shop_screen.dart';
@@ -56,12 +57,7 @@ class _InventoryHubScreenState extends State<InventoryHubScreen> {
                 _SummaryTab(future: _future, onRefresh: _reload),
                 const ShopScreen(),
                 const BarScreenV3(),
-                const _FoundationPlaceholder(
-                  icon: Icons.home_repair_service_outlined,
-                  title: 'Património',
-                  description:
-                      'Estrutura criada para equipamentos, localizações, empréstimos e manutenção.',
-                ),
+                const AssetsScreen(),
                 const _FoundationPlaceholder(
                   icon: Icons.swap_horiz_outlined,
                   title: 'Movimentos',
