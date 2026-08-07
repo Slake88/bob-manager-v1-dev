@@ -5,6 +5,7 @@ class ModuleDefinition {
 }
 const appModules = <ModuleDefinition>[
  ModuleDefinition('dashboard','Dashboard',Icons.dashboard_outlined,'Resumo do clube e alertas'),
+ ModuleDefinition('activity','Atividade',Icons.dynamic_feed_outlined,'Activity Feed e histórico do clube'),
  ModuleDefinition('members','Membros',Icons.groups_outlined,'Membros, motas, manutenção, patches e Timeline'),
  ModuleDefinition('treasury','Tesouraria',Icons.account_balance_wallet_outlined,'Contas, fundos, movimentos e reembolsos'),
  ModuleDefinition('fees','Quotas',Icons.receipt_long_outlined,'Planos, cobranças, pagamentos e saldos'),
