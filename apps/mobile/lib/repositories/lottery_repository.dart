@@ -23,8 +23,9 @@ class LotteryRepository {
       );
 
   bool get canOperateMoney {
-    final role = (AppSession.instance.role ?? '').toLowerCase();
+    final role = AppSession.instance.role.toLowerCase();
     return currentRole == AppRole.treasurer ||
+        role == 'treasurer' ||
         role == 'super_admin' ||
         role == 'super admin';
   }
@@ -59,7 +60,10 @@ class LotteryRepository {
     );
 
     final first = DateTime(year, month, 1);
-    final next = month == 12 ? DateTime(year + 1, 1, 1) : DateTime(year, month + 1, 1);
+    final next = month == 12
+        ? DateTime(year + 1, 1, 1)
+        : DateTime(year, month + 1, 1);
+    final chargeStart = first.subtract(const Duration(days: 6));
     final firstIso = _dateOnly(first);
     final nextIso = _dateOnly(next);
 
@@ -72,7 +76,7 @@ class LotteryRepository {
           .from('euromillions_weekly_charges')
           .select()
           .eq('club_id', AppSession.instance.clubId)
-          .gte('week_start', firstIso)
+          .gte('week_start', _dateOnly(chargeStart))
           .lt('week_start', nextIso)
           .order('week_start'),
       _supabase
@@ -121,20 +125,11 @@ class LotteryRepository {
       'charges': List<Map<String, dynamic>>.from(results[1] as List),
       'results': List<Map<String, dynamic>>.from(results[2] as List),
       'fines': List<Map<String, dynamic>>.from(results[3] as List),
-      'weekly_amount': double.tryParse(
-            settings['euromillions_weekly_amount'] ?? '',
-          ) ??
-          4.40,
-      'fine_per_miss': double.tryParse(
-            settings['euromillions_fine_per_miss'] ?? '',
-          ) ??
-          0.10,
+      'weekly_amount':
+          double.tryParse(settings['euromillions_weekly_amount'] ?? '') ?? 4.40,
+      'fine_per_miss':
+          double.tryParse(settings['euromillions_fine_per_miss'] ?? '') ?? 0.10,
     };
-  }
-
-  Future<List<Map<String, dynamic>>> listPlayers() async {
-    final data = await loadMonth(DateTime.now().year, DateTime.now().month);
-    return List<Map<String, dynamic>>.from(data['players'] as List);
   }
 
   Future<void> updatePlayer({
@@ -150,7 +145,6 @@ class LotteryRepository {
     final parsedStars = status == 'non_player' && stars.trim().isEmpty
         ? <int>[]
         : _parseAndValidate(stars, 2, 1, 12, 'estrelas');
-
     if (!['active', 'inactive', 'non_player'].contains(status)) {
       throw ArgumentError('Estado de jogador inválido.');
     }
@@ -158,7 +152,6 @@ class LotteryRepository {
         (parsedNumbers.length != 5 || parsedStars.length != 2)) {
       throw ArgumentError('Um jogador ativo precisa de uma chave completa.');
     }
-
     if (AppConfig.demoMode) return;
     await _supabase
         .from('euromillions_players')
@@ -177,13 +170,14 @@ class LotteryRepository {
     required double finePerMiss,
   }) async {
     if (!canOperateMoney) {
-      throw StateError('Apenas o Tesoureiro ou Super Admin pode alterar estes valores.');
+      throw StateError(
+        'Apenas o Tesoureiro ou Super Admin pode alterar estes valores.',
+      );
     }
     if (weeklyAmount <= 0 || finePerMiss < 0) {
       throw ArgumentError('Valores de configuração inválidos.');
     }
     if (AppConfig.demoMode) return;
-
     for (final entry in {
       'euromillions_weekly_amount': weeklyAmount.toStringAsFixed(2),
       'euromillions_fine_per_miss': finePerMiss.toStringAsFixed(2),
@@ -203,7 +197,9 @@ class LotteryRepository {
     required String paymentMethod,
   }) async {
     if (!canOperateMoney) {
-      throw StateError('Apenas o Tesoureiro ou Super Admin pode registar pagamentos.');
+      throw StateError(
+        'Apenas o Tesoureiro ou Super Admin pode registar pagamentos.',
+      );
     }
     if (AppConfig.demoMode) return;
     await _supabase.rpc(
@@ -223,7 +219,9 @@ class LotteryRepository {
     required String paymentMethod,
   }) async {
     if (!canOperateMoney) {
-      throw StateError('Apenas o Tesoureiro ou Super Admin pode registar pagamentos.');
+      throw StateError(
+        'Apenas o Tesoureiro ou Super Admin pode registar pagamentos.',
+      );
     }
     if (AppConfig.demoMode) return;
     await _supabase.rpc(
@@ -244,7 +242,9 @@ class LotteryRepository {
     required String stars,
   }) async {
     if (!canOperateMoney) {
-      throw StateError('Apenas o Tesoureiro ou Super Admin pode processar resultados.');
+      throw StateError(
+        'Apenas o Tesoureiro ou Super Admin pode processar resultados.',
+      );
     }
     final parsedNumbers = _parseAndValidate(numbers, 5, 1, 50, 'números');
     final parsedStars = _parseAndValidate(stars, 2, 1, 12, 'estrelas');
@@ -268,7 +268,8 @@ class LotteryRepository {
     final dates = <DateTime>[];
     var day = DateTime(year, month, 1);
     while (day.month == month) {
-      if (day.weekday == DateTime.tuesday || day.weekday == DateTime.friday) {
+      if (day.weekday == DateTime.tuesday ||
+          day.weekday == DateTime.friday) {
         dates.add(day);
       }
       day = day.add(const Duration(days: 1));
@@ -338,7 +339,6 @@ class LotteryRepository {
       12,
       'estrelas',
     );
-
     if (AppConfig.demoMode) {
       final normalized = <String, dynamic>{
         ...values,
@@ -347,10 +347,11 @@ class LotteryRepository {
         'balance': _asDouble(values['balance']),
         'active': values['active'] != false,
       };
-      if (id == null) return _dataService.insert('lottery_participants', normalized);
+      if (id == null) {
+        return _dataService.insert('lottery_participants', normalized);
+      }
       return _dataService.update('lottery_participants', id, normalized);
     }
-
     final memberId = values['member_id']?.toString();
     if (memberId == null || memberId.isEmpty) {
       throw ArgumentError('Seleciona um membro.');
@@ -386,19 +387,22 @@ class LotteryRepository {
     required String paymentMethod,
   }) async {
     _require(AppPermission.manageLottery);
-    if (amount <= 0) throw ArgumentError('O valor do pagamento deve ser superior a zero.');
+    if (amount <= 0) {
+      throw ArgumentError('O valor do pagamento deve ser superior a zero.');
+    }
     if (AppConfig.demoMode) {
       final currentPaid = _asDouble(participant['paid_amount']);
       final currentBalance = _asDouble(participant['balance']);
-      final id = participant['id']?.toString() ?? '';
-      final updated = await _dataService.update('lottery_participants', id, {
+      final participantId = participant['id']?.toString() ?? '';
+      return _dataService.update('lottery_participants', participantId, {
         ...participant,
         'paid_amount': currentPaid + amount,
         'balance': (currentBalance - amount).clamp(0, double.infinity),
       });
-      return updated;
     }
-    throw StateError('Usa o pagamento semanal ou mensal no novo módulo Euromilhões.');
+    throw StateError(
+      'Usa o pagamento semanal ou mensal no novo módulo Euromilhões.',
+    );
   }
 
   List<int> _parseAndValidate(
@@ -413,7 +417,8 @@ class LotteryRepository {
         .where((value) => value.isNotEmpty)
         .map(int.tryParse)
         .toList();
-    if (parsed.length != expectedCount || parsed.any((value) => value == null)) {
+    if (parsed.length != expectedCount ||
+        parsed.any((value) => value == null)) {
       throw ArgumentError('Indica exatamente $expectedCount $label.');
     }
     final values = parsed.cast<int>();
@@ -433,7 +438,9 @@ class LotteryRepository {
 }
 
 List<int> _intList(Object? value) {
-  if (value is List) return value.map((item) => int.parse(item.toString())).toList();
+  if (value is List) {
+    return value.map((item) => int.parse(item.toString())).toList();
+  }
   return const [];
 }
 
