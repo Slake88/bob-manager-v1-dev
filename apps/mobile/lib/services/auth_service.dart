@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/app_config.dart';
 import '../core/app_session.dart';
+import '../core/permissions.dart';
 
 class AuthService {
   AuthService._();
@@ -24,8 +25,9 @@ class AuthService {
         newProfileId: 'demo-profile',
         newClubId: '00000000-0000-0000-0000-000000000001',
         newFullName: 'Israel Sousa',
-        newRole: 'Administrador',
+        newRole: 'super_admin',
       );
+      AppSession.instance.applyPermissions(AppPermission.values.map((p) => p.key));
       return;
     }
 
@@ -88,12 +90,19 @@ class AuthService {
     }
   }
 
+  Future<void> refreshPermissions() async {
+    if (!AppSession.instance.authenticated || AppConfig.demoMode) return;
+    await _hydratePermissions(
+      AppSession.instance.clubId,
+      AppSession.instance.profileId,
+      AppSession.instance.role,
+    );
+  }
+
   Future<void> _hydrateSession(
     String profileId, {
     required String fallbackName,
   }) async {
-    // Não usa relações embebidas do PostgREST. A associação e o perfil são
-    // consultados separadamente, evitando dependência do schema cache.
     final membership = await Supabase.instance.client
         .from('club_memberships')
         .select('club_id, access_role')
@@ -120,15 +129,54 @@ class AuthService {
         .maybeSingle();
 
     final fullName = profile?['full_name']?.toString().trim();
+    final role = membership['access_role']?.toString() ?? 'member';
 
     AppSession.instance.authenticate(
       newProfileId: profileId,
       newClubId: clubId,
-      newFullName: fullName == null || fullName.isEmpty
-          ? fallbackName
-          : fullName,
-      newRole: membership['access_role']?.toString() ?? 'Membro',
+      newFullName: fullName == null || fullName.isEmpty ? fallbackName : fullName,
+      newRole: role,
     );
+
+    await _hydratePermissions(clubId, profileId, role);
+  }
+
+  Future<void> _hydratePermissions(
+    String clubId,
+    String profileId,
+    String role,
+  ) async {
+    if (AppSession.instance.superAdmin) {
+      AppSession.instance.applyPermissions(AppPermission.values.map((p) => p.key));
+      return;
+    }
+
+    final values = await Future.wait([
+      Supabase.instance.client
+          .from('club_role_permissions')
+          .select('permission_key,allowed')
+          .eq('club_id', clubId)
+          .eq('role_key', role),
+      Supabase.instance.client
+          .from('user_permission_overrides')
+          .select('permission_key,allowed')
+          .eq('club_id', clubId)
+          .eq('profile_id', profileId),
+    ]);
+
+    final effective = <String>{};
+    for (final row in List<Map<String, dynamic>>.from(values[0] as List)) {
+      if (row['allowed'] == true) effective.add(row['permission_key'].toString());
+    }
+    for (final row in List<Map<String, dynamic>>.from(values[1] as List)) {
+      final key = row['permission_key'].toString();
+      if (row['allowed'] == true) {
+        effective.add(key);
+      } else {
+        effective.remove(key);
+      }
+    }
+    AppSession.instance.applyPermissions(effective);
   }
 
   static String _friendlyDatabaseError(PostgrestException error) {
