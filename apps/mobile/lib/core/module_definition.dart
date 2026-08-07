@@ -11,7 +11,7 @@ const appModules = <ModuleDefinition>[
  ModuleDefinition('fees','Quotas',Icons.receipt_long_outlined,'Planos, cobranças, pagamentos e saldos'),
  ModuleDefinition('lottery','Euromilhões',Icons.casino_outlined,'Participantes, chaves, sorteios e prémios'),
  ModuleDefinition('events','Eventos',Icons.event_outlined,'Eventos, passeios e Rock & Ride In'),
- ModuleDefinition('inventory','Inventário',Icons.inventory_2_outlined,'Stock, merchandising, patches e vendas'),
+ ModuleDefinition('inventory','Património & Inventário',Icons.inventory_2_outlined,'Loja, Bar, património, movimentos e inventário físico'),
  ModuleDefinition('documents','Documentos',Icons.folder_outlined,'Arquivo, atas, licenças e Cápsula do Tempo'),
  ModuleDefinition('communication','Comunicação',Icons.campaign_outlined,'Comunicados, votações e inquéritos'),
  ModuleDefinition('reports','Relatórios',Icons.assessment_outlined,'PDF, Excel, CSV e importações'),
