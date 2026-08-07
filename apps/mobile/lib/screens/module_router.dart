@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/module_definition.dart';
+import 'activity_screen.dart';
 import 'communication_screen.dart';
 import 'dashboard_screen.dart';
 import 'documents_screen.dart';
@@ -23,6 +24,7 @@ class ModuleRouter extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (module.code) {
       'dashboard' => const DashboardScreen(),
+      'activity' => const ActivityScreen(),
       'members' => const MembersScreen(),
       'treasury' => const TreasuryScreen(),
       'fees' => const FeesScreen(),
