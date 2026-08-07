@@ -23,6 +23,7 @@ enum AppPermission {
   sellInventory,
   manageMerchandising,
   manageBar,
+  selectBarFinancialAccount,
   manageAssets,
   performInventoryCount,
   viewDocuments,
@@ -58,6 +59,7 @@ extension AppPermissionMeta on AppPermission {
         AppPermission.sellInventory ||
         AppPermission.manageMerchandising ||
         AppPermission.manageBar ||
+        AppPermission.selectBarFinancialAccount ||
         AppPermission.manageAssets ||
         AppPermission.performInventoryCount => 'Património & Inventário',
         AppPermission.viewDocuments ||
@@ -92,6 +94,7 @@ extension AppPermissionMeta on AppPermission {
         AppPermission.sellInventory => 'Registar vendas',
         AppPermission.manageMerchandising => 'Gerir Loja e merchandising',
         AppPermission.manageBar => 'Gerir Bar e consumíveis',
+        AppPermission.selectBarFinancialAccount => 'Escolher conta financeira do Bar',
         AppPermission.manageAssets => 'Gerir património e equipamentos',
         AppPermission.performInventoryCount => 'Realizar inventário físico',
         AppPermission.viewDocuments => 'Ver documentos',
@@ -165,6 +168,8 @@ class PermissionPolicy {
       AppPermission.manageBar ||
       AppPermission.manageAssets ||
       AppPermission.performInventoryCount => role == AppRole.inventoryManager,
+      AppPermission.selectBarFinancialAccount =>
+        role == AppRole.president || role == AppRole.treasurer,
       AppPermission.sellInventory =>
         role == AppRole.inventoryManager || role == AppRole.treasurer,
       AppPermission.viewDocuments => role != AppRole.unknown,
