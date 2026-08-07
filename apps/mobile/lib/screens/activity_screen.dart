@@ -202,7 +202,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
                     subtitle: Text([
                       row['body']?.toString(),
                       _relativeTime(row['created_at']),
-                    ].where((value) => value != null && value!.isNotEmpty).join('\n')),
+                    ].where((value) => value != null && value.isNotEmpty).join('\n')),
                     isThreeLine: true,
                     onTap: () => _toggle(row),
                     trailing: PopupMenuButton<String>(
@@ -253,7 +253,7 @@ class _ActivityCard extends StatelessWidget {
           row['description']?.toString(),
           if (actorName != null && actorName.isNotEmpty) 'Por $actorName',
           _relativeTime(row['created_at']),
-        ].where((value) => value != null && value!.isNotEmpty).join('\n')),
+        ].where((value) => value != null && value.isNotEmpty).join('\n')),
         isThreeLine: true,
       ),
     );
