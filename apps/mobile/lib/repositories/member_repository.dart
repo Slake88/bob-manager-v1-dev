@@ -58,13 +58,17 @@ class MemberRepository {
     }
 
     final payload = _memberPayload(values);
+
     if (memberId == null) {
       final response = await _supabase
           .from('members')
           .insert({...payload, 'club_id': AppSession.instance.clubId})
           .select()
           .single();
-      return _normaliseMember(Map<String, dynamic>.from(response));
+      final created = Map<String, dynamic>.from(response);
+      final createdId = created['id'].toString();
+      await _savePrimaryMotorcycle(createdId, values);
+      return await getMember(createdId) ?? _normaliseMember(created);
     }
 
     final response = await _supabase
@@ -74,7 +78,10 @@ class MemberRepository {
         .eq('club_id', AppSession.instance.clubId)
         .select()
         .single();
-    return _normaliseMember(Map<String, dynamic>.from(response));
+
+    await _savePrimaryMotorcycle(memberId, values);
+    return await getMember(memberId) ??
+        _normaliseMember(Map<String, dynamic>.from(response));
   }
 
   Future<void> deleteMember(String memberId) async {
@@ -125,8 +132,6 @@ class MemberRepository {
       return motorcyclesFor(memberId);
     }
 
-    // Estas áreas ainda não têm tabelas próprias no esquema real atual.
-    // O módulo mantém os contadores a zero até às respetivas migrações.
     if (table == 'maintenance_records' ||
         table == 'member_patch_awards' ||
         table == 'member_timeline') {
@@ -164,12 +169,70 @@ class MemberRepository {
     };
 
     return members
-        .map((member) => _withPrimaryMotorcycle(
-              member,
-              [if (byMember[member['id']?.toString()] != null)
-                byMember[member['id']?.toString()]!],
-            ))
+        .map(
+          (member) => _withPrimaryMotorcycle(
+            member,
+            [
+              if (byMember[member['id']?.toString()] != null)
+                byMember[member['id']?.toString()]!,
+            ],
+          ),
+        )
         .toList();
+  }
+
+  Future<void> _savePrimaryMotorcycle(
+    String memberId,
+    Map<String, dynamic> values,
+  ) async {
+    final brand = _stringOrNull(values['motorcycle_brand']);
+    final model = _stringOrNull(values['motorcycle_model']);
+    final registration = _stringOrNull(values['motorcycle_registration']);
+    final year = _intOrNull(values['motorcycle_year']);
+
+    final existing = await _supabase
+        .from('member_motorcycles')
+        .select('id')
+        .eq('club_id', AppSession.instance.clubId)
+        .eq('member_id', memberId)
+        .eq('primary_motorcycle', true)
+        .limit(1)
+        .maybeSingle();
+
+    final hasMotorcycleData =
+        brand != null || model != null || registration != null || year != null;
+
+    if (!hasMotorcycleData) {
+      if (existing != null) {
+        await _supabase
+            .from('member_motorcycles')
+            .delete()
+            .eq('id', existing['id'])
+            .eq('club_id', AppSession.instance.clubId);
+      }
+      return;
+    }
+
+    final payload = <String, dynamic>{
+      'club_id': AppSession.instance.clubId,
+      'member_id': memberId,
+      'brand': brand,
+      'model': model,
+      'year': year,
+      'registration': registration,
+      'primary_motorcycle': true,
+    };
+
+    if (existing == null) {
+      await _supabase.from('member_motorcycles').insert(payload);
+      return;
+    }
+
+    await _supabase
+        .from('member_motorcycles')
+        .update(payload)
+        .eq('id', existing['id'])
+        .eq('club_id', AppSession.instance.clubId);
   }
 
   Map<String, dynamic> _normaliseMember(Map<String, dynamic> row) {
@@ -182,6 +245,8 @@ class MemberRepository {
       ...row,
       'primary_role': row['primary_role'] ?? '',
       'additional_roles': row['additional_roles'] ?? '',
+      'postal_code': row['postal_code'] ?? '',
+      'locality': row['locality'] ?? '',
       'emergency_name': emergencyMap['name'] ?? emergencyMap['contact_name'],
       'emergency_relation': emergencyMap['relation'],
       'emergency_phone': emergencyMap['phone'],
@@ -214,7 +279,9 @@ class MemberRepository {
       'blood_type': values['blood_type'],
       'allergies': values['allergies'],
       'medical_notes': values['medical_notes'],
-    }..removeWhere((_, value) => value == null || value.toString().trim().isEmpty);
+    }..removeWhere(
+        (_, value) => value == null || value.toString().trim().isEmpty,
+      );
 
     const allowed = <String>{
       'profile_id',
@@ -226,8 +293,12 @@ class MemberRepository {
       'birth_date',
       'tax_number',
       'address',
+      'postal_code',
+      'locality',
       'joined_at',
       'status',
+      'primary_role',
+      'additional_roles',
       'notes',
       'photo_path',
       'prospect_joined_at',
@@ -243,6 +314,17 @@ class MemberRepository {
     };
     payload.removeWhere((key, _) => key == 'profile_id' && values[key] == null);
     return payload;
+  }
+
+  String? _stringOrNull(dynamic value) {
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? null : text;
+  }
+
+  int? _intOrNull(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
   }
 
   Object? _emptyToNull(Object? value) {
