@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_session.dart';
 import '../repositories/admin_repository.dart';
+import 'permissions_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -88,6 +90,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<void> _openPermissions() async {
+    if (!AppSession.instance.superAdmin) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const PermissionsScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Map<String, dynamic>>>(
@@ -103,31 +112,44 @@ class _SettingsScreenState extends State<SettingsScreen> {
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Row(
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                Expanded(child: Text('Administração', style: Theme.of(context).textTheme.headlineSmall)),
+                Text('Administração', style: Theme.of(context).textTheme.headlineSmall),
                 OutlinedButton.icon(onPressed: _showAuditLog, icon: const Icon(Icons.history), label: const Text('Auditoria')),
-                const SizedBox(width: 8),
-                FilledButton.icon(onPressed: () => _editSetting(), icon: const Icon(Icons.add), label: const Text('Nova configuração')),
               ],
             ),
             const SizedBox(height: 12),
-            const Card(
+            Card(
               child: ListTile(
-                leading: Icon(Icons.security_outlined),
-                title: Text('Perfis e permissões'),
-                subtitle: Text('Direção, Tesouraria, Secretaria, Eventos, Inventário e restantes cargos.'),
+                leading: const Icon(Icons.security_outlined),
+                title: const Text('Perfis e permissões'),
+                subtitle: Text(
+                  AppSession.instance.superAdmin
+                      ? 'Definir o que cada cargo e utilizador pode ver e fazer.'
+                      : 'A gestão da matriz de permissões é exclusiva do Super Admin.',
+                ),
+                trailing: AppSession.instance.superAdmin ? const Icon(Icons.chevron_right) : const Icon(Icons.lock_outline),
+                onTap: AppSession.instance.superAdmin ? _openPermissions : null,
               ),
             ),
             const Card(
               child: ListTile(
                 leading: Icon(Icons.account_balance_outlined),
                 title: Text('Contas e centros de custo'),
-                subtitle: Text('Caixa, Banco CGD, Quotas, Reserva, Representação, Marketing, Euromilhões e Club House.'),
+                subtitle: Text('A gestão operacional das contas é feita diretamente na Tesouraria.'),
               ),
             ),
             const SizedBox(height: 8),
-            Text('Parâmetros do clube', style: Theme.of(context).textTheme.titleLarge),
+            Row(
+              children: [
+                Expanded(child: Text('Parâmetros do clube', style: Theme.of(context).textTheme.titleLarge)),
+                FilledButton.icon(onPressed: () => _editSetting(), icon: const Icon(Icons.add), label: const Text('Novo')),
+              ],
+            ),
             const SizedBox(height: 8),
             if (settings.isEmpty)
               const Card(child: ListTile(title: Text('Sem parâmetros personalizados'), subtitle: Text('Os valores padrão da RC1 estão ativos.')))
