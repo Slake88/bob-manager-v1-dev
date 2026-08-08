@@ -119,14 +119,15 @@ class _AssetsPhase2ScreenState extends State<AssetsPhase2Screen> {
     }
   }
 
-  Future<void> _newKit(_Phase2Data data) async {
+  Future<void> _newKit(_Phase2Data data, [Map<String, dynamic>? kit]) async {
     final result = await showDialog<_KitInput>(
       context: context,
-      builder: (_) => _KitDialog(assets: data.assets),
+      builder: (_) => _KitDialog(assets: data.assets, kit: kit),
     );
     if (result == null) return;
     try {
       await _repository.saveKit(
+        id: kit?['id']?.toString(),
         name: result.name,
         description: result.description,
         assetIds: result.assetIds,
@@ -199,6 +200,7 @@ class _AssetsPhase2ScreenState extends State<AssetsPhase2Screen> {
                       kits: data.kits,
                       canManage: _canManage,
                       onAdd: () => _newKit(data),
+                      onEdit: (kit) => _newKit(data, kit),
                       onRefresh: _refresh,
                     ),
                   ],
@@ -298,10 +300,11 @@ class _InspectionTab extends StatelessWidget {
 }
 
 class _KitsTab extends StatelessWidget {
-  const _KitsTab({required this.kits,required this.canManage,required this.onAdd,required this.onRefresh});
+  const _KitsTab({required this.kits,required this.canManage,required this.onAdd,required this.onEdit,required this.onRefresh});
   final List<Map<String,dynamic>> kits;
   final bool canManage;
   final VoidCallback onAdd;
+  final Future<void> Function(Map<String,dynamic>) onEdit;
   final Future<void> Function() onRefresh;
   @override
   Widget build(BuildContext context) {
@@ -313,7 +316,7 @@ class _KitsTab extends StatelessWidget {
           if (canManage) Align(alignment: Alignment.centerLeft,child: FilledButton.icon(onPressed: onAdd,icon: const Icon(Icons.add),label: const Text('Novo Kit'))),
           const SizedBox(height:12),
           if (kits.isEmpty) const Card(child: ListTile(title: Text('Ainda não existem Kits.'),subtitle: Text('Agrupa equipamentos que costumam ser usados em conjunto.')))
-          else for (final kit in kits) _KitCard(kit: kit),
+          else for (final kit in kits) _KitCard(kit: kit,canManage: canManage,onEdit: () => onEdit(kit)),
         ],
       ),
     );
@@ -380,8 +383,10 @@ class _InspectionCard extends StatelessWidget {
 }
 
 class _KitCard extends StatelessWidget {
-  const _KitCard({required this.kit});
+  const _KitCard({required this.kit,required this.canManage,required this.onEdit});
   final Map<String,dynamic> kit;
+  final bool canManage;
+  final VoidCallback onEdit;
   @override
   Widget build(BuildContext context) {
     final items = List<Map<String,dynamic>>.from(kit['asset_kit_items'] as List? ?? const []);
@@ -389,6 +394,7 @@ class _KitCard extends StatelessWidget {
       leading: const CircleAvatar(child: Icon(Icons.inventory_2_outlined)),
       title: Text(kit['name']?.toString() ?? 'Kit'),
       subtitle: Text('${items.length} equipamentos'),
+      trailing: canManage ? IconButton(tooltip:'Editar Kit',icon:const Icon(Icons.edit_outlined),onPressed:onEdit) : null,
       children: [
         if ((kit['description']?.toString() ?? '').isNotEmpty) ListTile(title: Text(kit['description'].toString())),
         for (final item in items)
@@ -434,8 +440,8 @@ class _ReturnDialogState extends State<_ReturnDialog>{String condition='good';fi
 class _MaintenanceDialog extends StatefulWidget {const _MaintenanceDialog({required this.data,this.presetType});final _Phase2Data data;final String? presetType;@override State<_MaintenanceDialog> createState()=>_MaintenanceDialogState();}
 class _MaintenanceDialogState extends State<_MaintenanceDialog>{String? assetId;late String type;DateTime date=DateTime.now();DateTime? nextDue;final description=TextEditingController();final cost=TextEditingController(text:'0');final supplier=TextEditingController();String? accountId;String payment='Dinheiro';bool financial=false;@override void initState(){super.initState();type=widget.presetType??'maintenance';final caixa=widget.data.accounts.where((a)=>a['name']?.toString().toLowerCase()=='caixa');if(caixa.isNotEmpty){accountId=caixa.first['id'].toString();}else if(widget.data.accounts.isNotEmpty){accountId=widget.data.accounts.first['id'].toString();}}@override void dispose(){description.dispose();cost.dispose();supplier.dispose();super.dispose();}@override Widget build(BuildContext context)=>AlertDialog(title:const Text('Registar intervenção'),content:SizedBox(width:560,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[_dropdown('Bem',assetId,widget.data.assets.map((e)=>e['id'].toString()).toList(),(v)=>'${widget.data.assets.firstWhere((e)=>e['id'].toString()==v)['asset_number']} · ${widget.data.assets.firstWhere((e)=>e['id'].toString()==v)['name']}',(v)=>setState(()=>assetId=v)),const SizedBox(height:12),DropdownButtonFormField<String>(initialValue:type,decoration:const InputDecoration(labelText:'Tipo',border:OutlineInputBorder()),items:const [DropdownMenuItem(value:'maintenance',child:Text('Manutenção')),DropdownMenuItem(value:'repair',child:Text('Reparação')),DropdownMenuItem(value:'inspection',child:Text('Inspeção'))],onChanged:(v)=>setState(()=>type=v??type)),const SizedBox(height:12),TextField(controller:description,maxLines:2,decoration:const InputDecoration(labelText:'Descrição',border:OutlineInputBorder())),const SizedBox(height:12),TextField(controller:supplier,decoration:const InputDecoration(labelText:'Fornecedor / oficina',border:OutlineInputBorder())),const SizedBox(height:12),TextField(controller:cost,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Custo (€)',border:OutlineInputBorder())),const SizedBox(height:12),ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.event),title:Text('Data: ${DateFormat('dd/MM/yyyy').format(date)}'),trailing:IconButton(icon:const Icon(Icons.calendar_month),onPressed:() async {final d=await showDatePicker(context:context,initialDate:date,firstDate:DateTime(2020),lastDate:DateTime.now().add(const Duration(days:3650)));if(d!=null){setState(()=>date=d);}})),ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.update),title:Text(nextDue==null?'Próxima intervenção (opcional)':'Próxima: ${DateFormat('dd/MM/yyyy').format(nextDue!)}'),trailing:IconButton(icon:const Icon(Icons.calendar_month),onPressed:() async {final d=await showDatePicker(context:context,initialDate:date.add(const Duration(days:180)),firstDate:date,lastDate:DateTime.now().add(const Duration(days:3650)));if(d!=null){setState(()=>nextDue=d);}})),SwitchListTile(contentPadding:EdgeInsets.zero,value:financial,onChanged:(v)=>setState(()=>financial=v),title:const Text('Registar despesa na Tesouraria')),if(financial&&widget.data.accounts.isNotEmpty)...[const SizedBox(height:8),_dropdown('Conta / fundo',accountId,widget.data.accounts.map((e)=>e['id'].toString()).toList(),(v)=>widget.data.accounts.firstWhere((e)=>e['id'].toString()==v)['name'].toString(),(v)=>setState(()=>accountId=v)),const SizedBox(height:12),DropdownButtonFormField<String>(initialValue:payment,decoration:const InputDecoration(labelText:'Pagamento',border:OutlineInputBorder()),items:const ['Dinheiro','MB Way','Transferência bancária'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>setState(()=>payment=v??payment))]]))),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancelar')),FilledButton(onPressed:assetId==null?null:()=>Navigator.pop(context,_MaintenanceInput(assetId!,type,date,description.text,_parse(cost.text),supplier.text,nextDue,accountId,payment,financial)),child:const Text('Registar'))]);}
 
-class _KitDialog extends StatefulWidget {const _KitDialog({required this.assets});final List<Map<String,dynamic>> assets;@override State<_KitDialog> createState()=>_KitDialogState();}
-class _KitDialogState extends State<_KitDialog>{final name=TextEditingController();final description=TextEditingController();final selected=<String>{};@override void dispose(){name.dispose();description.dispose();super.dispose();}@override Widget build(BuildContext context)=>AlertDialog(title:const Text('Novo Kit'),content:SizedBox(width:560,height:520,child:Column(children:[TextField(controller:name,decoration:const InputDecoration(labelText:'Nome do Kit',border:OutlineInputBorder())),const SizedBox(height:12),TextField(controller:description,decoration:const InputDecoration(labelText:'Descrição',border:OutlineInputBorder())),const SizedBox(height:12),const Align(alignment:Alignment.centerLeft,child:Text('Equipamentos',style:TextStyle(fontWeight:FontWeight.w700))),const SizedBox(height:6),Expanded(child:ListView(children:[for(final asset in widget.assets) CheckboxListTile(value:selected.contains(asset['id'].toString()),onChanged:(v)=>setState((){final id=asset['id'].toString();if(v==true){selected.add(id);}else{selected.remove(id);}}),title:Text('${asset['asset_number']} · ${asset['name']}'),subtitle:Text(asset['category']?.toString()??''))]))])),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancelar')),FilledButton(onPressed:()=>Navigator.pop(context,_KitInput(name.text,description.text,selected.toList())),child:const Text('Guardar Kit'))]);}
+class _KitDialog extends StatefulWidget {const _KitDialog({required this.assets,this.kit});final List<Map<String,dynamic>> assets;final Map<String,dynamic>? kit;@override State<_KitDialog> createState()=>_KitDialogState();}
+class _KitDialogState extends State<_KitDialog>{late final TextEditingController name;late final TextEditingController description;final selected=<String>{};@override void initState(){super.initState();name=TextEditingController(text:widget.kit?['name']?.toString()??'');description=TextEditingController(text:widget.kit?['description']?.toString()??'');final items=widget.kit?['asset_kit_items'];if(items is List){for(final item in items){if(item is Map&&item['asset_id']!=null){selected.add(item['asset_id'].toString());}}}}@override void dispose(){name.dispose();description.dispose();super.dispose();}@override Widget build(BuildContext context)=>AlertDialog(title:Text(widget.kit==null?'Novo Kit':'Editar Kit'),content:SizedBox(width:560,height:520,child:Column(children:[TextField(controller:name,decoration:const InputDecoration(labelText:'Nome do Kit',border:OutlineInputBorder())),const SizedBox(height:12),TextField(controller:description,decoration:const InputDecoration(labelText:'Descrição',border:OutlineInputBorder())),const SizedBox(height:12),const Align(alignment:Alignment.centerLeft,child:Text('Equipamentos',style:TextStyle(fontWeight:FontWeight.w700))),const SizedBox(height:6),Expanded(child:ListView(children:[for(final asset in widget.assets) CheckboxListTile(value:selected.contains(asset['id'].toString()),onChanged:(v)=>setState((){final id=asset['id'].toString();if(v==true){selected.add(id);}else{selected.remove(id);}}),title:Text('${asset['asset_number']} · ${asset['name']}'),subtitle:Text(asset['category']?.toString()??''))]))])),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancelar')),FilledButton(onPressed:()=>Navigator.pop(context,_KitInput(name.text,description.text,selected.toList())),child:Text(widget.kit==null?'Guardar Kit':'Guardar alterações'))]);}
 
 Widget _dropdown(String label,String? value,List<String> items,String Function(String) text,ValueChanged<String?> onChanged)=>DropdownButtonFormField<String>(initialValue:value,isExpanded:true,decoration:InputDecoration(labelText:label,border:const OutlineInputBorder()),items:items.map((v)=>DropdownMenuItem(value:v,child:Text(text(v),overflow:TextOverflow.ellipsis))).toList(),onChanged:onChanged);
 
