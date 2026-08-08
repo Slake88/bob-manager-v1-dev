@@ -4,6 +4,8 @@ import '../repositories/inventory_foundation_repository.dart';
 import 'assets_module_screen.dart';
 import 'assets_qr_screen.dart';
 import 'bar_screen_v3.dart';
+import 'inventory_movements_screen.dart';
+import 'physical_inventory_screen.dart';
 import 'shop_management_screen.dart';
 import 'shop_screen.dart';
 
@@ -54,16 +56,8 @@ class _InventoryHubScreenState extends State<InventoryHubScreen> {
                 const BarScreenV3(),
                 const AssetsModuleScreen(),
                 const AssetsQrScreen(),
-                const _FoundationPlaceholder(
-                  icon: Icons.swap_horiz_outlined,
-                  title: 'Movimentos',
-                  description: 'Será a visão unificada de entradas, saídas, vendas, entregas e ajustes.',
-                ),
-                const _FoundationPlaceholder(
-                  icon: Icons.fact_check_outlined,
-                  title: 'Inventário físico',
-                  description: 'Preparado para contagens e comparação entre stock teórico e real.',
-                ),
+                const InventoryMovementsScreen(),
+                const PhysicalInventoryScreen(),
               ],
             ),
           ),
@@ -146,36 +140,6 @@ class _Metric extends StatelessWidget {
           subtitle: Text(value, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
         ),
       ),
-    );
-  }
-}
-
-class _FoundationPlaceholder extends StatelessWidget {
-  const _FoundationPlaceholder({required this.icon, required this.title, required this.description});
-  final IconData icon;
-  final String title;
-  final String description;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              children: [
-                Icon(icon, size: 52),
-                const SizedBox(height: 12),
-                Text(title, style: Theme.of(context).textTheme.headlineSmall),
-                const SizedBox(height: 8),
-                Text(description, textAlign: TextAlign.center),
-              ],
-            ),
-          ),
-        ),
-      ],
     );
   }
 }
