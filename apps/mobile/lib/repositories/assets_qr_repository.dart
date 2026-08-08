@@ -86,8 +86,14 @@ class AssetsQrRepository {
   }
 
   String _normalise(String value) {
-    var clean = value.trim();
-    if (clean.startsWith('BOB-ASSET:')) clean = clean.substring(10).trim();
-    return clean.toUpperCase();
+    var clean = value.trim().toUpperCase();
+    if (clean.startsWith('BOB:ASSET:')) {
+      clean = clean.substring('BOB:ASSET:'.length).trim();
+    } else if (clean.startsWith('BOB-ASSET:')) {
+      clean = clean.substring('BOB-ASSET:'.length).trim();
+    } else if (clean.startsWith('BOB:')) {
+      clean = clean.substring('BOB:'.length).trim();
+    }
+    return clean;
   }
 }
