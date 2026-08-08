@@ -6,6 +6,7 @@ import 'assets_qr_screen.dart';
 import 'bar_screen_v3.dart';
 import 'inventory_movements_screen.dart';
 import 'physical_inventory_screen.dart';
+import 'product_photos_screen.dart';
 import 'shop_management_screen.dart';
 import 'shop_screen.dart';
 
@@ -31,7 +32,7 @@ class _InventoryHubScreenState extends State<InventoryHubScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 7,
+      length: 8,
       child: Column(
         children: [
           Material(
@@ -40,6 +41,7 @@ class _InventoryHubScreenState extends State<InventoryHubScreen> {
               tabs: const [
                 Tab(text: 'Resumo', icon: Icon(Icons.dashboard_outlined)),
                 Tab(text: 'Loja', icon: Icon(Icons.storefront_outlined)),
+                Tab(text: 'Fotos', icon: Icon(Icons.photo_library_outlined)),
                 Tab(text: 'Bar', icon: Icon(Icons.local_bar_outlined)),
                 Tab(text: 'Património', icon: Icon(Icons.home_repair_service_outlined)),
                 Tab(text: 'QR', icon: Icon(Icons.qr_code_scanner)),
@@ -53,6 +55,7 @@ class _InventoryHubScreenState extends State<InventoryHubScreen> {
               children: [
                 _SummaryTab(future: _future, onRefresh: _reload),
                 const ShopScreen(),
+                const ProductPhotosScreen(),
                 const BarScreenV3(),
                 const AssetsModuleScreen(),
                 const AssetsQrScreen(),
