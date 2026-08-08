@@ -1,0 +1,55 @@
+name: Patch Asset Identity Panel
+on:
+  push:
+    branches: [rc1-rebuild]
+    paths:
+      - '.github/workflows/patch_asset_identity_panel.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rc1-rebuild
+      - name: Patch QR screen
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('apps/mobile/lib/screens/assets_qr_screen.dart')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace("import 'package:qr_flutter/qr_flutter.dart';\n", "")
+          marker="import '../repositories/assets_qr_repository.dart';\n"
+          if "asset_identity_panel.dart" not in s:
+              s=s.replace(marker, marker+"import '../widgets/asset_identity_panel.dart';\n")
+          old="""            final qrWidget = Column(
+              children: [
+                QrImageView(data: qr, size: compact ? 150 : 170),
+                Text(qr, style: const TextStyle(fontWeight: FontWeight.w800)),
+              ],
+            );
+"""
+          new="""            final qrWidget = AssetIdentityPanel(
+              assetNumber: asset['asset_number']?.toString() ?? '',
+              qrCode: qr,
+              name: asset['name']?.toString() ?? 'Bem',
+              category: asset['category']?.toString() ?? 'Outros',
+              condition: asset['condition']?.toString() ?? 'good',
+              compact: compact,
+            );
+"""
+          if old in s:
+              s=s.replace(old,new,1)
+          elif 'AssetIdentityPanel(' not in s:
+              raise SystemExit('Bloco QR antigo não encontrado')
+          p.write_text(s,encoding='utf-8')
+          PY
+          git diff --check
+          if git diff --quiet; then exit 0; fi
+          git add apps/mobile/lib/screens/assets_qr_screen.dart
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "RC1: aplicar identidade patrimonial de alto contraste"
+          git push origin HEAD:rc1-rebuild
