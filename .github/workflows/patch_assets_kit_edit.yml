@@ -1,0 +1,160 @@
+name: Patch Assets Kit Edit
+
+on:
+  push:
+    branches: [rc1-rebuild]
+    paths:
+      - '.github/workflows/patch_assets_kit_edit.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rc1-rebuild
+      - name: Add Kit editing UI
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('apps/mobile/lib/screens/assets_phase2_screen.dart')
+          s = p.read_text(encoding='utf-8')
+
+          old = """  Future<void> _newKit(_Phase2Data data) async {
+    final result = await showDialog<_KitInput>(
+      context: context,
+      builder: (_) => _KitDialog(assets: data.assets),
+    );
+    if (result == null) return;
+    try {
+      await _repository.saveKit(
+        name: result.name,
+        description: result.description,
+        assetIds: result.assetIds,
+      );
+      if (mounted) setState(_reload);
+    } catch (error) {
+      _error(error);
+    }
+  }
+"""
+          new = """  Future<void> _newKit(_Phase2Data data, [Map<String, dynamic>? kit]) async {
+    final result = await showDialog<_KitInput>(
+      context: context,
+      builder: (_) => _KitDialog(assets: data.assets, kit: kit),
+    );
+    if (result == null) return;
+    try {
+      await _repository.saveKit(
+        id: kit?['id']?.toString(),
+        name: result.name,
+        description: result.description,
+        assetIds: result.assetIds,
+      );
+      if (mounted) setState(_reload);
+    } catch (error) {
+      _error(error);
+    }
+  }
+"""
+          if old not in s:
+              raise SystemExit('Bloco _newKit não encontrado')
+          s = s.replace(old, new, 1)
+
+          old = """                    _KitsTab(
+                      kits: data.kits,
+                      canManage: _canManage,
+                      onAdd: () => _newKit(data),
+                      onRefresh: _refresh,
+                    ),
+"""
+          new = """                    _KitsTab(
+                      kits: data.kits,
+                      canManage: _canManage,
+                      onAdd: () => _newKit(data),
+                      onEdit: (kit) => _newKit(data, kit),
+                      onRefresh: _refresh,
+                    ),
+"""
+          if old not in s:
+              raise SystemExit('Invocação _KitsTab não encontrada')
+          s = s.replace(old, new, 1)
+
+          old = """class _KitsTab extends StatelessWidget {
+  const _KitsTab({required this.kits,required this.canManage,required this.onAdd,required this.onRefresh});
+  final List<Map<String,dynamic>> kits;
+  final bool canManage;
+  final VoidCallback onAdd;
+  final Future<void> Function() onRefresh;
+"""
+          new = """class _KitsTab extends StatelessWidget {
+  const _KitsTab({required this.kits,required this.canManage,required this.onAdd,required this.onEdit,required this.onRefresh});
+  final List<Map<String,dynamic>> kits;
+  final bool canManage;
+  final VoidCallback onAdd;
+  final Future<void> Function(Map<String,dynamic>) onEdit;
+  final Future<void> Function() onRefresh;
+"""
+          if old not in s:
+              raise SystemExit('Declaração _KitsTab não encontrada')
+          s = s.replace(old, new, 1)
+
+          old = "else for (final kit in kits) _KitCard(kit: kit),"
+          new = "else for (final kit in kits) _KitCard(kit: kit,canManage: canManage,onEdit: () => onEdit(kit)),"
+          if old not in s:
+              raise SystemExit('Lista de KitCard não encontrada')
+          s = s.replace(old, new, 1)
+
+          old = """class _KitCard extends StatelessWidget {
+  const _KitCard({required this.kit});
+  final Map<String,dynamic> kit;
+  @override
+  Widget build(BuildContext context) {
+    final items = List<Map<String,dynamic>>.from(kit['asset_kit_items'] as List? ?? const []);
+    return Card(child: ExpansionTile(
+      leading: const CircleAvatar(child: Icon(Icons.inventory_2_outlined)),
+      title: Text(kit['name']?.toString() ?? 'Kit'),
+      subtitle: Text('${items.length} equipamentos'),
+      children: [
+"""
+          new = """class _KitCard extends StatelessWidget {
+  const _KitCard({required this.kit,required this.canManage,required this.onEdit});
+  final Map<String,dynamic> kit;
+  final bool canManage;
+  final VoidCallback onEdit;
+  @override
+  Widget build(BuildContext context) {
+    final items = List<Map<String,dynamic>>.from(kit['asset_kit_items'] as List? ?? const []);
+    return Card(child: ExpansionTile(
+      leading: const CircleAvatar(child: Icon(Icons.inventory_2_outlined)),
+      title: Text(kit['name']?.toString() ?? 'Kit'),
+      subtitle: Text('${items.length} equipamentos'),
+      trailing: canManage ? IconButton(tooltip:'Editar Kit',icon:const Icon(Icons.edit_outlined),onPressed:onEdit) : null,
+      children: [
+"""
+          if old not in s:
+              raise SystemExit('Bloco _KitCard não encontrado')
+          s = s.replace(old, new, 1)
+
+          old = """class _KitDialog extends StatefulWidget {const _KitDialog({required this.assets});final List<Map<String,dynamic>> assets;@override State<_KitDialog> createState()=>_KitDialogState();}
+class _KitDialogState extends State<_KitDialog>{final name=TextEditingController();final description=TextEditingController();final selected=<String>{};@override void dispose(){name.dispose();description.dispose();super.dispose();}@override Widget build(BuildContext context)=>AlertDialog(title:const Text('Novo Kit'),content:SizedBox(width:560,height:520,child:Column(children:[TextField(controller:name,decoration:const InputDecoration(labelText:'Nome do Kit',border:OutlineInputBorder())),const SizedBox(height:12),TextField(controller:description,decoration:const InputDecoration(labelText:'Descrição',border:OutlineInputBorder())),const SizedBox(height:12),const Align(alignment:Alignment.centerLeft,child:Text('Equipamentos',style:TextStyle(fontWeight:FontWeight.w700))),const SizedBox(height:6),Expanded(child:ListView(children:[for(final asset in widget.assets) CheckboxListTile(value:selected.contains(asset['id'].toString()),onChanged:(v)=>setState((){final id=asset['id'].toString();if(v==true){selected.add(id);}else{selected.remove(id);}}),title:Text('${asset['asset_number']} · ${asset['name']}'),subtitle:Text(asset['category']?.toString()??''))]))])),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancelar')),FilledButton(onPressed:()=>Navigator.pop(context,_KitInput(name.text,description.text,selected.toList())),child:const Text('Guardar Kit'))]);}
+"""
+          new = """class _KitDialog extends StatefulWidget {const _KitDialog({required this.assets,this.kit});final List<Map<String,dynamic>> assets;final Map<String,dynamic>? kit;@override State<_KitDialog> createState()=>_KitDialogState();}
+class _KitDialogState extends State<_KitDialog>{late final TextEditingController name;late final TextEditingController description;final selected=<String>{};@override void initState(){super.initState();name=TextEditingController(text:widget.kit?['name']?.toString()??'');description=TextEditingController(text:widget.kit?['description']?.toString()??'');final items=widget.kit?['asset_kit_items'];if(items is List){for(final item in items){if(item is Map&&item['asset_id']!=null){selected.add(item['asset_id'].toString());}}}}@override void dispose(){name.dispose();description.dispose();super.dispose();}@override Widget build(BuildContext context)=>AlertDialog(title:Text(widget.kit==null?'Novo Kit':'Editar Kit'),content:SizedBox(width:560,height:520,child:Column(children:[TextField(controller:name,decoration:const InputDecoration(labelText:'Nome do Kit',border:OutlineInputBorder())),const SizedBox(height:12),TextField(controller:description,decoration:const InputDecoration(labelText:'Descrição',border:OutlineInputBorder())),const SizedBox(height:12),const Align(alignment:Alignment.centerLeft,child:Text('Equipamentos',style:TextStyle(fontWeight:FontWeight.w700))),const SizedBox(height:6),Expanded(child:ListView(children:[for(final asset in widget.assets) CheckboxListTile(value:selected.contains(asset['id'].toString()),onChanged:(v)=>setState((){final id=asset['id'].toString();if(v==true){selected.add(id);}else{selected.remove(id);}}),title:Text('${asset['asset_number']} · ${asset['name']}'),subtitle:Text(asset['category']?.toString()??''))]))])),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancelar')),FilledButton(onPressed:()=>Navigator.pop(context,_KitInput(name.text,description.text,selected.toList())),child:Text(widget.kit==null?'Guardar Kit':'Guardar alterações'))]);}
+"""
+          if old not in s:
+              raise SystemExit('Bloco _KitDialog não encontrado')
+          s = s.replace(old, new, 1)
+
+          p.write_text(s, encoding='utf-8')
+          PY
+          git diff --check
+          git add apps/mobile/lib/screens/assets_phase2_screen.dart
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "RC1: permitir editar Kits do Património"
+          git push origin HEAD:rc1-rebuild
