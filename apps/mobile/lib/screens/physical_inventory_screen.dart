@@ -16,7 +16,7 @@ class _PhysicalInventoryScreenState extends State<PhysicalInventoryScreen>{
   bool get _canCount=>AppSession.instance.can(AppPermission.performInventoryCount);
   @override void initState(){super.initState();_reload();}
   void _reload()=>_future=_repo.countSessions();
-  Future<void> _refresh()async{setState(_reload);await _future;}
+  Future<void> _refresh()async{setState(() { _reload(); });await _future;}
 
   Future<void> _newCount() async{
     try{
@@ -27,7 +27,7 @@ class _PhysicalInventoryScreenState extends State<PhysicalInventoryScreen>{
       final id=await _repo.startCount(name:input.name,locationId:input.locationId,eventId:input.eventId,notes:input.notes);
       if(!mounted)return;
       await Navigator.of(context).push(MaterialPageRoute(builder:(_)=>_CountSessionScreen(sessionId:id,name:input.name)));
-      setState(_reload);
+      setState(() { _reload(); });
     }catch(e){_error(e);}
   }
 
@@ -43,7 +43,7 @@ class _PhysicalInventoryScreenState extends State<PhysicalInventoryScreen>{
     ]));
   });
 
-  Widget _sessionCard(Map<String,dynamic> r){final status=r['status']?.toString()??'draft';final loc=r['inventory_locations'];final event=r['events'];return Card(child:ListTile(leading:CircleAvatar(child:Icon(status=='completed'?Icons.check:Icons.fact_check_outlined)),title:Text(r['name']?.toString()??'Inventário'),subtitle:Text([_status(status),if(loc is Map)'Local: ${loc['name']}',if(event is Map)'Evento: ${event['name']}','Início: ${_dateTime(r['started_at'])}'].join(' · ')),trailing:const Icon(Icons.chevron_right),onTap:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>_CountSessionScreen(sessionId:r['id'].toString(),name:r['name']?.toString()??'Inventário',readOnly:status=='completed'))).then((_)=>setState(_reload))));}
+  Widget _sessionCard(Map<String,dynamic> r){final status=r['status']?.toString()??'draft';final loc=r['inventory_locations'];final event=r['events'];return Card(child:ListTile(leading:CircleAvatar(child:Icon(status=='completed'?Icons.check:Icons.fact_check_outlined)),title:Text(r['name']?.toString()??'Inventário'),subtitle:Text([_status(status),if(loc is Map)'Local: ${loc['name']}',if(event is Map)'Evento: ${event['name']}','Início: ${_dateTime(r['started_at'])}'].join(' · ')),trailing:const Icon(Icons.chevron_right),onTap:()=>Navigator.of(context).push(MaterialPageRoute(builder:(_)=>_CountSessionScreen(sessionId:r['id'].toString(),name:r['name']?.toString()??'Inventário',readOnly:status=='completed'))).then((_)=>setState(() { _reload(); }))));}
 }
 
 class _CountSessionScreen extends StatefulWidget{
@@ -56,10 +56,10 @@ class _CountSessionScreenState extends State<_CountSessionScreen>{
   @override void initState(){super.initState();_reload();}
   @override void dispose(){_search.dispose();super.dispose();}
   void _reload()=>_future=_repo.countItems(widget.sessionId);
-  Future<void> _refresh()async{setState(_reload);await _future;}
+  Future<void> _refresh()async{setState(() { _reload(); });await _future;}
   void _error(Object e){if(!mounted)return;ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
 
-  Future<void> _edit(Map<String,dynamic> row)async{final input=await showDialog<_CountInput>(context:context,builder:(_)=>_CountDialog(row:row));if(input==null)return;try{await _repo.setCount(itemId:row['id'].toString(),counted:input.qty,notes:input.notes,recounted:input.recounted);setState(_reload);}catch(e){_error(e);}}
+  Future<void> _edit(Map<String,dynamic> row)async{final input=await showDialog<_CountInput>(context:context,builder:(_)=>_CountDialog(row:row));if(input==null)return;try{await _repo.setCount(itemId:row['id'].toString(),counted:input.qty,notes:input.notes,recounted:input.recounted);setState(() { _reload(); });}catch(e){_error(e);}}
   Future<void> _finalize(List<Map<String,dynamic>> rows)async{if(rows.any((r)=>r['counted_qty']==null)){_error('Existem artigos por contar.');return;}final ok=await showDialog<bool>(context:context,builder:(c)=>AlertDialog(title:const Text('Aplicar ajustes?'),content:const Text('Esta ação atualiza o stock real e cria movimentos de ajuste. Não deve ser feita antes de rever as diferenças.'),actions:[TextButton(onPressed:()=>Navigator.pop(c,false),child:const Text('Cancelar')),FilledButton(onPressed:()=>Navigator.pop(c,true),child:const Text('Aplicar ajustes'))]));if(ok!=true)return;try{final result=await _repo.finalize(widget.sessionId);if(!mounted)return;ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text('Inventário concluído · ${result['adjusted_items']} artigos ajustados.')));Navigator.pop(context);}catch(e){_error(e);}}
 
   @override Widget build(BuildContext context)=>Scaffold(appBar:AppBar(title:Text(widget.name)),body:FutureBuilder<List<Map<String,dynamic>>>(future:_future,builder:(context,s){if(s.hasError)return Center(child:Text('Erro: ${s.error}'));if(!s.hasData)return const Center(child:CircularProgressIndicator());final all=s.data!;final q=_search.text.toLowerCase();final rows=all.where((r){final p=r['products'];final v=r['product_variants'];return '${p is Map?p['name']:''} ${v is Map?v['name']:''}'.toLowerCase().contains(q);}).toList();final counted=all.where((r)=>r['counted_qty']!=null).length;final diffs=all.where((r)=>_num(r['difference'])!=0&&r['counted_qty']!=null).length;final value=all.fold<double>(0,(a,r)=>a+(_num(r['difference'])*_num(r['unit_cost'])));return RefreshIndicator(onRefresh:_refresh,child:ListView(padding:const EdgeInsets.fromLTRB(16,16,16,96),children:[
