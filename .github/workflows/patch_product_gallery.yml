@@ -1,0 +1,218 @@
+name: Patch Product Gallery
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch_product_gallery.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rc1-rebuild
+      - name: Apply product gallery patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          # Repository
+          p=Path('apps/mobile/lib/repositories/shop_repository.dart')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace('products(name),product_variants(name))', 'products(name,photo_path),product_variants(name))')
+          pattern=r"  Future<String> uploadProductImage\(\{.*?\n  String\? publicImageUrl"
+          replacement='''  Future<List<Map<String, dynamic>>> productImages(String productId) async {
+    _require(AppPermission.viewInventory);
+    final response = await _client
+        .from('product_images')
+        .select('id,storage_path,is_primary,created_at')
+        .eq('club_id', _clubId)
+        .eq('product_id', productId)
+        .order('is_primary', ascending: false)
+        .order('created_at');
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  Future<void> setPrimaryProductImage({
+    required String productId,
+    required String imageId,
+    required String storagePath,
+  }) async {
+    _require(AppPermission.manageMerchandising);
+    await _client
+        .from('product_images')
+        .update({'is_primary': false})
+        .eq('club_id', _clubId)
+        .eq('product_id', productId);
+    await _client
+        .from('product_images')
+        .update({'is_primary': true})
+        .eq('club_id', _clubId)
+        .eq('id', imageId);
+    await _client
+        .from('products')
+        .update({'photo_path': storagePath})
+        .eq('id', productId)
+        .eq('club_id', _clubId);
+  }
+
+  Future<void> deleteProductImage({
+    required String productId,
+    required String imageId,
+    required String storagePath,
+    required bool wasPrimary,
+  }) async {
+    _require(AppPermission.manageMerchandising);
+    await _client.storage.from('inventory-media').remove([storagePath]);
+    await _client
+        .from('product_images')
+        .delete()
+        .eq('club_id', _clubId)
+        .eq('id', imageId);
+    if (wasPrimary) {
+      final remaining = await productImages(productId);
+      if (remaining.isEmpty) {
+        await _client
+            .from('products')
+            .update({'photo_path': null})
+            .eq('id', productId)
+            .eq('club_id', _clubId);
+      } else {
+        final next = remaining.first;
+        await setPrimaryProductImage(
+          productId: productId,
+          imageId: next['id'].toString(),
+          storagePath: next['storage_path'].toString(),
+        );
+      }
+    }
+  }
+
+  Future<String> uploadProductImage({
+    required String productId,
+    required XFile file,
+  }) async {
+    _require(AppPermission.manageMerchandising);
+    final Uint8List bytes = await file.readAsBytes();
+    final extension = file.name.toLowerCase().endsWith('.png')
+        ? 'png'
+        : file.name.toLowerCase().endsWith('.webp')
+            ? 'webp'
+            : 'jpg';
+    final path = '$_clubId/products/$productId/${DateTime.now().microsecondsSinceEpoch}.$extension';
+    await _client.storage.from('inventory-media').uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(contentType: file.mimeType, upsert: false),
+        );
+    final current = await _client
+        .from('products')
+        .select('photo_path')
+        .eq('id', productId)
+        .eq('club_id', _clubId)
+        .single();
+    final first = (current['photo_path']?.toString() ?? '').isEmpty;
+    final inserted = await _client.from('product_images').insert({
+      'club_id': _clubId,
+      'product_id': productId,
+      'storage_path': path,
+      'is_primary': first,
+      'created_by': AppSession.instance.profileId,
+    }).select('id').single();
+    if (first) {
+      await setPrimaryProductImage(
+        productId: productId,
+        imageId: inserted['id'].toString(),
+        storagePath: path,
+      );
+    }
+    return path;
+  }
+
+  String? publicImageUrl'''
+          s2,n=re.subn(pattern,replacement,s,flags=re.S)
+          if n!=1: raise SystemExit(f'upload block patch count={n}')
+          p.write_text(s2,encoding='utf-8')
+
+          # Shop screen
+          p=Path('apps/mobile/lib/screens/shop_screen.dart')
+          s=p.read_text(encoding='utf-8')
+          marker="import '../repositories/shop_repository.dart';\n"
+          if 'product_image_gallery.dart' not in s:
+            s=s.replace(marker, marker+"import '../widgets/product_image_gallery.dart';\n")
+          s=s.replace("    final variants = _variants(_product);\n    final imageUrl = widget.repository.publicImageUrl(_product['photo_path']);\n", "    final variants = _variants(_product);\n")
+          cls=s.index('class _ProductDetailScreenState')
+          start=s.index('          AspectRatio(\n            aspectRatio: 16 / 7,',cls)
+          end=s.index('          const SizedBox(height: 12),',start)
+          gallery="""          ProductImageGallery(
+            repository: widget.repository,
+            productId: _product['id'].toString(),
+            coverPath: _product['photo_path']?.toString(),
+            canManage: _canManage,
+            onChanged: _reloadProduct,
+          ),
+"""
+          s=s[:start]+gallery+s[end:]
+          oc=s.index('class _OrderCard')
+          tail=s[oc:]
+          tail=tail.replace("    var itemLabel = 'Encomenda';\n", "    var itemLabel = 'Encomenda';\n    String? coverPath;\n",1)
+          tail=tail.replace("      final product = item['products'];\n", "      final product = item['products'];\n      if (product is Map) coverPath = product['photo_path']?.toString();\n",1)
+          tail=tail.replace("\n    return Card(\n", "\n    final coverUrl = repository.publicImageUrl(coverPath);\n\n    return Card(\n",1)
+          row="""            Row(
+              children: [
+                Expanded(
+"""
+          row_new="""            Row(
+              children: [
+                if (coverUrl != null) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Image.network(coverUrl, width: 58, height: 58, fit: BoxFit.cover),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+"""
+          if row not in tail: raise SystemExit('order row not found')
+          tail=tail.replace(row,row_new,1)
+          s=s[:oc]+tail
+          p.write_text(s,encoding='utf-8')
+
+          # Shop management
+          p=Path('apps/mobile/lib/screens/shop_management_screen.dart')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace('_NeedsTab(orders: data.orders),','_NeedsTab(orders: data.orders, repository: _repository),')
+          s=s.replace("class _NeedsTab extends StatelessWidget {\n  const _NeedsTab({required this.orders});\n\n  final List<Map<String, dynamic>> orders;", "class _NeedsTab extends StatelessWidget {\n  const _NeedsTab({required this.orders, required this.repository});\n\n  final List<Map<String, dynamic>> orders;\n  final ShopRepository repository;")
+          s=s.replace("        final variantName =\n            variant is Map ? variant['name']?.toString() ?? '' : '';\n", "        final variantName =\n            variant is Map ? variant['name']?.toString() ?? '' : '';\n        final photoPath = product is Map ? product['photo_path']?.toString() : null;\n")
+          s=s.replace("          quantity: (current?.quantity ?? 0) + quantity,\n", "          quantity: (current?.quantity ?? 0) + quantity,\n          photoPath: current?.photoPath ?? photoPath,\n")
+          old="""                leading: CircleAvatar(
+                  child: Text(_number(need.quantity)),
+                ),
+"""
+          new="""                leading: need.photoPath == null || need.photoPath!.isEmpty
+                    ? CircleAvatar(child: Text(_number(need.quantity)))
+                    : ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.network(
+                          repository.publicImageUrl(need.photoPath)!,
+                          width: 52,
+                          height: 52,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+"""
+          if old not in s: raise SystemExit('needs leading not found')
+          s=s.replace(old,new,1)
+          s=s.replace("    required this.quantity,\n  });\n  final String product;\n  final String variant;\n  final double quantity;", "    required this.quantity,\n    required this.photoPath,\n  });\n  final String product;\n  final String variant;\n  final double quantity;\n  final String? photoPath;")
+          p.write_text(s,encoding='utf-8')
+          PY
+          git diff --check
+          git add apps/mobile/lib/repositories/shop_repository.dart apps/mobile/lib/screens/shop_screen.dart apps/mobile/lib/screens/shop_management_screen.dart
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "RC1: ligar galeria multi-foto e capas nas encomendas"
+          git push origin HEAD:rc1-rebuild
