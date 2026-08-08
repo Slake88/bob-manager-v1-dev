@@ -13,7 +13,6 @@ class AssetLabelService {
     required String name,
     required String category,
   }) async {
-    final data = payload(qrCode);
     await Printing.layoutPdf(
       name: 'BOB_${assetNumber}_etiqueta.pdf',
       onLayout: (_) => buildLabel(
