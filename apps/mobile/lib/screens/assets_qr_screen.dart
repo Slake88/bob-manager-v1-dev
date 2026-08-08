@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 import '../core/app_session.dart';
 import '../core/permissions.dart';
 import '../repositories/assets_operations_repository.dart';
 import '../repositories/assets_qr_repository.dart';
+import '../widgets/asset_identity_panel.dart';
 
 class AssetsQrScreen extends StatefulWidget {
   const AssetsQrScreen({super.key});
@@ -211,7 +211,7 @@ class _AssetsQrScreenState extends State<AssetsQrScreen> {
                 textCapitalization: TextCapitalization.characters,
                 decoration: InputDecoration(
                   labelText: 'Código QR manual',
-                  hintText: 'QR-0001',
+                  hintText: 'QR-0001 ou BOB:ASSET:QR-0001',
                   border: const OutlineInputBorder(),
                   suffixIcon: IconButton(
                     tooltip: 'Procurar',
@@ -299,11 +299,13 @@ class _AssetsQrScreenState extends State<AssetsQrScreen> {
                 ],
               ),
             );
-            final qrWidget = Column(
-              children: [
-                QrImageView(data: qr, size: compact ? 150 : 170),
-                Text(qr, style: const TextStyle(fontWeight: FontWeight.w800)),
-              ],
+            final qrWidget = AssetIdentityPanel(
+              assetNumber: asset['asset_number']?.toString() ?? '',
+              qrCode: qr,
+              name: asset['name']?.toString() ?? 'Bem',
+              category: asset['category']?.toString() ?? 'Outros',
+              condition: asset['condition']?.toString() ?? 'good',
+              compact: compact,
             );
             if (compact) {
               return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [info, const SizedBox(height: 12), Center(child: qrWidget)]);
