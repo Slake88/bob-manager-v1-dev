@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../repositories/product_images_repository_extension.dart';
 import '../repositories/shop_repository.dart';
 
 class ProductImageGallery extends StatefulWidget {
@@ -80,7 +81,7 @@ class _ProductImageGalleryState extends State<ProductImageGallery> {
             ];
       if (files.isEmpty) return;
       for (final file in files) {
-        await widget.repository.uploadProductImage(
+        await widget.repository.uploadGalleryImage(
           productId: widget.productId,
           file: file,
         );
@@ -230,12 +231,12 @@ class _ProductImageGalleryState extends State<ProductImageGallery> {
                             onTap: cover == null ? null : () => _open(cover!),
                             child: Image.network(coverUrl, fit: BoxFit.cover),
                           ),
-                          Positioned(
+                          const Positioned(
                             left: 10,
                             top: 10,
                             child: Chip(
-                              avatar: const Icon(Icons.star, size: 17),
-                              label: const Text('Capa'),
+                              avatar: Icon(Icons.star, size: 17),
+                              label: Text('Capa'),
                               visualDensity: VisualDensity.compact,
                             ),
                           ),
