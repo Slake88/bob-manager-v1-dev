@@ -53,3 +53,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "RC1: aplicar identidade patrimonial de alto contraste"
           git push origin HEAD:rc1-rebuild
+# trigger-2
