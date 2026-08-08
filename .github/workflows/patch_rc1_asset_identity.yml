@@ -1,0 +1,272 @@
+name: Patch RC1 Asset Identity
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch_rc1_asset_identity.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rc1-rebuild
+      - name: Apply asset identity improvements
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          # Dependencies
+          p = Path('apps/mobile/pubspec.yaml')
+          s = p.read_text(encoding='utf-8')
+          if '  pdf:' not in s:
+              s = s.replace('  qr_flutter: ^4.1.0\n', '  qr_flutter: ^4.1.0\n  pdf: ^3.11.3\n  printing: ^5.14.2\n')
+          p.write_text(s, encoding='utf-8')
+
+          # QR normalisation: legacy + new format.
+          p = Path('apps/mobile/lib/repositories/assets_qr_repository.dart')
+          s = p.read_text(encoding='utf-8')
+          old = """  String _normalise(String value) {
+    var clean = value.trim();
+    if (clean.startsWith('BOB-ASSET:')) clean = clean.substring(10).trim();
+    return clean.toUpperCase();
+  }
+"""
+          new = """  String _normalise(String value) {
+    var clean = value.trim().toUpperCase();
+    if (clean.startsWith('BOB:ASSET:')) {
+      clean = clean.substring('BOB:ASSET:'.length).trim();
+    } else if (clean.startsWith('BOB-ASSET:')) {
+      clean = clean.substring('BOB-ASSET:'.length).trim();
+    } else if (clean.startsWith('BOB:')) {
+      clean = clean.substring('BOB:'.length).trim();
+    }
+    return clean;
+  }
+"""
+          if old not in s:
+              raise SystemExit('Normalizador QR esperado não encontrado')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+
+          # Screen imports + identity card + print label.
+          p = Path('apps/mobile/lib/screens/assets_qr_screen.dart')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace("import 'package:mobile_scanner/mobile_scanner.dart';\nimport 'package:qr_flutter/qr_flutter.dart';", "import 'package:mobile_scanner/mobile_scanner.dart';\nimport 'package:pdf/pdf.dart';\nimport 'package:pdf/widgets.dart' as pw;\nimport 'package:printing/printing.dart';\nimport 'package:qr_flutter/qr_flutter.dart';")
+          s = s.replace("hintText: 'QR-0001',", "hintText: 'QR-0001 ou BOB:ASSET:QR-0001',")
+
+          marker = """  @override
+  Widget build(BuildContext context) {
+"""
+          method = """  Future<void> _printLabel() async {
+    final asset = _asset;
+    if (asset == null) return;
+    final rawQr = asset['qr_code']?.toString() ?? '';
+    if (rawQr.isEmpty) return;
+    final encodedQr = 'BOB:ASSET:${rawQr.toUpperCase()}';
+    final assetNumber = asset['asset_number']?.toString() ?? '';
+    final assetName = asset['name']?.toString() ?? 'Bem patrimonial';
+    final category = asset['category']?.toString() ?? 'Outros';
+    final document = pw.Document();
+    document.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat(62 * PdfPageFormat.mm, 45 * PdfPageFormat.mm),
+        margin: const pw.EdgeInsets.all(12),
+        build: (_) => pw.Column(
+          mainAxisAlignment: pw.MainAxisAlignment.center,
+          crossAxisAlignment: pw.CrossAxisAlignment.center,
+          children: [
+            pw.Text('BLUE ON BLACK', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+            pw.Text('PATRIMÓNIO', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 4),
+            pw.Text(assetName, textAlign: pw.TextAlign.center, style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold)),
+            pw.Text(category, style: const pw.TextStyle(fontSize: 7)),
+            pw.SizedBox(height: 5),
+            pw.BarcodeWidget(barcode: pw.Barcode.qrCode(), data: encodedQr, width: 72, height: 72),
+            pw.SizedBox(height: 4),
+            pw.Text(assetNumber, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+            pw.Text(encodedQr, style: const pw.TextStyle(fontSize: 6)),
+          ],
+        ),
+      ),
+    );
+    await Printing.layoutPdf(
+      name: 'Etiqueta_${assetNumber.isEmpty ? rawQr : assetNumber}.pdf',
+      onLayout: (_) async => document.save(),
+    );
+  }
+
+"""
+          if method.strip() not in s:
+              idx = s.find(marker)
+              if idx < 0:
+                  raise SystemExit('build marker não encontrado')
+              s = s[:idx] + method + s[idx:]
+
+          old_card = """  Widget _assetCard(BuildContext context) {
+    final asset = _asset!;
+    final location = asset['inventory_locations'];
+    final member = asset['members'];
+    final qr = asset['qr_code']?.toString() ?? '';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 650;
+            final info = Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(asset['name']?.toString() ?? 'Bem', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+                  Text('${asset['asset_number'] ?? ''} · ${asset['category'] ?? 'Outros'}'),
+                  const SizedBox(height: 10),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    Chip(label: Text(_conditionLabel(asset['condition']?.toString()))),
+                    if (location is Map) Chip(avatar: const Icon(Icons.place_outlined, size: 18), label: Text(location['name']?.toString() ?? '')),
+                    if (member is Map) Chip(avatar: const Icon(Icons.person_outline, size: 18), label: Text(_memberName(member))),
+                    if (_loan != null) const Chip(avatar: Icon(Icons.swap_horiz, size: 18), label: Text('Emprestado')),
+                  ]),
+                  if ((asset['brand']?.toString() ?? '').isNotEmpty || (asset['model']?.toString() ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text('${asset['brand'] ?? ''} ${asset['model'] ?? ''}'.trim()),
+                  ],
+                  if ((asset['serial_number']?.toString() ?? '').isNotEmpty) Text('Série: ${asset['serial_number']}'),
+                ],
+              ),
+            );
+            final qrWidget = Column(
+              children: [
+                QrImageView(data: qr, size: compact ? 150 : 170),
+                Text(qr, style: const TextStyle(fontWeight: FontWeight.w800)),
+              ],
+            );
+            if (compact) {
+              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [info, const SizedBox(height: 12), Center(child: qrWidget)]);
+            }
+            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [info, const SizedBox(width: 20), qrWidget]);
+          },
+        ),
+      ),
+    );
+  }
+"""
+          new_card = """  Widget _assetCard(BuildContext context) {
+    final asset = _asset!;
+    final location = asset['inventory_locations'];
+    final member = asset['members'];
+    final rawQr = asset['qr_code']?.toString() ?? '';
+    final encodedQr = rawQr.isEmpty ? '' : 'BOB:ASSET:${rawQr.toUpperCase()}';
+    final condition = asset['condition']?.toString();
+    final conditionColor = _conditionColor(condition);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 650;
+            final info = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('IDENTIFICAÇÃO PATRIMONIAL', style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900, letterSpacing: 0.8)),
+                const SizedBox(height: 10),
+                Text(asset['name']?.toString() ?? 'Bem', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+                const SizedBox(height: 2),
+                Text(asset['asset_number']?.toString() ?? '', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                Text(encodedQr, style: Theme.of(context).textTheme.bodySmall),
+                const SizedBox(height: 10),
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  Chip(
+                    avatar: Icon(Icons.circle, size: 13, color: conditionColor),
+                    label: Text(_conditionLabel(condition)),
+                  ),
+                  Chip(avatar: const Icon(Icons.category_outlined, size: 18), label: Text(asset['category']?.toString() ?? 'Outros')),
+                  if (location is Map) Chip(avatar: const Icon(Icons.place_outlined, size: 18), label: Text(location['name']?.toString() ?? '')),
+                  if (member is Map) Chip(avatar: const Icon(Icons.person_outline, size: 18), label: Text(_memberName(member))),
+                  if (_loan != null) const Chip(avatar: Icon(Icons.swap_horiz, size: 18), label: Text('Emprestado')),
+                ]),
+                if ((asset['brand']?.toString() ?? '').isNotEmpty || (asset['model']?.toString() ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text('${asset['brand'] ?? ''} ${asset['model'] ?? ''}'.trim()),
+                ],
+                if ((asset['serial_number']?.toString() ?? '').isNotEmpty) Text('Série: ${asset['serial_number']}'),
+              ],
+            );
+            final qrWidget = Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: const [BoxShadow(blurRadius: 10, color: Color(0x33000000), offset: Offset(0, 4))],
+                  ),
+                  child: QrImageView(
+                    data: encodedQr,
+                    size: compact ? 190 : 220,
+                    backgroundColor: Colors.white,
+                    eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: Colors.black),
+                    dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: Colors.black),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(rawQr, style: const TextStyle(fontWeight: FontWeight.w900)),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: _printLabel,
+                  icon: const Icon(Icons.print_outlined),
+                  label: const Text('Imprimir etiqueta'),
+                ),
+              ],
+            );
+            if (compact) {
+              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [info, const SizedBox(height: 16), Center(child: qrWidget)]);
+            }
+            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: info), const SizedBox(width: 24), qrWidget]);
+          },
+        ),
+      ),
+    );
+  }
+"""
+          if old_card not in s:
+              raise SystemExit('Bloco assetCard esperado não encontrado')
+          s = s.replace(old_card, new_card, 1)
+
+          helper_marker = """String _conditionLabel(String? value) => switch (value) {
+"""
+          helper = """Color _conditionColor(String? value) => switch (value) {
+      'excellent' => Colors.green,
+      'good' => Colors.blue,
+      'regular' => Colors.amber,
+      'maintenance' => Colors.orange,
+      'damaged' => Colors.red,
+      'retired' => Colors.grey,
+      _ => Colors.blue,
+    };
+
+"""
+          if helper.strip() not in s:
+              idx = s.find(helper_marker)
+              if idx < 0:
+                  raise SystemExit('conditionLabel marker não encontrado')
+              s = s[:idx] + helper + s[idx:]
+
+          p.write_text(s, encoding='utf-8')
+          PY
+
+          cd apps/mobile
+          flutter pub get
+          cd ../..
+          git diff --check
+          git add apps/mobile/pubspec.yaml apps/mobile/pubspec.lock apps/mobile/lib/repositories/assets_qr_repository.dart apps/mobile/lib/screens/assets_qr_screen.dart
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "RC1: melhorar identidade QR e etiqueta patrimonial"
+          git push origin HEAD:rc1-rebuild
