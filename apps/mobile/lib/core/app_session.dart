@@ -16,6 +16,11 @@ class AppSession {
 
   AppRole get currentRole => AppRole.fromValue(role);
 
+  bool get canEditMemberMilestoneDates =>
+      superAdmin ||
+      currentRole == AppRole.president ||
+      currentRole == AppRole.vicePresident;
+
   bool can(AppPermission permission) {
     return PermissionPolicy.allows(currentRole, permission);
   }

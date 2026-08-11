@@ -14,11 +14,13 @@ class EntityFormScreen extends StatefulWidget {
     required this.definition,
     this.initialValues,
     this.onSave,
+    this.readOnlyKeys = const <String>{},
   });
 
   final EntityDefinition definition;
   final Map<String, dynamic>? initialValues;
   final EntitySaveHandler? onSave;
+  final Set<String> readOnlyKeys;
 
   bool get isEditing => initialValues?['id'] != null;
 
@@ -100,6 +102,9 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
     ).toIso8601String();
   }
 
+  bool _isReadOnly(EntityFieldDefinition field) =>
+      field.readOnly || widget.readOnlyKeys.contains(field.key);
+
   dynamic _valueFor(EntityFieldDefinition field) {
     if (field.type == EntityFieldType.boolean) {
       return _booleanValues[field.key] ?? false;
@@ -120,7 +125,7 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
   Map<String, dynamic> _buildValues() {
     final values = <String, dynamic>{};
     for (final field in widget.definition.fields) {
-      if (field.readOnly) continue;
+      if (_isReadOnly(field)) continue;
       final value = _valueFor(field);
       if (value != null) values[field.key] = value;
     }
@@ -175,7 +180,7 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
         contentPadding: EdgeInsets.zero,
         title: Text(field.label),
         value: _booleanValues[field.key] ?? false,
-        onChanged: field.readOnly
+        onChanged: _isReadOnly(field)
             ? null
             : (value) => setState(() => _booleanValues[field.key] = value),
       );
@@ -184,7 +189,10 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
     if (field.type == EntityFieldType.choice) {
       return DropdownButtonFormField<String>(
         initialValue: _choiceValues[field.key],
-        decoration: InputDecoration(labelText: field.label),
+        decoration: InputDecoration(
+          labelText: field.label,
+          helperText: _isReadOnly(field) ? 'Sem permissão para editar este campo.' : null,
+        ),
         items: field.choices
             .map(
               (choice) => DropdownMenuItem<String>(
@@ -193,7 +201,7 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
               ),
             )
             .toList(),
-        onChanged: field.readOnly
+        onChanged: _isReadOnly(field)
             ? null
             : (value) => setState(() => _choiceValues[field.key] = value),
         validator: field.required
@@ -210,16 +218,17 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
 
     return TextFormField(
       controller: controller,
-      readOnly: field.readOnly || isDate || isDateTime,
+      readOnly: _isReadOnly(field) || isDate || isDateTime,
       maxLines: field.type == EntityFieldType.multiline ? 4 : 1,
       keyboardType: isNumber
           ? const TextInputType.numberWithOptions(decimal: true)
           : TextInputType.text,
       decoration: InputDecoration(
         labelText: field.label,
+        helperText: _isReadOnly(field) ? 'Sem permissão para editar este campo.' : null,
         suffixIcon: isDate || isDateTime
             ? IconButton(
-                onPressed: field.readOnly
+                onPressed: _isReadOnly(field)
                     ? null
                     : () => isDate
                         ? _pickDate(field, controller)

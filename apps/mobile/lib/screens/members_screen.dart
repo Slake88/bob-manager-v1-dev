@@ -25,6 +25,11 @@ class _MembersScreenState extends State<MembersScreen> {
         AppPermission.manageMembers,
       );
 
+  Set<String> get _memberReadOnlyKeys =>
+      AppSession.instance.canEditMemberMilestoneDates
+          ? const <String>{}
+          : const <String>{'prospect_joined_at', 'full_colors_at'};
+
   @override
   void initState() {
     super.initState();
@@ -52,6 +57,7 @@ class _MembersScreenState extends State<MembersScreen> {
         builder: (_) => EntityFormScreen(
           definition: memberDefinition,
           initialValues: member,
+          readOnlyKeys: _memberReadOnlyKeys,
           onSave: (values, id) async {
             await _repository.saveMember(values, memberId: id);
           },
