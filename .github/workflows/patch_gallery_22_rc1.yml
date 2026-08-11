@@ -76,3 +76,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "RC1: integrar Galeria 2.2 na ficha do artigo"
           git push origin HEAD:rc1-rebuild
+# trigger 2
