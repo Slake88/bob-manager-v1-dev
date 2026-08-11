@@ -68,11 +68,11 @@ class _LotteryScreenState extends State<LotteryScreen> {
     );
   }
 
-  Future<void> _payWeek(Map<String, dynamic> charge) async {
+  Future<void> _payDraw(Map<String, dynamic> charge) async {
     final method = await _paymentMethod();
     if (method == null) return;
     try {
-      await _repository.payWeek(
+      await _repository.payDraw(
         chargeId: charge['id'].toString(),
         paymentMethod: method,
       );
@@ -188,7 +188,7 @@ class _LotteryScreenState extends State<LotteryScreen> {
       context: context,
       builder: (_) => _SettingsDialog(
         repository: _repository,
-        weeklyAmount: _asDouble(data['weekly_amount']),
+        drawAmount: _asDouble(data['draw_amount']),
         finePerMiss: _asDouble(data['fine_per_miss']),
       ),
     );
@@ -246,9 +246,8 @@ class _LotteryScreenState extends State<LotteryScreen> {
           final fines = List<Map<String, dynamic>>.from(data['fines'] as List);
           final prizes = List<Map<String, dynamic>>.from(data['prizes'] as List);
           final drawDates = _repository.drawDates(_month.year, _month.month);
-          final weeklyAmount = _asDouble(data['weekly_amount']);
-          final weeks = drawDates.map(_repository.weekStart).map(_dateOnly).toSet();
-          final monthlyPerPlayer = weeks.length * weeklyAmount;
+          final drawAmount = _asDouble(data['draw_amount']);
+          final monthlyPerPlayer = drawDates.length * drawAmount;
           final totalExpected = active.length * monthlyPerPlayer;
           final fineDebt = fines.fold<double>(
             0,
@@ -351,7 +350,7 @@ class _LotteryScreenState extends State<LotteryScreen> {
                               players: active,
                               charges: charges,
                               dates: drawDates,
-                              onPayWeek: _repository.canOperateMoney ? _payWeek : null,
+                              onPayDraw: _repository.canOperateMoney ? _payDraw : null,
                               onPayMonth: _repository.canOperateMoney ? _payMonth : null,
                             ),
                             _PlayersView(
@@ -393,7 +392,7 @@ class _MonthlyBoard extends StatelessWidget {
     required this.players,
     required this.charges,
     required this.dates,
-    required this.onPayWeek,
+    required this.onPayDraw,
     required this.onPayMonth,
   });
 
@@ -401,7 +400,7 @@ class _MonthlyBoard extends StatelessWidget {
   final List<Map<String, dynamic>> players;
   final List<Map<String, dynamic>> charges;
   final List<DateTime> dates;
-  final Future<void> Function(Map<String, dynamic>)? onPayWeek;
+  final Future<void> Function(Map<String, dynamic>)? onPayDraw;
   final Future<void> Function(Map<String, dynamic>)? onPayMonth;
 
   @override
@@ -453,11 +452,11 @@ class _MonthlyBoard extends StatelessWidget {
   }
 
   Widget _paymentCell(String? playerId, DateTime drawDate) {
-    final week = _dateOnly(repository.weekStart(drawDate));
+    final draw = _dateOnly(drawDate);
     Map<String, dynamic>? charge;
     for (final row in charges) {
       if (row['player_id']?.toString() == playerId &&
-          row['week_start']?.toString() == week) {
+          row['draw_date']?.toString() == draw) {
         charge = row;
         break;
       }
@@ -466,15 +465,15 @@ class _MonthlyBoard extends StatelessWidget {
     final paid = _asDouble(charge['paid_amount']) >= _asDouble(charge['amount']);
     if (paid) {
       return const Tooltip(
-        message: 'Semana liquidada',
+        message: 'Sorteio liquidado',
         child: Icon(Icons.check_circle, color: Colors.green),
       );
     }
-    if (onPayWeek == null) return const Icon(Icons.cancel, color: Colors.red);
+    if (onPayDraw == null) return const Icon(Icons.cancel, color: Colors.red);
     final current = charge;
     return IconButton(
-      tooltip: 'Registar pagamento desta semana',
-      onPressed: () => onPayWeek!(current),
+      tooltip: 'Registar pagamento deste sorteio',
+      onPressed: () => onPayDraw!(current),
       icon: const Icon(Icons.cancel, color: Colors.red),
     );
   }
@@ -1020,11 +1019,11 @@ class _PlayerDialogState extends State<_PlayerDialog> {
 class _SettingsDialog extends StatefulWidget {
   const _SettingsDialog({
     required this.repository,
-    required this.weeklyAmount,
+    required this.drawAmount,
     required this.finePerMiss,
   });
   final LotteryRepository repository;
-  final double weeklyAmount;
+  final double drawAmount;
   final double finePerMiss;
 
   @override
@@ -1032,31 +1031,31 @@ class _SettingsDialog extends StatefulWidget {
 }
 
 class _SettingsDialogState extends State<_SettingsDialog> {
-  late final TextEditingController _weekly;
+  late final TextEditingController _draw;
   late final TextEditingController _fine;
   bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    _weekly = TextEditingController(text: widget.weeklyAmount.toStringAsFixed(2));
+    _draw = TextEditingController(text: widget.drawAmount.toStringAsFixed(2));
     _fine = TextEditingController(text: widget.finePerMiss.toStringAsFixed(2));
   }
 
   @override
   void dispose() {
-    _weekly.dispose();
+    _draw.dispose();
     _fine.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
-    final weekly = double.tryParse(_weekly.text.replaceAll(',', '.'));
+    final draw = double.tryParse(_draw.text.replaceAll(',', '.'));
     final fine = double.tryParse(_fine.text.replaceAll(',', '.'));
-    if (weekly == null || fine == null) return;
+    if (draw == null || fine == null) return;
     setState(() => _saving = true);
     try {
-      await widget.repository.saveSettings(weeklyAmount: weekly, finePerMiss: fine);
+      await widget.repository.saveSettings(drawAmount: draw, finePerMiss: fine);
       if (mounted) Navigator.pop(context, true);
     } catch (error) {
       if (!mounted) return;
@@ -1075,9 +1074,9 @@ class _SettingsDialogState extends State<_SettingsDialog> {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              controller: _weekly,
+              controller: _draw,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Valor semanal por jogador (€)'),
+              decoration: const InputDecoration(labelText: 'Custo por sorteio / jogador (€)'),
             ),
             const SizedBox(height: 12),
             TextField(

@@ -46,7 +46,7 @@ class LotteryRepository {
         'results': <Map<String, dynamic>>[],
         'fines': <Map<String, dynamic>>[],
         'prizes': <Map<String, dynamic>>[],
-        'weekly_amount': 4.40,
+        'draw_amount': 2.20,
         'fine_per_miss': 0.10,
       };
     }
@@ -68,7 +68,7 @@ class LotteryRepository {
     final next = month == 12
         ? DateTime(year + 1, 1, 1)
         : DateTime(year, month + 1, 1);
-    final chargeStart = first.subtract(const Duration(days: 6));
+    
     final firstIso = _dateOnly(first);
     final nextIso = _dateOnly(next);
 
@@ -78,12 +78,12 @@ class LotteryRepository {
           .select('*, member:members!inner(id,full_name,nickname)')
           .eq('club_id', AppSession.instance.clubId),
       _supabase
-          .from('euromillions_weekly_charges')
+          .from('euromillions_draw_charges')
           .select()
           .eq('club_id', AppSession.instance.clubId)
-          .gte('week_start', _dateOnly(chargeStart))
-          .lt('week_start', nextIso)
-          .order('week_start'),
+          .gte('draw_date', firstIso)
+          .lt('draw_date', nextIso)
+          .order('draw_date'),
       _supabase
           .from('euromillions_results')
           .select()
@@ -102,7 +102,7 @@ class LotteryRepository {
           .select('key,value')
           .eq('club_id', AppSession.instance.clubId)
           .inFilter('key', [
-        'euromillions_weekly_amount',
+        'euromillions_draw_amount',
         'euromillions_fine_per_miss',
       ]),
       _supabase
@@ -139,8 +139,8 @@ class LotteryRepository {
       'results': List<Map<String, dynamic>>.from(results[2] as List),
       'fines': List<Map<String, dynamic>>.from(results[3] as List),
       'prizes': List<Map<String, dynamic>>.from(results[5] as List),
-      'weekly_amount':
-          double.tryParse(settings['euromillions_weekly_amount'] ?? '') ?? 4.40,
+      'draw_amount':
+          double.tryParse(settings['euromillions_draw_amount'] ?? '') ?? 2.20,
       'fine_per_miss':
           double.tryParse(settings['euromillions_fine_per_miss'] ?? '') ?? 0.10,
     };
@@ -204,7 +204,7 @@ class LotteryRepository {
   }
 
   Future<void> saveSettings({
-    required double weeklyAmount,
+    required double drawAmount,
     required double finePerMiss,
   }) async {
     if (!canOperateMoney) {
@@ -212,12 +212,12 @@ class LotteryRepository {
         'Apenas o Tesoureiro ou Super Admin pode alterar estes valores.',
       );
     }
-    if (weeklyAmount <= 0 || finePerMiss < 0) {
+    if (drawAmount <= 0 || finePerMiss < 0) {
       throw ArgumentError('Valores de configuração inválidos.');
     }
     if (AppConfig.demoMode) return;
     for (final entry in {
-      'euromillions_weekly_amount': weeklyAmount.toStringAsFixed(2),
+      'euromillions_draw_amount': drawAmount.toStringAsFixed(2),
       'euromillions_fine_per_miss': finePerMiss.toStringAsFixed(2),
     }.entries) {
       await _supabase.from('club_settings').upsert({
@@ -230,7 +230,7 @@ class LotteryRepository {
     }
   }
 
-  Future<void> payWeek({
+  Future<void> payDraw({
     required String chargeId,
     required String paymentMethod,
   }) async {
@@ -241,7 +241,7 @@ class LotteryRepository {
     }
     if (AppConfig.demoMode) return;
     await _supabase.rpc(
-      'register_euromillions_week_payment_v1',
+      'register_euromillions_draw_payment_v1',
       params: {
         'target_club': AppSession.instance.clubId,
         'p_charge': chargeId,
