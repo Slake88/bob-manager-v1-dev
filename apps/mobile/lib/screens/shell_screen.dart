@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/app_session.dart';
 import '../core/module_definition.dart';
+import '../core/notification_center.dart';
 import '../core/permissions.dart';
 import '../repositories/activity_repository.dart';
 import '../services/auth_service.dart';
+import '../services/push_notification_service.dart';
 import 'activity_screen.dart';
 import 'login_screen.dart';
 import 'module_router.dart';
@@ -20,11 +24,27 @@ class _ShellScreenState extends State<ShellScreen> {
   int selected = 0;
   final ActivityRepository _activity = ActivityRepository();
   late Future<int> _unreadFuture;
+  Timer? _badgeTimer;
+  StreamSubscription<PushMessageEvent>? _foregroundPushSubscription;
+  StreamSubscription<String>? _openedPushSubscription;
 
   @override
   void initState() {
     super.initState();
     _unreadFuture = _activity.unreadCount();
+    _badgeTimer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _refreshUnread(),
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) => _configurePush());
+  }
+
+  @override
+  void dispose() {
+    _badgeTimer?.cancel();
+    _foregroundPushSubscription?.cancel();
+    _openedPushSubscription?.cancel();
+    super.dispose();
   }
 
   List<ModuleDefinition> get _visibleModules {
@@ -50,6 +70,39 @@ class _ShellScreenState extends State<ShellScreen> {
     };
   }
 
+  Future<void> _configurePush() async {
+    await PushNotificationService.instance.initialize();
+    if (!mounted) return;
+    _foregroundPushSubscription ??=
+        PushNotificationService.instance.foregroundMessages.listen((message) {
+      _refreshUnread();
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('${message.title}\n${message.body}'),
+          action: message.actionRoute == null
+              ? null
+              : SnackBarAction(
+                  label: 'Abrir',
+                  onPressed: () => _openActionRoute(message.actionRoute!),
+                ),
+        ),
+      );
+    });
+    _openedPushSubscription ??=
+        PushNotificationService.instance.openedRoutes.listen(_openActionRoute);
+    final initialRoute =
+        PushNotificationService.instance.takeInitialActionRoute();
+    if (initialRoute != null) await _openActionRoute(initialRoute);
+  }
+
+  void _refreshUnread() {
+    if (!mounted) return;
+    setState(() => _unreadFuture = _activity.unreadCount());
+  }
+
   Future<void> _refreshPermissions() async {
     await AuthService.instance.refreshPermissions();
     if (!mounted) return;
@@ -61,12 +114,21 @@ class _ShellScreenState extends State<ShellScreen> {
   }
 
   Future<void> _openNotifications() async {
-    await Navigator.of(context).push<void>(
+    final route = await Navigator.of(context).push<String>(
       MaterialPageRoute(builder: (_) => const NotificationCenterScreen()),
     );
-    if (mounted) {
-      setState(() => _unreadFuture = _activity.unreadCount());
-    }
+    if (!mounted) return;
+    _refreshUnread();
+    if (route != null) await _openActionRoute(route);
+  }
+
+  Future<void> _openActionRoute(String route) async {
+    final code = notificationModuleFromRoute(route);
+    if (code == null || !mounted) return;
+    final modules = _visibleModules;
+    final index = modules.indexWhere((module) => module.code == code);
+    if (index < 0) return;
+    setState(() => selected = index);
   }
 
   @override

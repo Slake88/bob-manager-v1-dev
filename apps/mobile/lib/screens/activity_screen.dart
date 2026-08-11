@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../core/notification_center.dart';
 import '../repositories/activity_repository.dart';
+import 'notification_preferences_screen.dart';
 
 class ActivityScreen extends StatefulWidget {
   const ActivityScreen({super.key});
@@ -107,6 +109,8 @@ class NotificationCenterScreen extends StatefulWidget {
 class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   final ActivityRepository _repository = ActivityRepository();
   late Future<List<Map<String, dynamic>>> _future;
+  NotificationViewFilter _filter = NotificationViewFilter.all;
+  bool _archived = false;
 
   @override
   void initState() {
@@ -115,7 +119,7 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   }
 
   void _reload() {
-    _future = _repository.notifications();
+    _future = _repository.notifications(archived: _archived);
   }
 
   Future<void> _markAll() async {
@@ -132,7 +136,32 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
   }
 
   Future<void> _archive(Map<String, dynamic> row) async {
-    await _repository.archive(row['id'].toString());
+    await _repository.archive(
+      row['id'].toString(),
+      archived: !_archived,
+    );
+    if (mounted) setState(_reload);
+  }
+
+  Future<void> _open(Map<String, dynamic> row) async {
+    if (row['read_at'] == null) {
+      await _repository.markRead(row['id'].toString());
+    }
+    final route = row['action_route']?.toString().trim() ?? '';
+    if (!mounted) return;
+    if (route.isNotEmpty) {
+      Navigator.pop(context, route);
+    } else {
+      setState(_reload);
+    }
+  }
+
+  Future<void> _openPreferences() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => const NotificationPreferencesScreen(),
+      ),
+    );
     if (mounted) setState(_reload);
   }
 
@@ -142,8 +171,13 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
       appBar: AppBar(
         title: const Text('Notificações'),
         actions: [
+          IconButton(
+            tooltip: 'Preferências',
+            onPressed: _openPreferences,
+            icon: const Icon(Icons.tune_outlined),
+          ),
           TextButton.icon(
-            onPressed: _markAll,
+            onPressed: _archived ? null : _markAll,
             icon: const Icon(Icons.done_all),
             label: const Text('Marcar todas'),
           ),
@@ -159,20 +193,11 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           final rows = snapshot.data!;
-          if (rows.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text('Não tens notificações.'),
-              ),
-            );
-          }
-
+          final visibleRows = rows
+              .where((row) => notificationMatchesFilter(row, _filter))
+              .toList();
           final unreadCount = rows.where((row) => row['read_at'] == null).length;
-          final urgentCount = rows.where((row) {
-            return row['read_at'] == null &&
-                row['priority']?.toString().toLowerCase() == 'high';
-          }).length;
+          final urgentCount = rows.where(notificationIsUrgent).length;
 
           return RefreshIndicator(
             onRefresh: () async {
@@ -180,40 +205,83 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
               await _future;
             },
             child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
               children: [
-                if (unreadCount > 0)
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Wrap(
-                        spacing: 10,
-                        runSpacing: 8,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Chip(
-                            avatar: const Icon(Icons.notifications_active_outlined, size: 18),
-                            label: Text('$unreadCount novas'),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        FilterChip(
+                          selected: _filter == NotificationViewFilter.all,
+                          label: Text(_archived ? 'Arquivadas' : 'Todas'),
+                          onSelected: (_) => setState(
+                            () => _filter = NotificationViewFilter.all,
                           ),
-                          if (urgentCount > 0)
-                            Chip(
-                              avatar: const Icon(Icons.priority_high, size: 18),
-                              label: Text('$urgentCount urgentes'),
-                            ),
-                          TextButton.icon(
-                            onPressed: _markAll,
-                            icon: const Icon(Icons.done_all),
-                            label: const Text('Marcar todas como lidas'),
+                        ),
+                        FilterChip(
+                          selected: _filter == NotificationViewFilter.unread,
+                          label: Text('Não lidas ($unreadCount)'),
+                          onSelected: (_) => setState(
+                            () => _filter = NotificationViewFilter.unread,
                           ),
-                        ],
-                      ),
+                        ),
+                        FilterChip(
+                          selected: _filter == NotificationViewFilter.urgent,
+                          label: Text('Prioritárias ($urgentCount)'),
+                          onSelected: (_) => setState(
+                            () => _filter = NotificationViewFilter.urgent,
+                          ),
+                        ),
+                        ActionChip(
+                          avatar: Icon(
+                            _archived
+                                ? Icons.inbox_outlined
+                                : Icons.archive_outlined,
+                          ),
+                          label: Text(
+                            _archived ? 'Ver caixa de entrada' : 'Ver arquivo',
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _archived = !_archived;
+                              _filter = NotificationViewFilter.all;
+                              _reload();
+                            });
+                          },
+                        ),
+                      ],
                     ),
                   ),
-                for (final row in rows) _NotificationCard(
-                  row: row,
-                  onToggle: () => _toggle(row),
-                  onArchive: () => _archive(row),
                 ),
+                if (visibleRows.isEmpty)
+                  Card(
+                    child: ListTile(
+                      leading: Icon(
+                        _archived
+                            ? Icons.inventory_2_outlined
+                            : Icons.notifications_off_outlined,
+                      ),
+                      title: Text(
+                        _archived
+                            ? 'Não existem notificações arquivadas.'
+                            : 'Não existem notificações neste filtro.',
+                      ),
+                    ),
+                  )
+                else
+                  for (final row in visibleRows)
+                    _NotificationCard(
+                      row: row,
+                      archived: _archived,
+                      onOpen: () => _open(row),
+                      onToggle: () => _toggle(row),
+                      onArchive: () => _archive(row),
+                    ),
               ],
             ),
           );
@@ -226,11 +294,15 @@ class _NotificationCenterScreenState extends State<NotificationCenterScreen> {
 class _NotificationCard extends StatelessWidget {
   const _NotificationCard({
     required this.row,
+    required this.archived,
+    required this.onOpen,
     required this.onToggle,
     required this.onArchive,
   });
 
   final Map<String, dynamic> row;
+  final bool archived;
+  final VoidCallback onOpen;
   final VoidCallback onToggle;
   final VoidCallback onArchive;
 
@@ -244,6 +316,7 @@ class _NotificationCard extends StatelessWidget {
     final background = unread
         ? Color.alphaBlend(colors.primary.withValues(alpha: 0.14), colors.surface)
         : colors.surfaceContainerLow;
+    final hasRoute = (row['action_route']?.toString().trim() ?? '').isNotEmpty;
 
     return Card(
       color: background,
@@ -271,33 +344,14 @@ class _NotificationCard extends StatelessWidget {
             Expanded(
               child: ListTile(
                 contentPadding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
-                leading: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    CircleAvatar(
-                      backgroundColor: unread
-                          ? accent.withValues(alpha: 0.16)
-                          : colors.surfaceContainerHighest,
-                      child: Icon(
-                        _moduleIcon(module),
-                        color: unread ? accent : colors.onSurfaceVariant,
-                      ),
-                    ),
-                    if (unread)
-                      Positioned(
-                        right: -2,
-                        top: -2,
-                        child: Container(
-                          width: 11,
-                          height: 11,
-                          decoration: BoxDecoration(
-                            color: colors.primary,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: background, width: 2),
-                          ),
-                        ),
-                      ),
-                  ],
+                leading: CircleAvatar(
+                  backgroundColor: unread
+                      ? accent.withValues(alpha: 0.16)
+                      : colors.surfaceContainerHighest,
+                  child: Icon(
+                    _moduleIcon(module),
+                    color: unread ? accent : colors.onSurfaceVariant,
+                  ),
                 ),
                 title: Text(
                   row['title']?.toString() ?? 'Notificação',
@@ -308,9 +362,10 @@ class _NotificationCard extends StatelessWidget {
                 subtitle: Text([
                   row['body']?.toString(),
                   _relativeTime(row['created_at']),
+                  if (hasRoute) 'Toca para abrir',
                 ].where((value) => value != null && value.isNotEmpty).join('\n')),
                 isThreeLine: true,
-                onTap: onToggle,
+                onTap: onOpen,
                 trailing: PopupMenuButton<String>(
                   onSelected: (value) {
                     if (value == 'toggle') onToggle();
@@ -323,9 +378,9 @@ class _NotificationCard extends StatelessWidget {
                         unread ? 'Marcar como lida' : 'Marcar como não lida',
                       ),
                     ),
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'archive',
-                      child: Text('Arquivar'),
+                      child: Text(archived ? 'Restaurar' : 'Arquivar'),
                     ),
                   ],
                 ),
