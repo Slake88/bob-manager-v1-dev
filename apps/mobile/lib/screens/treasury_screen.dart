@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../repositories/treasury_repository.dart';
+import 'financial_transaction_documents_screen.dart';
 
 class TreasuryScreen extends StatefulWidget {
   const TreasuryScreen({super.key});
@@ -39,6 +40,18 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
   Future<void> _refresh() async {
     setState(_reload);
     await _future;
+  }
+
+  Future<void> _openMovementDocuments(Map<String, dynamic> movement) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => FinancialTransactionDocumentsScreen(
+          transaction: movement,
+          onChanged: _refresh,
+        ),
+      ),
+    );
+    if (mounted) setState(_reload);
   }
 
   Future<void> _openMovement(
@@ -293,6 +306,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                         movement['destination_account_name']?.toString();
                     return Card(
                       child: ListTile(
+                        onTap: () => _openMovementDocuments(movement),
                         leading: Icon(
                           isTransfer
                               ? Icons.swap_horiz
@@ -311,6 +325,9 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                             else
                               accountName,
                             movement['cost_center_name'],
+                            if ((movement['document_path']?.toString() ?? '')
+                                .isNotEmpty)
+                              'Com documentos',
                           ]
                               .where((value) =>
                                   value != null && value.toString().isNotEmpty)
