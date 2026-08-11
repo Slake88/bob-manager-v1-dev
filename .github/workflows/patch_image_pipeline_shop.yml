@@ -1,0 +1,112 @@
+name: Patch Image Pipeline Shop
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch_image_pipeline_shop.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rc1-rebuild
+      - name: Integrate image pipeline in ShopRepository
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('apps/mobile/lib/repositories/shop_repository.dart')
+          s = p.read_text(encoding='utf-8')
+
+          s = s.replace("import 'dart:typed_data';\n\n", '')
+          marker = "import '../core/app_session.dart';\n"
+          imports = """import '../core/app_session.dart';
+import '../core/images/default_image_processor.dart';
+import '../core/images/image_pipeline_service.dart';
+import '../core/images/image_profiles.dart';
+"""
+          if "image_pipeline_service.dart" not in s:
+              s = s.replace(marker, imports)
+
+          pattern = r"  Future<String> uploadProductImage\(\{.*?\n  String\? publicImageUrl"
+          replacement = '''  Future<String> uploadProductImage({
+    required String productId,
+    required XFile file,
+  }) async {
+    _require(AppPermission.manageMerchandising);
+
+    const pipeline = ImagePipelineService(
+      processor: DefaultImageProcessor(),
+    );
+    final result = await pipeline.process(
+      file: file,
+      profile: ImageProfiles.product,
+    );
+
+    final timestamp = DateTime.now().microsecondsSinceEpoch;
+    final basePath = '$_clubId/products/$productId';
+    final path = '$basePath/image_$timestamp.jpg';
+    final thumbnailPath = '$basePath/thumb_$timestamp.jpg';
+
+    await _client.storage.from('inventory-media').uploadBinary(
+      path,
+      result.optimized,
+      fileOptions: const FileOptions(
+        contentType: 'image/jpeg',
+        upsert: false,
+      ),
+    );
+    await _client.storage.from('inventory-media').uploadBinary(
+      thumbnailPath,
+      result.thumbnail,
+      fileOptions: const FileOptions(
+        contentType: 'image/jpeg',
+        upsert: false,
+      ),
+    );
+
+    final current = await _client
+        .from('products')
+        .select('photo_path')
+        .eq('id', productId)
+        .eq('club_id', _clubId)
+        .single();
+    final isFirst = (current['photo_path']?.toString() ?? '').isEmpty;
+
+    await _client.from('product_images').insert({
+      'club_id': _clubId,
+      'product_id': productId,
+      'storage_path': path,
+      'is_primary': isFirst,
+      'created_by': AppSession.instance.profileId,
+    });
+
+    if (isFirst) {
+      await _client
+          .from('products')
+          .update({'photo_path': path})
+          .eq('id', productId)
+          .eq('club_id', _clubId);
+    }
+
+    return path;
+  }
+
+  String? publicImageUrl'''
+          s2, n = re.subn(pattern, replacement, s, flags=re.S)
+          if n != 1:
+              raise SystemExit(f'uploadProductImage patch count={n}')
+          p.write_text(s2, encoding='utf-8')
+          PY
+
+          git diff --check
+          git add apps/mobile/lib/repositories/shop_repository.dart
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "RC1: ligar image pipeline ao upload dos artigos"
+          git push origin HEAD:rc1-rebuild
