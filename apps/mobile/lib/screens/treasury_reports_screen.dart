@@ -371,7 +371,15 @@ class _TreasuryReportsScreenState extends State<TreasuryReportsScreen> {
   }
 
   Future<void> _exportPdf(TreasuryReportData data) async {
-    final document = pw.Document();
+  final regularFont = await PdfGoogleFonts.robotoRegular();
+  final boldFont = await PdfGoogleFonts.robotoBold();
+
+  final document = pw.Document(
+    theme: pw.ThemeData.withFont(
+      base: regularFont,
+      bold: boldFont,
+    ),
+  );
     final tableData = <List<dynamic>>[
       ['Data', 'Tipo', 'Descrição', 'Conta', 'Centro', 'Valor'],
       ...data.movements.map((row) => [
