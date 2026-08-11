@@ -72,7 +72,8 @@ class TreasuryReportsRepository {
       return _matchesFilters(row, accountId, costCenterId, kind);
     }).toList();
 
-    final opening = _net(beforeRows);
+    final opening = _net(beforeRows, accountId);
+    final periodDelta = _net(periodRows, accountId);
     final income = periodRows
         .where((row) => row['kind'] == 'income')
         .fold<double>(0, (sum, row) => sum + _num(row['amount']));
@@ -115,7 +116,7 @@ class TreasuryReportsRepository {
       accounts: accounts,
       costCenters: costCenters,
       openingBalance: opening,
-      closingBalance: opening + income - expense,
+      closingBalance: opening + periodDelta,
       income: income,
       expense: expense,
       monthly: monthly,
@@ -144,12 +145,16 @@ class TreasuryReportsRepository {
     return true;
   }
 
-  double _net(Iterable<Map<String, dynamic>> rows) {
+  double _net(Iterable<Map<String, dynamic>> rows, String? accountId) {
     var value = 0.0;
     for (final row in rows) {
       final amount = _num(row['amount']);
       if (row['kind'] == 'income') value += amount;
       if (row['kind'] == 'expense') value -= amount;
+      if (row['kind'] == 'transfer' && accountId != null && accountId.isNotEmpty) {
+        if (row['account_id']?.toString() == accountId) value -= amount;
+        if (row['destination_account_id']?.toString() == accountId) value += amount;
+      }
     }
     return value;
   }
