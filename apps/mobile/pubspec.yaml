@@ -23,6 +23,8 @@ dependencies:
   qr_flutter: ^4.1.0
   pdf: ^3.11.3
   printing: ^5.14.2
+  excel: ^4.0.6
+  share_plus: ^11.1.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
