@@ -46,7 +46,7 @@ class DefaultImageProcessor implements ImageProcessor {
         finalHeight: resized.height,
         originalSize: originalBytes.lengthInBytes,
         optimizedSize: optimized.lengthInBytes,
-        sha256: _fnv1a64Hex(optimized),
+        sha256: _fnv1a32Hex(optimized),
         format: ImageOutputFormat.jpeg,
       );
     } on ImagePipelineException {
@@ -74,15 +74,15 @@ class DefaultImageProcessor implements ImageProcessor {
     );
   }
 
-  String _fnv1a64Hex(Uint8List bytes) {
-    const offset = 0xcbf29ce484222325;
-    const prime = 0x100000001b3;
-    const mask = 0xffffffffffffffff;
+  String _fnv1a32Hex(Uint8List bytes) {
+    const offset = 0x811c9dc5;
+    const prime = 0x01000193;
+    const mask = 0xffffffff;
     var hash = offset;
     for (final byte in bytes) {
       hash ^= byte;
       hash = (hash * prime) & mask;
     }
-    return hash.toRadixString(16).padLeft(16, '0');
+    return hash.toRadixString(16).padLeft(8, '0');
   }
 }
