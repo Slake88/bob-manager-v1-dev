@@ -18,32 +18,27 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
 
           p=Path('apps/mobile/lib/screens/shop_screen.dart')
           s=p.read_text(encoding='utf-8')
 
-          # The detail screen no longer owns image picking/upload logic.
           s=s.replace("import 'package:image_picker/image_picker.dart';\n", '')
           marker="import '../repositories/shop_repository.dart';\n"
           if "../widgets/product_image_gallery.dart" not in s:
               s=s.replace(marker, marker+"import '../widgets/product_image_gallery.dart';\n")
 
-          # Remove the legacy single-photo picker from ProductDetailScreen only.
           start=s.find('  Future<void> _pickImage() async {', s.find('class _ProductDetailScreenState'))
           if start >= 0:
               end=s.find('  Future<void> _editVariant', start)
               if end < 0: raise SystemExit('Could not find end of legacy _pickImage')
               s=s[:start]+s[end:]
 
-          # Remove legacy imageUrl local in detail build.
           detail=s.find('class _ProductDetailScreenState')
           target="    final imageUrl = widget.repository.publicImageUrl(_product['photo_path']);\n"
           pos=s.find(target, detail)
           if pos >= 0:
               s=s[:pos]+s[pos+len(target):]
 
-          # Replace the legacy hero photo card with the validated multi-photo gallery.
           detail=s.find('class _ProductDetailScreenState')
           list_children=s.find('        children: [', s.find('body: ListView(', detail))
           legacy_start=s.find('          AspectRatio(\n            aspectRatio: 16 / 7,', list_children)
@@ -74,4 +69,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "RC1: integrar Galeria 2.2 na ficha do artigo"
           git push origin HEAD:rc1-rebuild
-# trigger 1
+# trigger 2
