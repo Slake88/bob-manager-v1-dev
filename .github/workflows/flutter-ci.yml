@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main, fase2-integral]
 
+permissions:
+  contents: write
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -14,6 +17,41 @@ jobs:
         working-directory: apps/mobile
     steps:
       - uses: actions/checkout@v4
+      - name: Patch PDF Unicode font
+        if: github.ref == 'refs/heads/rc1-rebuild'
+        working-directory: .
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('apps/mobile/lib/screens/treasury_reports_screen.dart')
+          s = p.read_text(encoding='utf-8')
+          old = """  Future<void> _exportPdf(TreasuryReportData data) async {
+    final document = pw.Document();
+    final tableData = <List<dynamic>>[
+"""
+          new = """  Future<void> _exportPdf(TreasuryReportData data) async {
+    final regularFont = await PdfGoogleFonts.robotoRegular();
+    final boldFont = await PdfGoogleFonts.robotoBold();
+    final document = pw.Document(
+      theme: pw.ThemeData.withFont(base: regularFont, bold: boldFont),
+    );
+    final tableData = <List<dynamic>>[
+"""
+          if old in s:
+              p.write_text(s.replace(old, new, 1), encoding='utf-8')
+              print('PDF Unicode patch aplicado')
+          else:
+              print('PDF Unicode patch já aplicado')
+          PY
+          if ! git diff --quiet -- apps/mobile/lib/screens/treasury_reports_screen.dart; then
+            git diff --check
+            git add apps/mobile/lib/screens/treasury_reports_screen.dart
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "fix: corrigir símbolo euro no PDF financeiro"
+            git push origin HEAD:rc1-rebuild
+          fi
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
