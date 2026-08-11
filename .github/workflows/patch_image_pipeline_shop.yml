@@ -110,3 +110,5 @@ import '../core/images/image_profiles.dart';
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "RC1: ligar image pipeline ao upload dos artigos"
           git push origin HEAD:rc1-rebuild
+
+# trigger: 2
