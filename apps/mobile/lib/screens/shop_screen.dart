@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../core/app_session.dart';
 import '../core/permissions.dart';
 import '../repositories/shop_repository.dart';
+import '../widgets/product_image_gallery.dart';
 
 class ShopScreen extends StatefulWidget {
   const ShopScreen({super.key});
@@ -325,47 +325,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     if (updated != null && mounted) setState(() => _product = updated!);
   }
 
-  Future<void> _pickImage() async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Tirar fotografia'),
-              onTap: () => Navigator.pop(context, ImageSource.camera),
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Escolher da galeria'),
-              onTap: () => Navigator.pop(context, ImageSource.gallery),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (source == null) return;
-    try {
-      final file = await ImagePicker().pickImage(
-        source: source,
-        imageQuality: 85,
-        maxWidth: 1600,
-      );
-      if (file == null) return;
-      await widget.repository.uploadProductImage(
-        productId: _product['id'].toString(),
-        file: file,
-      );
-      await _reloadProduct();
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Não foi possível carregar a imagem: $error')),
-      );
-    }
-  }
-
   Future<void> _editVariant([Map<String, dynamic>? variant]) async {
     final result = await showDialog<_VariantInput>(
       context: context,
@@ -478,7 +437,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final variants = _variants(_product);
-    final imageUrl = widget.repository.publicImageUrl(_product['photo_path']);
 
     return Scaffold(
       appBar: AppBar(
@@ -505,39 +463,12 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
         children: [
-          AspectRatio(
-            aspectRatio: 16 / 7,
-            child: Card(
-              clipBehavior: Clip.antiAlias,
-              child: imageUrl == null
-                  ? InkWell(
-                      onTap: _canManage ? _pickImage : null,
-                      child: const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.add_photo_alternate_outlined, size: 50),
-                          SizedBox(height: 8),
-                          Text('Adicionar fotografia'),
-                        ],
-                      ),
-                    )
-                  : Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Image.network(imageUrl, fit: BoxFit.cover),
-                        if (_canManage)
-                          Positioned(
-                            right: 8,
-                            bottom: 8,
-                            child: FilledButton.icon(
-                              onPressed: _pickImage,
-                              icon: const Icon(Icons.photo_camera_outlined),
-                              label: const Text('Alterar'),
-                            ),
-                          ),
-                      ],
-                    ),
-            ),
+          ProductImageGallery(
+            repository: widget.repository,
+            productId: _product['id'].toString(),
+            coverPath: _product['photo_path']?.toString(),
+            canManage: _canManage,
+            onChanged: _reloadProduct,
           ),
           const SizedBox(height: 12),
           Text(_product['description']?.toString() ?? 'Sem descrição.'),
