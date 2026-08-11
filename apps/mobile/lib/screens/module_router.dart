@@ -13,7 +13,7 @@ import 'lottery_screen.dart';
 import 'members_screen.dart';
 import 'reports_screen.dart';
 import 'settings_screen.dart';
-import 'treasury_screen.dart';
+import 'treasury_module_screen.dart';
 
 class ModuleRouter extends StatelessWidget {
   const ModuleRouter({super.key, required this.module});
@@ -26,7 +26,7 @@ class ModuleRouter extends StatelessWidget {
       'dashboard' => const DashboardScreen(),
       'activity' => const ActivityScreen(),
       'members' => const MembersScreen(),
-      'treasury' => const TreasuryScreen(),
+      'treasury' => const TreasuryModuleScreen(),
       'fees' => const FeesScreen(),
       'lottery' => const LotteryScreen(),
       'events' => const EventsScreen(),
