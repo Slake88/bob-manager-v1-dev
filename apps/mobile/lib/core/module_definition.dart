@@ -8,6 +8,7 @@ const appModules = <ModuleDefinition>[
  ModuleDefinition('activity','Atividade',Icons.dynamic_feed_outlined,'Activity Feed e histórico do clube'),
  ModuleDefinition('members','Membros',Icons.groups_outlined,'Membros, motas, manutenção, patches e Timeline'),
  ModuleDefinition('treasury','Tesouraria',Icons.account_balance_wallet_outlined,'Contas, fundos, movimentos e reembolsos'),
+ ModuleDefinition('financial','Pedidos & Pagamentos',Icons.request_quote_outlined,'Reembolsos, cobranças, comprovativos e liquidações'),
  ModuleDefinition('fees','Quotas',Icons.receipt_long_outlined,'Planos, cobranças, pagamentos e saldos'),
  ModuleDefinition('lottery','Euromilhões',Icons.casino_outlined,'Participantes, chaves, sorteios e prémios'),
  ModuleDefinition('events','Eventos',Icons.event_outlined,'Eventos, passeios e Rock & Ride In'),

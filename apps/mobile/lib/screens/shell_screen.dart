@@ -34,7 +34,7 @@ class _ShellScreenState extends State<ShellScreen> {
   bool _canViewModule(ModuleDefinition module) {
     final session = AppSession.instance;
     return switch (module.code) {
-      'dashboard' || 'activity' => session.authenticated,
+      'dashboard' || 'activity' || 'financial' => session.authenticated,
       'members' => session.can(AppPermission.viewMembers),
       'treasury' => session.can(AppPermission.viewTreasury),
       'fees' => session.can(AppPermission.viewFees),
