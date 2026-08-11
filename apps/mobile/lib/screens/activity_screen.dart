@@ -351,22 +351,99 @@ class _ActivityCard extends StatelessWidget {
             row['activity_type']?.toString() ??
             'general'
         : row['activity_type']?.toString() ?? 'general';
-    final actor = row['actor'];
-    final actorName = actor is Map ? actor['full_name']?.toString() : null;
+    final actorName = row['actor_name']?.toString();
+    final portugalDate = row['portugal_date']?.toString();
+    final portugalTime = row['portugal_time']?.toString();
+    final entityType = row['entity_type']?.toString();
+    final entityId = row['entity_id']?.toString();
     return Card(
       child: ListTile(
         leading: CircleAvatar(child: Icon(_moduleIcon(module))),
         title: Text(row['title']?.toString() ?? 'Atividade'),
         subtitle: Text([
           row['description']?.toString(),
-          if (actorName != null && actorName.isNotEmpty) 'Por $actorName',
-          _relativeTime(row['created_at']),
+          if (actorName != null && actorName.isNotEmpty) 'Registado por: $actorName',
+          if (portugalDate != null && portugalTime != null)
+            '$portugalDate às $portugalTime',
         ].where((value) => value != null && value.isNotEmpty).join('\n')),
         isThreeLine: true,
+        trailing: entityType != null && entityId != null
+            ? const Icon(Icons.history_outlined)
+            : null,
+        onTap: entityType != null && entityId != null
+            ? () => _showAuditHistory(context, entityType, entityId)
+            : null,
       ),
     );
   }
 }
+
+Future<void> _showAuditHistory(
+  BuildContext context,
+  String entityType,
+  String entityId,
+) async {
+  final repository = ActivityRepository();
+  await showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (context) => FractionallySizedBox(
+      heightFactor: 0.82,
+      child: FutureBuilder<List<Map<String, dynamic>>>(
+        future: repository.entityHistory(entityType: entityType, entityId: entityId),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text('Não foi possível carregar o histórico: ${snapshot.error}'),
+            ));
+          }
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final rows = snapshot.data!;
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+            children: [
+              Text('Histórico do registo', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+              const SizedBox(height: 4),
+              Text('$entityType · $entityId', style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 16),
+              if (rows.isEmpty)
+                const ListTile(leading: Icon(Icons.history_toggle_off_outlined), title: Text('Ainda não existem alterações auditadas para este registo.')),
+              for (final item in rows)
+                Card(
+                  child: ListTile(
+                    leading: Icon(_auditActionIcon(item['action']?.toString() ?? '')),
+                    title: Text(_auditActionLabel(item['action']?.toString() ?? '')),
+                    subtitle: Text([
+                      'Utilizador: ${item['actor_name'] ?? 'Sistema'}',
+                      if (item['portugal_date'] != null && item['portugal_time'] != null)
+                        '${item['portugal_date']} às ${item['portugal_time']}',
+                    ].join('\n')),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    ),
+  );
+}
+
+String _auditActionLabel(String action) => switch (action.toLowerCase()) {
+  'insert' || 'create' || 'created' => 'Registo criado',
+  'update' || 'updated' => 'Registo alterado',
+  'delete' || 'deleted' => 'Registo eliminado',
+  _ => action.isEmpty ? 'Alteração' : action,
+};
+
+IconData _auditActionIcon(String action) => switch (action.toLowerCase()) {
+  'insert' || 'create' || 'created' => Icons.add_circle_outline,
+  'delete' || 'deleted' => Icons.delete_outline,
+  _ => Icons.edit_outlined,
+};
 
 Color _priorityColor(BuildContext context, String priority) {
   final colors = Theme.of(context).colorScheme;

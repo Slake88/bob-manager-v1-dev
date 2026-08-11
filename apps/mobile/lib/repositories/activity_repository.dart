@@ -12,19 +12,33 @@ class ActivityRepository {
   }) async {
     if (AppConfig.demoMode) return const [];
 
-    var query = _client
-        .from('activity_feed')
-        .select('id,activity_type,title,description,entity_type,entity_id,metadata,created_at,actor:profiles(full_name)')
-        .eq('club_id', AppSession.instance.clubId);
+    final response = await _client.rpc(
+      'activity_feed_portugal_v1',
+      params: {
+        'target_club': AppSession.instance.clubId,
+        'p_module': module,
+        'p_limit': limit,
+      },
+    );
+    return List<Map<String, dynamic>>.from(response as List);
+  }
 
-    if (module != null && module.isNotEmpty && module != 'all') {
-      query = query.eq('metadata->>module_code', module);
-    }
-
-    final response = await query
-        .order('created_at', ascending: false)
-        .limit(limit);
-    return List<Map<String, dynamic>>.from(response);
+  Future<List<Map<String, dynamic>>> entityHistory({
+    required String entityType,
+    required String entityId,
+    int limit = 100,
+  }) async {
+    if (AppConfig.demoMode) return const [];
+    final response = await _client.rpc(
+      'audit_entity_history_v1',
+      params: {
+        'target_club': AppSession.instance.clubId,
+        'p_entity_type': entityType,
+        'p_entity_id': entityId,
+        'p_limit': limit,
+      },
+    );
+    return List<Map<String, dynamic>>.from(response as List);
   }
 
   Future<List<Map<String, dynamic>>> notifications({int limit = 100}) async {
