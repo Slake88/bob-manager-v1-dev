@@ -1,9 +1,10 @@
-import 'dart:typed_data';
-
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/app_session.dart';
+import '../core/images/default_image_processor.dart';
+import '../core/images/image_pipeline_service.dart';
+import '../core/images/image_profiles.dart';
 import '../core/permissions.dart';
 
 class ShopRepository {
@@ -245,30 +246,61 @@ class ShopRepository {
     required XFile file,
   }) async {
     _require(AppPermission.manageMerchandising);
-    final Uint8List bytes = await file.readAsBytes();
-    final extension = file.name.toLowerCase().endsWith('.png')
-        ? 'png'
-        : file.name.toLowerCase().endsWith('.webp')
-            ? 'webp'
-            : 'jpg';
-    final path = '$_clubId/products/$productId/${DateTime.now().microsecondsSinceEpoch}.$extension';
+
+    const pipeline = ImagePipelineService(
+      processor: DefaultImageProcessor(),
+    );
+    final result = await pipeline.process(
+      file: file,
+      profile: ImageProfiles.product,
+    );
+
+    final timestamp = DateTime.now().microsecondsSinceEpoch;
+    final basePath = '$_clubId/products/$productId';
+    final path = '$basePath/image_$timestamp.jpg';
+    final thumbnailPath = '$basePath/thumb_$timestamp.jpg';
+
     await _client.storage.from('inventory-media').uploadBinary(
-          path,
-          bytes,
-          fileOptions: FileOptions(contentType: file.mimeType, upsert: false),
-        );
-    await _client
+      path,
+      result.optimized,
+      fileOptions: const FileOptions(
+        contentType: 'image/jpeg',
+        upsert: false,
+      ),
+    );
+    await _client.storage.from('inventory-media').uploadBinary(
+      thumbnailPath,
+      result.thumbnail,
+      fileOptions: const FileOptions(
+        contentType: 'image/jpeg',
+        upsert: false,
+      ),
+    );
+
+    final current = await _client
         .from('products')
-        .update({'photo_path': path})
+        .select('photo_path')
         .eq('id', productId)
-        .eq('club_id', _clubId);
+        .eq('club_id', _clubId)
+        .single();
+    final isFirst = (current['photo_path']?.toString() ?? '').isEmpty;
+
     await _client.from('product_images').insert({
       'club_id': _clubId,
       'product_id': productId,
       'storage_path': path,
-      'is_primary': true,
+      'is_primary': isFirst,
       'created_by': AppSession.instance.profileId,
     });
+
+    if (isFirst) {
+      await _client
+          .from('products')
+          .update({'photo_path': path})
+          .eq('id', productId)
+          .eq('club_id', _clubId);
+    }
+
     return path;
   }
 
