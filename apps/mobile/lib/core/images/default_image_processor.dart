@@ -52,7 +52,7 @@ class DefaultImageProcessor implements ImageProcessor {
     } on ImagePipelineException {
       rethrow;
     } catch (error) {
-      throw CompressionFailedException('Falha ao processar a imagem: $error');
+      throw ImageProcessingException('Falha ao processar a imagem: $error');
     }
   }
 
