@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -56,40 +54,9 @@ extension ProductImagesRepositoryExtension on ShopRepository {
     required XFile file,
   }) async {
     _requireImagesManage();
-    final Uint8List bytes = await file.readAsBytes();
-    final extension = file.name.toLowerCase().endsWith('.png')
-        ? 'png'
-        : file.name.toLowerCase().endsWith('.webp')
-            ? 'webp'
-            : 'jpg';
-    final path = '$_imagesClubId/products/$productId/${DateTime.now().microsecondsSinceEpoch}.$extension';
-    await _imagesClient.storage.from('inventory-media').uploadBinary(
-          path,
-          bytes,
-          fileOptions: FileOptions(contentType: file.mimeType, upsert: false),
-        );
-    final current = await _imagesClient
-        .from('products')
-        .select('photo_path')
-        .eq('club_id', _imagesClubId)
-        .eq('id', productId)
-        .single();
-    final first = (current['photo_path']?.toString() ?? '').isEmpty;
-    final inserted = await _imagesClient.from('product_images').insert({
-      'club_id': _imagesClubId,
-      'product_id': productId,
-      'storage_path': path,
-      'is_primary': first,
-      'created_by': AppSession.instance.profileId,
-    }).select('id').single();
-    if (first) {
-      await setPrimaryProductImage(
-        productId: productId,
-        imageId: inserted['id'].toString(),
-        storagePath: path,
-      );
-    }
-    return path;
+    // O ShopRepository é o único ponto de upload: aplica EXIF, resize,
+    // compressão e thumbnail antes de gravar no Storage.
+    return uploadProductImage(productId: productId, file: file);
   }
 
   Future<void> deleteProductImage({
