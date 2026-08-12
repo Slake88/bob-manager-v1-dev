@@ -335,7 +335,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         scrollDirection: Axis.horizontal,
         itemCount: data.metrics.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final entry = data.metrics.entries.elementAt(index);
           return SizedBox(
