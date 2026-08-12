@@ -206,9 +206,12 @@ class FinancialDocumentsRepository {
     return name.endsWith('.pdf');
   }
 
-  static bool isDeletable(Map<String, dynamic> document) =>
-      document['source_attachment_id'] == null &&
-      document['origin']?.toString() != 'request';
+  static bool isDeletable(Map<String, dynamic> document) {
+    final origin = document['origin']?.toString();
+    return document['source_attachment_id'] == null &&
+        origin != 'request' &&
+        origin != 'bar_ocr';
+  }
 
   static String? mimeTypeForExtension(String? extension) {
     switch (extension?.toLowerCase()) {

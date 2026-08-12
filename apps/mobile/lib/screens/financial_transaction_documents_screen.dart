@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../repositories/financial_documents_repository.dart';
 import '../widgets/financial_document_gallery.dart';
+import '../widgets/financial_ocr_panel.dart';
 
 class FinancialTransactionDocumentsScreen extends StatelessWidget {
   const FinancialTransactionDocumentsScreen({
@@ -111,6 +112,13 @@ class FinancialTransactionDocumentsScreen extends StatelessWidget {
               canManage: repository.canManage,
               onChanged: onChanged,
             ),
+          if (transactionId.isNotEmpty && repository.canManage) ...[
+            const SizedBox(height: 16),
+            FinancialOcrPanel(
+              transactionId: transactionId,
+              transactionAmount: transaction['amount'],
+            ),
+          ],
           const SizedBox(height: 16),
           Card(
             child: ListTile(

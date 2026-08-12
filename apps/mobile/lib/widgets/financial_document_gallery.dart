@@ -343,7 +343,7 @@ class _FinancialDocumentGalleryState extends State<FinancialDocumentGallery> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Os documentos herdados de pedidos/reembolsos ficam protegidos contra eliminação nesta galeria.',
+                'Os documentos herdados de pedidos/reembolsos e os originais de OCR ficam protegidos contra eliminação nesta galeria.',
               ),
             ],
           ],
@@ -516,13 +516,20 @@ class _DocumentThumbnail extends StatelessWidget {
                 bottom: 4,
                 child: Icon(Icons.star, size: 20),
               ),
-            if (document['origin'] == 'request')
-              const Positioned(
+            if (document['origin'] == 'request' || document['origin'] == 'bar_ocr')
+              Positioned(
                 left: 4,
                 top: 4,
                 child: Tooltip(
-                  message: 'Herdado do pedido financeiro',
-                  child: Icon(Icons.link, size: 20),
+                  message: document['origin'] == 'bar_ocr'
+                      ? 'Documento original da leitura OCR'
+                      : 'Herdado do pedido financeiro',
+                  child: Icon(
+                    document['origin'] == 'bar_ocr'
+                        ? Icons.document_scanner_outlined
+                        : Icons.link,
+                    size: 20,
+                  ),
                 ),
               ),
             if (canManage && (onPrimary != null || onDelete != null))

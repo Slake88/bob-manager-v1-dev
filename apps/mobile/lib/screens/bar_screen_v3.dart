@@ -1,9 +1,12 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../core/app_session.dart';
 import '../core/permissions.dart';
 import '../repositories/bar_repository.dart';
+import '../repositories/financial_ocr_repository.dart';
+import 'bar_ocr_review_screen.dart';
 
 class BarScreenV3 extends StatefulWidget {
   const BarScreenV3({super.key});
@@ -14,6 +17,7 @@ class BarScreenV3 extends StatefulWidget {
 
 class _BarScreenV3State extends State<BarScreenV3> {
   final BarRepository _repository = BarRepository();
+  final FinancialOcrRepository _ocrRepository = FinancialOcrRepository();
   late Future<_BarData> _future;
 
   bool get _canManage => AppSession.instance.can(AppPermission.manageBar);
@@ -147,6 +151,70 @@ class _BarScreenV3State extends State<BarScreenV3> {
     }
   }
 
+  Future<void> _barOcr(_BarData data) async {
+    try {
+      final picked = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
+        allowMultiple: false,
+        withData: true,
+      );
+      if (picked == null || picked.files.isEmpty) return;
+
+      final jobId = await _ocrRepository.createBarJob();
+      await _ocrRepository.uploadBarSource(
+        jobId: jobId,
+        file: picked.files.single,
+      );
+      final job = await _ocrRepository.runOcr(jobId);
+      if (!mounted) return;
+
+      final status = job['status']?.toString();
+      if (status == 'unconfigured') {
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('OCR preparado, mas ainda não configurado'),
+            content: const Text(
+              'Falta configurar GOOGLE_VISION_API_KEY e GOOGLE_CLOUD_PROJECT_ID nos secrets do Supabase. '
+              'O talão ficou guardado e poderá ser analisado depois, sem voltar a carregá-lo.',
+            ),
+            actions: [
+              FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+      if (status == 'failed') {
+        throw StateError(
+          job['error_message']?.toString() ?? 'A leitura OCR falhou.',
+        );
+      }
+      if (status != 'ready' && status != 'reviewed') {
+        throw StateError('O OCR ainda não está pronto para revisão.');
+      }
+
+      final changed = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => BarOcrReviewScreen(
+            job: job,
+            products: data.products,
+            events: data.events,
+            accounts: data.accounts,
+            canSelectAccount: _canSelectAccount,
+          ),
+        ),
+      );
+      if (changed == true && mounted) setState(_reload);
+    } catch (error) {
+      _error(error);
+    }
+  }
+
   Future<void> _operation(
     Map<String, dynamic> product,
     List<Map<String, dynamic>> events,
@@ -260,6 +328,23 @@ class _BarScreenV3State extends State<BarScreenV3> {
                         ),
                       ),
                       const SizedBox(height: 10),
+                      if (_canManage) ...[
+                        Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.document_scanner_outlined),
+                            title: const Text('Registar compra a partir de talão / fatura'),
+                            subtitle: const Text(
+                              'JPG, PNG, WEBP ou PDF. O OCR propõe os dados e só atualiza stock/Tesouraria depois da tua confirmação.',
+                            ),
+                            trailing: FilledButton.tonalIcon(
+                              onPressed: () => _barOcr(data),
+                              icon: const Icon(Icons.auto_awesome_outlined),
+                              label: const Text('Ler OCR'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
                       if (data.products.isEmpty)
                         const Card(
                           child: ListTile(
