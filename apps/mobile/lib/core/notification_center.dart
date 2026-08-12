@@ -31,6 +31,7 @@ String? notificationModuleFromRoute(String? rawRoute) {
     'lottery' || 'euromillions' => 'lottery',
     'events' => 'events',
     'weekly_officer' || 'dinners' => 'weekly_officer',
+    'agenda' || 'calendar' => 'agenda',
     'inventory' || 'assets' || 'shop' || 'bar' => 'inventory',
     'documents' => 'documents',
     'communication' => 'communication',

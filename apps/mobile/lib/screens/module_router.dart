@@ -16,6 +16,7 @@ import 'reports_screen.dart';
 import 'settings_screen.dart';
 import 'treasury_module_screen.dart';
 import 'weekly_officer_screen.dart';
+import 'agenda_screen.dart';
 
 class ModuleRouter extends StatelessWidget {
   const ModuleRouter({super.key, required this.module});
@@ -34,6 +35,7 @@ class ModuleRouter extends StatelessWidget {
       'lottery' => const LotteryScreen(),
       'events' => const EventsScreen(),
       'weekly_officer' => const WeeklyOfficerScreen(),
+      'agenda' => const AgendaScreen(),
       'inventory' => const InventoryHubScreen(),
       'documents' => const DocumentsScreen(),
       'communication' => const CommunicationScreen(),
