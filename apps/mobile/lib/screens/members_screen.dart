@@ -4,7 +4,9 @@ import '../core/app_role.dart';
 import '../core/app_session.dart';
 import '../core/entity_definition.dart';
 import '../core/permissions.dart';
+import '../repositories/member_photo_repository.dart';
 import '../repositories/member_repository.dart';
+import '../widgets/member_photo_avatar.dart';
 import 'entity_form_screen.dart';
 import 'member_detail_screen.dart';
 
@@ -17,6 +19,7 @@ class MembersScreen extends StatefulWidget {
 
 class _MembersScreenState extends State<MembersScreen> {
   final MemberRepository _repository = MemberRepository();
+  final MemberPhotoRepository _photoRepository = MemberPhotoRepository();
   final TextEditingController _searchController = TextEditingController();
   late Future<List<Map<String, dynamic>>> _future;
 
@@ -124,10 +127,7 @@ class _MembersScreenState extends State<MembersScreen> {
               member['motorcycle_model'],
               member['motorcycle_registration'],
             ].any(
-              (value) => value
-                  .toString()
-                  .toLowerCase()
-                  .contains(query),
+              (value) => value.toString().toLowerCase().contains(query),
             );
           }).toList();
 
@@ -140,7 +140,8 @@ class _MembersScreenState extends State<MembersScreen> {
                   controller: _searchController,
                   onChanged: (_) => setState(() {}),
                   decoration: const InputDecoration(
-                    labelText: 'Pesquisar por nome, alcunha, número, mota ou matrícula',
+                    labelText:
+                        'Pesquisar por nome, alcunha, número, mota ou matrícula',
                     prefixIcon: Icon(Icons.search),
                   ),
                 ),
@@ -153,12 +154,10 @@ class _MembersScreenState extends State<MembersScreen> {
                 ...members.map(
                   (member) => Card(
                     child: ListTile(
-                      leading: CircleAvatar(
-                        child: Text(
-                          (member['full_name']?.toString().isNotEmpty ?? false)
-                              ? member['full_name'].toString()[0].toUpperCase()
-                              : '?',
-                        ),
+                      leading: MemberPhotoAvatar(
+                        member: member,
+                        repository: _photoRepository,
+                        radius: 22,
                       ),
                       title: Text(member['full_name']?.toString() ?? 'Membro'),
                       subtitle: Text(
@@ -168,8 +167,10 @@ class _MembersScreenState extends State<MembersScreen> {
                           member['status'],
                           member['primary_role'],
                         ]
-                            .where((value) =>
-                                value != null && value.toString().isNotEmpty)
+                            .where(
+                              (value) =>
+                                  value != null && value.toString().isNotEmpty,
+                            )
                             .join(' • '),
                       ),
                       trailing: _canManage
