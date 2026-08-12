@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../core/app_role.dart';
 import '../core/app_session.dart';
 import '../core/entity_definition.dart';
 import '../core/permissions.dart';
+import '../repositories/member_photo_repository.dart';
 import '../repositories/member_repository.dart';
+import '../widgets/member_photo_avatar.dart';
 import 'entity_form_screen.dart';
 
 class MemberDetailScreen extends StatefulWidget {
@@ -18,8 +21,11 @@ class MemberDetailScreen extends StatefulWidget {
 
 class _MemberDetailScreenState extends State<MemberDetailScreen> {
   final MemberRepository _repository = MemberRepository();
+  final MemberPhotoRepository _photoRepository = MemberPhotoRepository();
+  final ImagePicker _imagePicker = ImagePicker();
   late Map<String, dynamic> _member;
   late Future<Map<String, int>> _relatedCounts;
+  bool _photoBusy = false;
 
   bool get _canManage => PermissionPolicy.allows(
         AppRole.fromValue(AppSession.instance.role),
@@ -75,6 +81,124 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         _relatedCounts = _loadRelatedCounts();
       });
     }
+  }
+
+  Future<void> _refreshMember() async {
+    final refreshed = await _repository.getMember(_member['id'].toString());
+    if (refreshed == null || !mounted) return;
+    setState(() => _member = refreshed);
+  }
+
+  Future<void> _pickPhoto(ImageSource source) async {
+    final file = await _imagePicker.pickImage(source: source);
+    if (file == null || !mounted) return;
+
+    setState(() => _photoBusy = true);
+    try {
+      await _photoRepository.uploadMemberPhoto(
+        memberId: _member['id'].toString(),
+        file: file,
+      );
+      await _refreshMember();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Fotografia do membro atualizada.')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Não foi possível atualizar a fotografia: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _photoBusy = false);
+    }
+  }
+
+  Future<void> _confirmRemovePhoto() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Remover fotografia?'),
+        content: const Text(
+          'A fotografia deixará de aparecer no perfil e na lista de membros.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Remover'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _photoBusy = true);
+    try {
+      await _photoRepository.removeMemberPhoto(_member['id'].toString());
+      await _refreshMember();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Fotografia removida.')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Não foi possível remover a fotografia: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _photoBusy = false);
+    }
+  }
+
+  Future<void> _showPhotoActions() async {
+    if (!_canManage || _photoBusy) return;
+    final hasPhoto = (_member['photo_path']?.toString().trim() ?? '').isNotEmpty;
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Wrap(
+          children: [
+            const ListTile(
+              title: Text('Fotografia do membro'),
+              subtitle: Text('Escolhe a origem da imagem.'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Câmara'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _pickPhoto(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Galeria'),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _pickPhoto(ImageSource.gallery);
+              },
+            ),
+            if (hasPhoto)
+              ListTile(
+                leading: const Icon(Icons.delete_outline),
+                title: const Text('Remover fotografia'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _confirmRemovePhoto();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   String _text(String key, [String fallback = '—']) {
@@ -152,11 +276,46 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               padding: const EdgeInsets.all(20),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 42,
-                    child: Text(
-                      name.isEmpty ? '?' : name[0].toUpperCase(),
-                      style: const TextStyle(fontSize: 28),
+                  SizedBox(
+                    width: 92,
+                    height: 92,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        MemberPhotoAvatar(
+                          member: _member,
+                          repository: _photoRepository,
+                          radius: 42,
+                          thumbnail: false,
+                        ),
+                        if (_photoBusy)
+                          const SizedBox(
+                            width: 32,
+                            height: 32,
+                            child: CircularProgressIndicator(),
+                          )
+                        else if (_canManage)
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Material(
+                              color: Theme.of(context).colorScheme.primary,
+                              shape: const CircleBorder(),
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: _showPhotoActions,
+                                child: const Padding(
+                                  padding: EdgeInsets.all(7),
+                                  child: Icon(
+                                    Icons.photo_camera_outlined,
+                                    size: 18,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 18),
@@ -164,8 +323,10 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(name,
-                            style: Theme.of(context).textTheme.headlineSmall),
+                        Text(
+                          name,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
                         if (_text('nickname', '').isNotEmpty)
                           Text('“${_text('nickname')}”'),
                         const SizedBox(height: 6),
