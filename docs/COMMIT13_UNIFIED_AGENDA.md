@@ -56,3 +56,9 @@ usar a infraestrutura de push existente no projeto.
 
 - `20260812101034_rc1_unified_agenda_calendar.sql`
 - `20260812101137_rc1_unified_agenda_hardening.sql`
+
+## Ajuste de UX após teste real
+
+- A grelha mensal usa células compactas para deixar espaço aos registos do dia.
+- Ao selecionar um dia que tenha conteúdo, o ecrã desloca-se automaticamente
+  para a lista de registos desse dia.

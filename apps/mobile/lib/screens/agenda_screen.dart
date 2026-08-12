@@ -18,6 +18,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
   late DateTime _selectedDay;
   late Future<_AgendaData> _future;
   String _filter = 'all';
+  final GlobalKey _selectedDayKey = GlobalKey();
 
   @override
   void initState() {
@@ -209,7 +210,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
               itemCount: days.length,
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 7,
-                childAspectRatio: 0.92,
+                mainAxisExtent: 60,
                 crossAxisSpacing: 4,
                 mainAxisSpacing: 4,
               ),
@@ -232,6 +233,25 @@ class _AgendaScreenState extends State<AgendaScreen> {
     );
   }
 
+  void _selectDay(
+    DateTime day, {
+    required bool revealItems,
+  }) {
+    setState(() => _selectedDay = day);
+    if (!revealItems) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final target = _selectedDayKey.currentContext;
+      if (target == null) return;
+      Scrollable.ensureVisible(
+        target,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+        alignment: 0.05,
+      );
+    });
+  }
+
   Widget _dayCell(
     DateTime day,
     List<Map<String, dynamic>> items,
@@ -243,7 +263,7 @@ class _AgendaScreenState extends State<AgendaScreen> {
 
     return InkWell(
       borderRadius: BorderRadius.circular(10),
-      onTap: () => setState(() => _selectedDay = day),
+      onTap: () => _selectDay(day, revealItems: items.isNotEmpty),
       child: Container(
         padding: const EdgeInsets.all(5),
         decoration: BoxDecoration(
@@ -307,18 +327,21 @@ class _AgendaScreenState extends State<AgendaScreen> {
           (row) => AgendaRules.sameDay(AgendaRules.rowDate(row), _selectedDay),
         )
         .length;
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            DateFormat("EEEE, d 'de' MMMM", 'pt_PT').format(_selectedDay),
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+    return KeyedSubtree(
+      key: _selectedDayKey,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              DateFormat("EEEE, d 'de' MMMM", 'pt_PT').format(_selectedDay),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+            ),
           ),
-        ),
-        Chip(label: Text('$count')),
-      ],
+          Chip(label: Text('$count')),
+        ],
+      ),
     );
   }
 

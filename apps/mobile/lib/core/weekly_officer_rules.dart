@@ -37,6 +37,21 @@ class WeeklyOfficerRules {
         row['assigned_member_id'] != null;
   }
 
+  static List<Map<String, dynamic>> sortDinnersNearestFirst(
+    Iterable<Map<String, dynamic>> rows,
+  ) {
+    final result = rows.toList(growable: false);
+    result.sort((a, b) {
+      final aDate = DateTime.tryParse(a['dinner_date']?.toString() ?? '');
+      final bDate = DateTime.tryParse(b['dinner_date']?.toString() ?? '');
+      if (aDate == null && bDate == null) return 0;
+      if (aDate == null) return 1;
+      if (bDate == null) return -1;
+      return aDate.compareTo(bDate);
+    });
+    return result;
+  }
+
   static String displayMember(Map<String, dynamic>? member) {
     if (member == null) return 'Sem responsável';
     final nickname = member['nickname']?.toString().trim() ?? '';

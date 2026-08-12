@@ -44,6 +44,21 @@ void main() {
       );
     });
 
+    test('escala fica ordenada do jantar mais próximo para o mais distante',
+        () {
+      final rows = WeeklyOfficerRules.sortDinnersNearestFirst([
+        {'dinner_date': '2026-12-31'},
+        {'dinner_date': '2026-08-13'},
+        {'dinner_date': '2026-09-03'},
+      ]);
+
+      expect(rows.map((row) => row['dinner_date']).toList(), [
+        '2026-08-13',
+        '2026-09-03',
+        '2026-12-31',
+      ]);
+    });
+
     test('alcunha tem prioridade no nome visível', () {
       expect(
         WeeklyOfficerRules.displayMember({

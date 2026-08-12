@@ -117,12 +117,10 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
         .whereType<String>()
         .toList();
     final activeCounts = activeIds.map((id) => counts[id] ?? 0).toList();
-    final minCount = activeCounts.isEmpty
-        ? 0
-        : activeCounts.reduce((a, b) => a < b ? a : b);
-    final maxCount = activeCounts.isEmpty
-        ? 0
-        : activeCounts.reduce((a, b) => a > b ? a : b);
+    final minCount =
+        activeCounts.isEmpty ? 0 : activeCounts.reduce((a, b) => a < b ? a : b);
+    final maxCount =
+        activeCounts.isEmpty ? 0 : activeCounts.reduce((a, b) => a > b ? a : b);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
@@ -207,7 +205,8 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
   }
 
   Widget _scheduleTab(_WeeklyOfficerData data) {
-    if (data.dinners.isEmpty) {
+    final dinners = WeeklyOfficerRules.sortDinnersNearestFirst(data.dinners);
+    if (dinners.isEmpty) {
       return RefreshIndicator(
         onRefresh: _refresh,
         child: ListView(
@@ -224,10 +223,10 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
       onRefresh: _refresh,
       child: ListView.separated(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        itemCount: data.dinners.length,
+        itemCount: dinners.length,
         separatorBuilder: (_, __) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
-          final row = data.dinners[index];
+          final row = dinners[index];
           final regular = row['dinner_kind']?.toString() == 'regular';
           final status = row['status']?.toString() ?? 'planned';
           final assignedToCurrent = data.currentMemberId != null &&
@@ -249,7 +248,10 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
                         Text(
                           DateFormat('dd', 'pt_PT')
                               .format(_dateFrom(row['dinner_date'])),
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(
                                 fontWeight: FontWeight.w900,
                               ),
                         ),
@@ -273,7 +275,9 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
                           children: [
                             Chip(
                               visualDensity: VisualDensity.compact,
-                              label: Text(regular ? 'Quinta oficial' : 'Extraordinário'),
+                              label: Text(regular
+                                  ? 'Quinta oficial'
+                                  : 'Extraordinário'),
                             ),
                             Chip(
                               visualDensity: VisualDensity.compact,
@@ -384,7 +388,8 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
                           children: [
                             Text(
                               WeeklyOfficerRules.displayMember(member),
-                              style: const TextStyle(fontWeight: FontWeight.w800),
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w800),
                             ),
                             Text(
                               '${member?['primary_role'] ?? 'Membro'} · '
@@ -488,112 +493,207 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
   }
 
   Widget _swapsTab(_WeeklyOfficerData data) {
-    if (data.swaps.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: _refresh,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: const [
-            SizedBox(height: 120),
-            Center(child: Text('Sem pedidos de troca.')),
-          ],
-        ),
-      );
-    }
+    final ownUpcoming = data.currentMemberUpcomingDinners;
 
     return RefreshIndicator(
       onRefresh: _refresh,
-      child: ListView.builder(
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        itemCount: data.swaps.length,
-        itemBuilder: (context, index) {
-          final row = data.swaps[index];
-          final requesterId = row['requester_member_id']?.toString() ?? '';
-          final requestedId = row['requested_member_id']?.toString() ?? '';
-          final dinnerId = row['dinner_id']?.toString() ?? '';
-          final dinner = data.dinnerById[dinnerId];
-          final status = row['status']?.toString() ?? 'pending';
-          final isRecipient = data.currentMemberId == requestedId;
-          final isRequester = data.currentMemberId == requesterId;
+        children: [
+          _swapStartCard(data, ownUpcoming),
+          const SizedBox(height: 8),
+          if (data.swaps.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: Center(child: Text('Sem pedidos de troca.')),
+              ),
+            )
+          else
+            ...data.swaps.map((row) {
+              final requesterId = row['requester_member_id']?.toString() ?? '';
+              final requestedId = row['requested_member_id']?.toString() ?? '';
+              final dinnerId = row['dinner_id']?.toString() ?? '';
+              final dinner = data.dinnerById[dinnerId];
+              final status = row['status']?.toString() ?? 'pending';
+              final isRecipient = data.currentMemberId == requestedId;
+              final isRequester = data.currentMemberId == requesterId;
 
-          return Card(
-            margin: const EdgeInsets.only(bottom: 8),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${WeeklyOfficerRules.displayMember(data.memberById[requesterId])} → '
+                              '${WeeklyOfficerRules.displayMember(data.memberById[requestedId])}',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                          Chip(
+                            visualDensity: VisualDensity.compact,
+                            label: Text(
+                              WeeklyOfficerRules.swapStatusLabel(status),
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        dinner == null
+                            ? 'Jantar não disponível'
+                            : 'Jantar de ${_datePt(dinner['dinner_date'])}',
+                      ),
+                      if ((row['requester_note']?.toString().trim() ?? '')
+                          .isNotEmpty)
+                        Text('Nota: ${row['requester_note']}'),
+                      if ((row['response_note']?.toString().trim() ?? '')
+                          .isNotEmpty)
+                        Text('Resposta: ${row['response_note']}'),
+                      if (status == 'accepted')
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            'A aceitação não altera automaticamente a escala. '
+                            'Presidente/Vice-Presidente devem fazer a alteração efetiva.',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          if (status == 'pending' && isRecipient)
+                            FilledButton.icon(
+                              onPressed: () => _respondSwap(row, true),
+                              icon: const Icon(Icons.check),
+                              label: const Text('Aceitar'),
+                            ),
+                          if (status == 'pending' && isRecipient)
+                            OutlinedButton.icon(
+                              onPressed: () => _respondSwap(row, false),
+                              icon: const Icon(Icons.close),
+                              label: const Text('Recusar'),
+                            ),
+                          if (status == 'pending' &&
+                              (isRequester || _canManage))
+                            TextButton.icon(
+                              onPressed: () => _cancelSwap(row),
+                              icon: const Icon(Icons.cancel_outlined),
+                              label: const Text('Cancelar'),
+                            ),
+                          if (status == 'accepted' && _canManage)
+                            FilledButton.tonalIcon(
+                              onPressed: () => _markSwapApplied(row),
+                              icon: const Icon(Icons.done_all),
+                              label: const Text('Marcar como aplicada'),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+  }
+
+  Widget _swapStartCard(
+    _WeeklyOfficerData data,
+    List<Map<String, dynamic>> ownUpcoming,
+  ) {
+    final currentMemberId = data.currentMemberId;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const CircleAvatar(child: Icon(Icons.swap_horiz)),
+            const SizedBox(width: 12),
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          '${WeeklyOfficerRules.displayMember(data.memberById[requesterId])} → '
-                          '${WeeklyOfficerRules.displayMember(data.memberById[requestedId])}',
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                      Chip(
-                        visualDensity: VisualDensity.compact,
-                        label: Text(WeeklyOfficerRules.swapStatusLabel(status)),
-                      ),
-                    ],
+                  const Text(
+                    'Novo pedido de troca',
+                    style: TextStyle(fontWeight: FontWeight.w800),
                   ),
-                  Text(
-                    dinner == null
-                        ? 'Jantar não disponível'
-                        : 'Jantar de ${_datePt(dinner['dinner_date'])}',
-                  ),
-                  if ((row['requester_note']?.toString().trim() ?? '').isNotEmpty)
-                    Text('Nota: ${row['requester_note']}'),
-                  if ((row['response_note']?.toString().trim() ?? '').isNotEmpty)
-                    Text('Resposta: ${row['response_note']}'),
-                  if (status == 'accepted')
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text(
-                        'A aceitação não altera automaticamente a escala. '
-                        'Presidente/Vice-Presidente devem fazer a alteração efetiva.',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
+                  const SizedBox(height: 4),
+                  if (currentMemberId == null)
+                    const Text(
+                      'Esta conta não está ligada a uma ficha de membro. '
+                      'O pedido de troca é feito pelo membro responsável pelo '
+                      'jantar, através da sua própria conta.',
+                    )
+                  else if (ownUpcoming.isEmpty)
+                    const Text(
+                      'Não tens nenhum jantar futuro planeado atribuído a ti.',
+                    )
+                  else
+                    Text(
+                      ownUpcoming.length == 1
+                          ? 'Tens 1 jantar futuro que pode ser trocado.'
+                          : 'Tens ${ownUpcoming.length} jantares futuros que podem ser trocados.',
                     ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      if (status == 'pending' && isRecipient)
-                        FilledButton.icon(
-                          onPressed: () => _respondSwap(row, true),
-                          icon: const Icon(Icons.check),
-                          label: const Text('Aceitar'),
-                        ),
-                      if (status == 'pending' && isRecipient)
-                        OutlinedButton.icon(
-                          onPressed: () => _respondSwap(row, false),
-                          icon: const Icon(Icons.close),
-                          label: const Text('Recusar'),
-                        ),
-                      if (status == 'pending' && (isRequester || _canManage))
-                        TextButton.icon(
-                          onPressed: () => _cancelSwap(row),
-                          icon: const Icon(Icons.cancel_outlined),
-                          label: const Text('Cancelar'),
-                        ),
-                      if (status == 'accepted' && _canManage)
-                        FilledButton.tonalIcon(
-                          onPressed: () => _markSwapApplied(row),
-                          icon: const Icon(Icons.done_all),
-                          label: const Text('Marcar como aplicada'),
-                        ),
-                    ],
-                  ),
                 ],
               ),
             ),
-          );
-        },
+            if (currentMemberId != null && ownUpcoming.isNotEmpty)
+              FilledButton.icon(
+                onPressed: () => _startSwapFromTab(data, ownUpcoming),
+                icon: const Icon(Icons.add),
+                label: const Text('Pedir troca'),
+              ),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> _startSwapFromTab(
+    _WeeklyOfficerData data,
+    List<Map<String, dynamic>> ownUpcoming,
+  ) async {
+    if (ownUpcoming.length == 1) {
+      await _requestSwap(data, ownUpcoming.first);
+      return;
+    }
+
+    final selected = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('Qual jantar queres trocar?'),
+        children: ownUpcoming
+            .map(
+              (dinner) => SimpleDialogOption(
+                onPressed: () => Navigator.pop(dialogContext, dinner),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Text(
+                    '${_datePt(dinner['dinner_date'])} · '
+                    '${data.dinnerResponsible(dinner)}',
+                  ),
+                ),
+              ),
+            )
+            .toList(),
+      ),
+    );
+
+    if (selected != null && mounted) {
+      await _requestSwap(data, selected);
+    }
   }
 
   Widget _historyTab(_WeeklyOfficerData data) {
@@ -609,7 +709,8 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
           final member = data.memberById[memberId];
           final official = data.dinners
               .where(
-                (d) => WeeklyOfficerRules.countsAsOfficialDinner(d) &&
+                (d) =>
+                    WeeklyOfficerRules.countsAsOfficialDinner(d) &&
                     d['assigned_member_id']?.toString() == memberId,
               )
               .toList()
@@ -618,16 +719,16 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
                   .compareTo(_dateFrom(b['dinner_date'])),
             );
           final extras = data.dinners.where(
-            (d) => d['dinner_kind'] == 'extraordinary' &&
+            (d) =>
+                d['dinner_kind'] == 'extraordinary' &&
                 d['assigned_member_id']?.toString() == memberId &&
                 d['status'] != 'cancelled',
           );
-          final completed = official
-              .where((d) => d['status'] == 'completed')
-              .toList();
+          final completed =
+              official.where((d) => d['status'] == 'completed').toList();
           final future = official.where(
-            (d) => !_dateFrom(d['dinner_date'])
-                .isBefore(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day)),
+            (d) => !_dateFrom(d['dinner_date']).isBefore(DateTime(
+                DateTime.now().year, DateTime.now().month, DateTime.now().day)),
           );
 
           return Card(
@@ -702,7 +803,8 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
                 ),
                 DropdownButtonFormField<String>(
                   initialValue: availability,
-                  decoration: const InputDecoration(labelText: 'Disponibilidade'),
+                  decoration:
+                      const InputDecoration(labelText: 'Disponibilidade'),
                   items: const [
                     DropdownMenuItem(value: 'active', child: Text('Ativo')),
                     DropdownMenuItem(value: 'absent', child: Text('Ausente')),
@@ -738,7 +840,8 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
+              onPressed:
+                  saving ? null : () => Navigator.pop(dialogContext, false),
               child: const Text('Cancelar'),
             ),
             FilledButton(
@@ -802,7 +905,9 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
                   onChanged: saving
                       ? null
                       : (value) {
-                          if (value != null) setDialogState(() => kind = value);
+                          if (value != null) {
+                            setDialogState(() => kind = value);
+                          }
                         },
                 ),
                 const SizedBox(height: 10),
@@ -836,7 +941,8 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
+              onPressed:
+                  saving ? null : () => Navigator.pop(dialogContext, false),
               child: const Text('Cancelar'),
             ),
             FilledButton(
@@ -907,9 +1013,8 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
     Map<String, dynamic>? row,
   ]) async {
     final regular = row?['dinner_kind']?.toString() == 'regular';
-    DateTime date = row == null
-        ? DateTime.now()
-        : _dateFrom(row['dinner_date']);
+    DateTime date =
+        row == null ? DateTime.now() : _dateFrom(row['dinner_date']);
     String? memberId = row?['assigned_member_id']?.toString();
     bool external = (row?['external_name']?.toString().trim() ?? '').isNotEmpty;
     final externalName = TextEditingController(
@@ -977,7 +1082,8 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
                         ...data.members.map(
                           (member) => DropdownMenuItem(
                             value: member['id'].toString(),
-                            child: Text(WeeklyOfficerRules.displayMember(member)),
+                            child:
+                                Text(WeeklyOfficerRules.displayMember(member)),
                           ),
                         ),
                       ],
@@ -1008,7 +1114,8 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
                     initialValue: status,
                     decoration: const InputDecoration(labelText: 'Estado'),
                     items: const [
-                      DropdownMenuItem(value: 'planned', child: Text('Planeado')),
+                      DropdownMenuItem(
+                          value: 'planned', child: Text('Planeado')),
                       DropdownMenuItem(
                         value: 'completed',
                         child: Text('Concluído'),
@@ -1021,7 +1128,9 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
                     onChanged: saving
                         ? null
                         : (value) {
-                            if (value != null) setDialogState(() => status = value);
+                            if (value != null) {
+                              setDialogState(() => status = value);
+                            }
                           },
                   ),
                 ],
@@ -1030,7 +1139,8 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
+              onPressed:
+                  saving ? null : () => Navigator.pop(dialogContext, false),
               child: const Text('Cancelar'),
             ),
             FilledButton(
@@ -1039,10 +1149,12 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
                   : () async {
                       final externalValue = externalName.text.trim();
                       if ((external && externalValue.isEmpty) ||
-                          (!external && (memberId == null || memberId!.isEmpty))) {
+                          (!external &&
+                              (memberId == null || memberId!.isEmpty))) {
                         ScaffoldMessenger.of(dialogContext).showSnackBar(
                           const SnackBar(
-                            content: Text('Indica o membro ou a pessoa externa.'),
+                            content:
+                                Text('Indica o membro ou a pessoa externa.'),
                           ),
                         );
                         return;
@@ -1116,7 +1228,8 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
   ) async {
     final current = data.currentMemberId;
     if (current == null) {
-      _message('O teu utilizador ainda não está ligado a um membro.', error: true);
+      _message('O teu utilizador ainda não está ligado a um membro.',
+          error: true);
       return;
     }
     final candidates = data.rotation
@@ -1127,7 +1240,8 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
         .whereType<String>()
         .toList();
     if (candidates.isEmpty) {
-      _message('Não existem membros disponíveis para pedir troca.', error: true);
+      _message('Não existem membros disponíveis para pedir troca.',
+          error: true);
       return;
     }
 
@@ -1152,7 +1266,8 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
                         (id) => DropdownMenuItem(
                           value: id,
                           child: Text(
-                            WeeklyOfficerRules.displayMember(data.memberById[id]),
+                            WeeklyOfficerRules.displayMember(
+                                data.memberById[id]),
                           ),
                         ),
                       )
@@ -1160,7 +1275,9 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
                   onChanged: saving
                       ? null
                       : (value) {
-                          if (value != null) setDialogState(() => selected = value);
+                          if (value != null) {
+                            setDialogState(() => selected = value);
+                          }
                         },
                 ),
                 const SizedBox(height: 10),
@@ -1168,7 +1285,8 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
                   controller: note,
                   minLines: 2,
                   maxLines: 4,
-                  decoration: const InputDecoration(labelText: 'Mensagem (opcional)'),
+                  decoration:
+                      const InputDecoration(labelText: 'Mensagem (opcional)'),
                 ),
                 const SizedBox(height: 8),
                 const Text(
@@ -1179,7 +1297,8 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
+              onPressed:
+                  saving ? null : () => Navigator.pop(dialogContext, false),
               child: const Text('Cancelar'),
             ),
             FilledButton(
@@ -1231,7 +1350,9 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
         note: note,
       );
       if (!mounted) return;
-      _message(accept ? 'Pedido aceite. Aguarda alteração pela Direção.' : 'Pedido recusado.');
+      _message(accept
+          ? 'Pedido aceite. Aguarda alteração pela Direção.'
+          : 'Pedido recusado.');
       await _refresh();
     } catch (error) {
       if (mounted) _message(_errorText(error), error: true);
@@ -1380,10 +1501,29 @@ class _WeeklyOfficerData {
     return result;
   }
 
+  List<Map<String, dynamic>> get currentMemberUpcomingDinners {
+    final memberId = currentMemberId;
+    if (memberId == null) return const <Map<String, dynamic>>[];
+
+    final today = DateTime.now();
+    final start = DateTime(today.year, today.month, today.day);
+
+    return WeeklyOfficerRules.sortDinnersNearestFirst(
+      dinners.where((dinner) {
+        final date = DateTime.tryParse(dinner['dinner_date']?.toString() ?? '');
+        return dinner['status'] == 'planned' &&
+            dinner['assigned_member_id']?.toString() == memberId &&
+            date != null &&
+            !date.isBefore(start);
+      }),
+    );
+  }
+
   Map<String, dynamic>? get nextRegularDinner {
     final today = DateTime.now();
     final start = DateTime(today.year, today.month, today.day);
-    for (final dinner in dinners) {
+
+    for (final dinner in WeeklyOfficerRules.sortDinnersNearestFirst(dinners)) {
       if (dinner['dinner_kind'] != 'regular' || dinner['status'] != 'planned') {
         continue;
       }
