@@ -43,8 +43,9 @@ void main() {
       filtersDescription: 'Sem filtros adicionais',
     );
 
-    final text = utf8.decode(ReportExportService.csvBytes(data));
-    expect(text.startsWith('\ufeff'), isTrue);
+    final bytes = ReportExportService.csvBytes(data);
+    expect(bytes.take(3).toList(), [0xEF, 0xBB, 0xBF]);
+    final text = utf8.decode(bytes);
     expect(text, contains('"Nome";"Valor"'));
     expect(text, contains('"João ""Blue""";"12,50 €"'));
   });
