@@ -555,10 +555,12 @@ class _PatchesTabState extends State<_PatchesTab> {
                       decoration: const InputDecoration(labelText: 'Patch / artigo institucional'),
                       items: catalog.map((row) => DropdownMenuItem(value: row['id'].toString(), child: Text(row['name'].toString()))).toList(),
                       onChanged: (value) {
-                        if (value != null) setDialogState(() {
-                          productId = value;
-                          variantId = null;
-                        });
+                        if (value != null) {
+                          setDialogState(() {
+                            productId = value;
+                            variantId = null;
+                          });
+                        }
                       },
                     ),
                     if (variants.isNotEmpty) ...[
