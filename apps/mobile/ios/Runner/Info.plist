@@ -27,7 +27,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>A câmara é usada para ler os códigos QR do património do clube.</string>
+	<string>A câmara é usada para ler códigos QR e captar fotografias autorizadas dos membros e património do clube.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>A galeria é usada para selecionar fotografias autorizadas dos membros do clube.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
