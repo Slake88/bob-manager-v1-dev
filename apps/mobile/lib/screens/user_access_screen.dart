@@ -486,7 +486,7 @@ String _canonicalRole(String? key) => switch (key) {
       'administrator' => 'admin',
       'events_manager' => 'event_manager',
       null || '' => 'member',
-      _ => key!,
+      _ => key,
     };
 
 String _initial(String? value) {
