@@ -17,7 +17,7 @@ const appModules = <ModuleDefinition>[
  ModuleDefinition('inventory','Património & Inventário',Icons.inventory_2_outlined,'Loja, Bar, património, movimentos e inventário físico'),
  ModuleDefinition('documents','Documentos',Icons.folder_outlined,'Arquivo, atas, licenças e Cápsula do Tempo'),
  ModuleDefinition('communication','Comunicação',Icons.campaign_outlined,'Comunicados, votações e inquéritos'),
- ModuleDefinition('reports','Relatórios',Icons.assessment_outlined,'PDF, Excel, CSV e importações'),
+ ModuleDefinition('reports','Relatórios',Icons.assessment_outlined,'Centro global de relatórios PDF, Excel e CSV'),
  ModuleDefinition('settings','Configurações',Icons.settings_outlined,'Clube, cargos, permissões e integrações'),
  ModuleDefinition('emergency','Emergência',Icons.emergency_outlined,'Contactos e dados médicos essenciais'),
 ];

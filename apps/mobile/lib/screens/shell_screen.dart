@@ -6,6 +6,7 @@ import '../core/app_session.dart';
 import '../core/module_definition.dart';
 import '../core/notification_center.dart';
 import '../core/permissions.dart';
+import '../core/reporting.dart';
 import '../repositories/activity_repository.dart';
 import '../services/auth_service.dart';
 import '../services/push_notification_service.dart';
@@ -64,7 +65,7 @@ class _ShellScreenState extends State<ShellScreen> {
       'inventory' => session.can(AppPermission.viewInventory),
       'documents' => session.can(AppPermission.viewDocuments),
       'communication' => session.can(AppPermission.viewCommunication),
-      'reports' => session.can(AppPermission.viewFinancialReports),
+      'reports' => ReportCatalog.canOpenCenter(session.can),
       'settings' =>
         session.can(AppPermission.manageSettings) ||
         session.can(AppPermission.manageUserAccess),
