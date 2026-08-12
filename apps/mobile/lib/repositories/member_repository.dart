@@ -111,8 +111,9 @@ class MemberRepository {
         .select()
         .eq('club_id', AppSession.instance.clubId)
         .eq('member_id', memberId)
+        .order('active', ascending: false)
         .order('primary_motorcycle', ascending: false)
-        .order('created_at');
+        .order('created_at', ascending: false);
     return List<Map<String, dynamic>>.from(response);
   }
 
@@ -132,15 +133,42 @@ class MemberRepository {
       return motorcyclesFor(memberId);
     }
 
-    if (table == 'maintenance_records' ||
-        table == 'member_patch_awards' ||
-        table == 'member_timeline') {
-      return <Map<String, dynamic>>[];
+    if (table == 'maintenance_records') {
+      final response = await _supabase
+          .from(table)
+          .select()
+          .eq('club_id', AppSession.instance.clubId)
+          .eq('member_id', memberId)
+          .order('service_date', ascending: false)
+          .limit(250);
+      return List<Map<String, dynamic>>.from(response);
+    }
+    if (table == 'member_patch_awards') {
+      final response = await _supabase
+          .from(table)
+          .select()
+          .eq('club_id', AppSession.instance.clubId)
+          .eq('member_id', memberId)
+          .order('requested_at', ascending: false)
+          .limit(250);
+      return List<Map<String, dynamic>>.from(response);
+    }
+    if (table == 'member_timeline') {
+      final response = await _supabase
+          .from(table)
+          .select()
+          .eq('club_id', AppSession.instance.clubId)
+          .eq('member_id', memberId)
+          .order('event_date', ascending: false)
+          .order('created_at', ascending: false)
+          .limit(500);
+      return List<Map<String, dynamic>>.from(response);
     }
 
     final response = await _supabase
         .from(table)
         .select()
+        .eq('club_id', AppSession.instance.clubId)
         .eq('member_id', memberId)
         .limit(250);
     return List<Map<String, dynamic>>.from(response);
@@ -160,6 +188,7 @@ class MemberRepository {
         .from('member_motorcycles')
         .select()
         .eq('club_id', AppSession.instance.clubId)
+        .eq('active', true)
         .eq('primary_motorcycle', true);
     final motorcycles = List<Map<String, dynamic>>.from(motorcyclesResponse);
     final byMember = <String, Map<String, dynamic>>{
@@ -195,6 +224,7 @@ class MemberRepository {
         .select('id')
         .eq('club_id', AppSession.instance.clubId)
         .eq('member_id', memberId)
+        .eq('active', true)
         .eq('primary_motorcycle', true)
         .limit(1)
         .maybeSingle();
@@ -204,33 +234,49 @@ class MemberRepository {
 
     if (!hasMotorcycleData) {
       if (existing != null) {
-        await _supabase
-            .from('member_motorcycles')
-            .delete()
-            .eq('id', existing['id'])
-            .eq('club_id', AppSession.instance.clubId);
+        await _supabase.rpc(
+          'archive_member_motorcycle_v1',
+          params: {
+            'target_club': AppSession.instance.clubId,
+            'p_member': memberId,
+            'p_motorcycle': existing['id'].toString(),
+            'p_retired_on': DateTime.now().toIso8601String().split('T').first,
+          },
+        );
       }
       return;
     }
 
-    final payload = <String, dynamic>{
-      'club_id': AppSession.instance.clubId,
-      'member_id': memberId,
-      'brand': brand,
-      'model': model,
-      'year': year,
-      'registration': registration,
-      'primary_motorcycle': true,
-    };
-
     if (existing == null) {
-      await _supabase.from('member_motorcycles').insert(payload);
+      await _supabase.rpc(
+        'save_member_motorcycle_v1',
+        params: {
+          'target_club': AppSession.instance.clubId,
+          'p_member': memberId,
+          'p_motorcycle': null,
+          'p_brand': brand,
+          'p_model': model,
+          'p_year': year,
+          'p_registration': registration,
+          'p_nickname': null,
+          'p_acquired_on': null,
+          'p_notes': null,
+          'p_primary': true,
+        },
+      );
       return;
     }
 
     await _supabase
         .from('member_motorcycles')
-        .update(payload)
+        .update({
+          'brand': brand,
+          'model': model,
+          'year': year,
+          'registration': registration,
+          'updated_by': AppSession.instance.profileId,
+          'updated_at': DateTime.now().toIso8601String(),
+        })
         .eq('id', existing['id'])
         .eq('club_id', AppSession.instance.clubId);
   }
@@ -260,8 +306,16 @@ class MemberRepository {
     Map<String, dynamic> member,
     List<Map<String, dynamic>> motorcycles,
   ) {
-    if (motorcycles.isEmpty) return member;
-    final motorcycle = motorcycles.first;
+    final active = motorcycles
+        .where((row) => row['active'] != false)
+        .toList()
+      ..sort((a, b) {
+        final ap = a['primary_motorcycle'] == true ? 0 : 1;
+        final bp = b['primary_motorcycle'] == true ? 0 : 1;
+        return ap.compareTo(bp);
+      });
+    if (active.isEmpty) return member;
+    final motorcycle = active.first;
     return <String, dynamic>{
       ...member,
       'motorcycle_brand': motorcycle['brand'],

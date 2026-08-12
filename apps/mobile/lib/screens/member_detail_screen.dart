@@ -9,6 +9,7 @@ import '../repositories/member_photo_repository.dart';
 import '../repositories/member_repository.dart';
 import '../widgets/member_photo_avatar.dart';
 import 'entity_form_screen.dart';
+import 'member_history_screen.dart';
 
 class MemberDetailScreen extends StatefulWidget {
   const MemberDetailScreen({super.key, required this.member});
@@ -81,6 +82,23 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         _relatedCounts = _loadRelatedCounts();
       });
     }
+  }
+
+  Future<void> _openHistory(int initialIndex) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => MemberHistoryScreen(
+          member: _member,
+          initialIndex: initialIndex,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    final refreshed = await _repository.getMember(_member['id'].toString());
+    setState(() {
+      if (refreshed != null) _member = refreshed;
+      _relatedCounts = _loadRelatedCounts();
+    });
   }
 
   Future<void> _refreshMember() async {
@@ -253,6 +271,29 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     );
   }
 
+  Widget _areaTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required int count,
+    required int tab,
+  }) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: CircleAvatar(child: Icon(icon)),
+      title: Text(title),
+      subtitle: Text(subtitle),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Chip(label: Text('$count'), visualDensity: VisualDensity.compact),
+          const Icon(Icons.chevron_right),
+        ],
+      ),
+      onTap: () => _openHistory(tab),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final name = _text('full_name', 'Membro');
@@ -401,13 +442,40 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
               final counts = snapshot.data!;
               return _section(
                 context,
-                title: 'Áreas ligadas',
+                title: 'Histórico avançado',
                 icon: Icons.account_tree_outlined,
                 children: [
-                  _line('Motas', counts['motorcycles'].toString()),
-                  _line('Manutenções', counts['maintenance'].toString()),
-                  _line('Patches', counts['patches'].toString()),
-                  _line('Registos na Timeline', counts['timeline'].toString()),
+                  _areaTile(
+                    icon: Icons.two_wheeler_outlined,
+                    title: 'Motas',
+                    subtitle: 'Motas atuais e arquivo histórico.',
+                    count: counts['motorcycles'] ?? 0,
+                    tab: 0,
+                  ),
+                  const Divider(),
+                  _areaTile(
+                    icon: Icons.build_outlined,
+                    title: 'Manutenções',
+                    subtitle: 'Serviços, custos, próximas revisões e documentos privados.',
+                    count: counts['maintenance'] ?? 0,
+                    tab: 1,
+                  ),
+                  const Divider(),
+                  _areaTile(
+                    icon: Icons.military_tech_outlined,
+                    title: 'Patches',
+                    subtitle: 'Aprovação, entrega institucional e integração com stock.',
+                    count: counts['patches'] ?? 0,
+                    tab: 2,
+                  ),
+                  const Divider(),
+                  _areaTile(
+                    icon: Icons.timeline_outlined,
+                    title: 'Timeline',
+                    subtitle: 'Percurso automático do membro e eventos relevantes.',
+                    count: counts['timeline'] ?? 0,
+                    tab: 3,
+                  ),
                 ],
               );
             },
