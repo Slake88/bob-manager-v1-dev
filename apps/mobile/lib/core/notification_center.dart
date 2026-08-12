@@ -30,6 +30,7 @@ String? notificationModuleFromRoute(String? rawRoute) {
     'fees' => 'fees',
     'lottery' || 'euromillions' => 'lottery',
     'events' => 'events',
+    'weekly_officer' || 'dinners' => 'weekly_officer',
     'inventory' || 'assets' || 'shop' || 'bar' => 'inventory',
     'documents' => 'documents',
     'communication' => 'communication',
