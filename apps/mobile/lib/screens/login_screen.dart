@@ -61,6 +61,75 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _forgotPassword() async {
+    if (loading || AppConfig.demoMode) return;
+    final controller = TextEditingController(text: emailController.text.trim());
+    final email = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Repor palavra-passe'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Indica o email da conta. Receberás uma ligação segura para definir uma nova palavra-passe.',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(labelText: 'Email'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              if (!value.contains('@')) return;
+              Navigator.pop(dialogContext, value);
+            },
+            child: const Text('Enviar'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (email == null || !mounted) return;
+
+    setState(() {
+      loading = true;
+      error = null;
+    });
+    try {
+      await AuthService.instance.sendPasswordReset(email);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Se existir uma conta com esse email, foi enviada a ligação de reposição.',
+          ),
+        ),
+      );
+    } on AuthException catch (exception) {
+      if (mounted) setState(() => error = exception.message);
+    } catch (_) {
+      if (mounted) {
+        setState(() => error = 'Não foi possível enviar o email de reposição.');
+      }
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final demo = AppConfig.explicitDemoMode;
@@ -126,6 +195,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ),
+                  if (!demo)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: loading ? null : _forgotPassword,
+                        child: const Text('Esqueci a palavra-passe'),
+                      ),
+                    ),
                   if (error != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 12),

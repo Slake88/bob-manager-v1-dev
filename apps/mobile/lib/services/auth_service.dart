@@ -9,6 +9,11 @@ class AuthService {
 
   static final AuthService instance = AuthService._();
 
+  bool get needsPasswordSetup {
+    if (AppConfig.demoMode) return false;
+    return Supabase.instance.client.auth.currentUser?.userMetadata?['must_set_password'] == true;
+  }
+
   Future<void> signIn(String email, String password) async {
     final normalizedEmail = email.trim();
     if (normalizedEmail.isEmpty || password.isEmpty) {
@@ -90,6 +95,43 @@ class AuthService {
     }
   }
 
+  Future<void> sendPasswordReset(String email) async {
+    if (AppConfig.demoMode) return;
+    final normalizedEmail = email.trim();
+    if (normalizedEmail.isEmpty || !normalizedEmail.contains('@')) {
+      throw const AuthException('Indica um email válido.');
+    }
+    final redirectTo = _webRedirectUrl();
+    await Supabase.instance.client.auth.resetPasswordForEmail(
+      normalizedEmail,
+      redirectTo: redirectTo,
+    );
+  }
+
+  Future<void> completePasswordSetup(String password) async {
+    if (AppConfig.demoMode) return;
+    if (password.length < 8) {
+      throw const AuthException(
+        'A palavra-passe deve ter pelo menos 8 caracteres.',
+      );
+    }
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      throw const AuthException('A sessão de ativação já não é válida.');
+    }
+
+    await Supabase.instance.client.auth.updateUser(
+      UserAttributes(
+        password: password,
+        data: const {'must_set_password': false},
+      ),
+    );
+    await _hydrateSession(
+      user.id,
+      fallbackName: user.email ?? 'Utilizador',
+    );
+  }
+
   Future<void> refreshPermissions() async {
     if (!AppSession.instance.authenticated || AppConfig.demoMode) return;
     await _hydratePermissions(
@@ -124,9 +166,13 @@ class AuthService {
 
     final profile = await Supabase.instance.client
         .from('profiles')
-        .select('full_name')
+        .select('full_name,active')
         .eq('id', profileId)
         .maybeSingle();
+
+    if (profile?['active'] == false) {
+      throw const AuthException('O acesso deste utilizador está bloqueado.');
+    }
 
     final fullName = profile?['full_name']?.toString().trim();
     final role = membership['access_role']?.toString() ?? 'member';
@@ -177,6 +223,12 @@ class AuthService {
       }
     }
     AppSession.instance.applyPermissions(effective);
+  }
+
+  static String? _webRedirectUrl() {
+    final uri = Uri.base;
+    if (uri.scheme != 'http' && uri.scheme != 'https') return null;
+    return uri.replace(path: '/', query: null, fragment: null).toString();
   }
 
   static String _friendlyDatabaseError(PostgrestException error) {

@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/app_config.dart';
 import 'screens/login_screen.dart';
+import 'screens/password_setup_screen.dart';
 import 'screens/shell_screen.dart';
 import 'services/auth_service.dart';
 
@@ -65,17 +68,52 @@ class _AppBootstrap extends StatefulWidget {
 
 class _AppBootstrapState extends State<_AppBootstrap> {
   late Future<bool> _restoreFuture;
+  StreamSubscription<AuthState>? _authSubscription;
+  bool _passwordRecovery = false;
 
   @override
   void initState() {
     super.initState();
     _restoreFuture = AuthService.instance.restore();
+    if (!AppConfig.demoMode) {
+      _authSubscription =
+          Supabase.instance.client.auth.onAuthStateChange.listen((state) {
+        if (!mounted) return;
+        setState(() {
+          if (state.event == AuthChangeEvent.passwordRecovery) {
+            _passwordRecovery = true;
+          }
+        });
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _passwordCompleted() async {
+    if (!mounted) return;
+    setState(() {
+      _passwordRecovery = false;
+      _restoreFuture = AuthService.instance.restore();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     if (AppConfig.implicitDemoMode) {
       return const _ConfigurationErrorScreen();
+    }
+
+    if (!AppConfig.demoMode &&
+        (_passwordRecovery || AuthService.instance.needsPasswordSetup)) {
+      return PasswordSetupScreen(
+        recovery: _passwordRecovery,
+        onCompleted: _passwordCompleted,
+      );
     }
 
     if (AppConfig.explicitDemoMode) {

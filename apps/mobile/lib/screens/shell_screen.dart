@@ -65,7 +65,9 @@ class _ShellScreenState extends State<ShellScreen> {
       'documents' => session.can(AppPermission.viewDocuments),
       'communication' => session.can(AppPermission.viewCommunication),
       'reports' => session.can(AppPermission.viewFinancialReports),
-      'settings' => session.can(AppPermission.manageSettings),
+      'settings' =>
+        session.can(AppPermission.manageSettings) ||
+        session.can(AppPermission.manageUserAccess),
       'emergency' => session.can(AppPermission.viewEmergencyData),
       _ => false,
     };

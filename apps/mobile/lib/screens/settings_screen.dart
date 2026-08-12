@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_session.dart';
+import '../core/permissions.dart';
 import '../repositories/admin_repository.dart';
 import 'permissions_screen.dart';
+import 'user_access_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -15,17 +17,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final AdminRepository _repository = AdminRepository();
   late Future<List<Map<String, dynamic>>> _settingsFuture;
 
+  bool get _canManageSettings =>
+      AppSession.instance.can(AppPermission.manageSettings);
+
+  bool get _canManageAccess =>
+      AppSession.instance.can(AppPermission.manageUserAccess);
+
   @override
   void initState() {
     super.initState();
-    _settingsFuture = _repository.listSettings();
+    _settingsFuture = _loadSettings();
+  }
+
+  Future<List<Map<String, dynamic>>> _loadSettings() {
+    if (!_canManageSettings) {
+      return Future.value(<Map<String, dynamic>>[]);
+    }
+    return _repository.listSettings();
   }
 
   void _reload() {
-    setState(() => _settingsFuture = _repository.listSettings());
+    setState(() => _settingsFuture = _loadSettings());
   }
 
   Future<void> _editSetting([Map<String, dynamic>? setting]) async {
+    if (!_canManageSettings) return;
     final keyController = TextEditingController(text: setting?['key']?.toString() ?? '');
     final valueController = TextEditingController(text: setting?['value']?.toString() ?? '');
     final saved = await showDialog<bool>(
@@ -62,6 +78,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _showAuditLog() async {
+    if (!_canManageSettings) return;
     final rows = await _repository.listAuditLog();
     if (!mounted) return;
     await showDialog<void>(
@@ -97,6 +114,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Future<void> _openUserAccess() async {
+    if (!_canManageAccess) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(builder: (_) => const UserAccessScreen()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Map<String, dynamic>>>(
@@ -119,10 +143,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
               runSpacing: 8,
               children: [
                 Text('Administração', style: Theme.of(context).textTheme.headlineSmall),
-                OutlinedButton.icon(onPressed: _showAuditLog, icon: const Icon(Icons.history), label: const Text('Auditoria')),
+                if (_canManageSettings)
+                  OutlinedButton.icon(
+                    onPressed: _showAuditLog,
+                    icon: const Icon(Icons.history),
+                    label: const Text('Auditoria'),
+                  ),
               ],
             ),
             const SizedBox(height: 12),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.manage_accounts_outlined),
+                title: const Text('Contas e acessos'),
+                subtitle: Text(
+                  _canManageAccess
+                      ? 'Convidar, ativar, repor palavra-passe, alterar perfil e bloquear utilizadores.'
+                      : 'Sem permissão para gerir o ciclo de acesso dos utilizadores.',
+                ),
+                trailing: _canManageAccess
+                    ? const Icon(Icons.chevron_right)
+                    : const Icon(Icons.lock_outline),
+                onTap: _canManageAccess ? _openUserAccess : null,
+              ),
+            ),
             Card(
               child: ListTile(
                 leading: const Icon(Icons.security_outlined),
@@ -143,27 +187,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 subtitle: Text('A gestão operacional das contas é feita diretamente na Tesouraria.'),
               ),
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(child: Text('Parâmetros do clube', style: Theme.of(context).textTheme.titleLarge)),
-                FilledButton.icon(onPressed: () => _editSetting(), icon: const Icon(Icons.add), label: const Text('Novo')),
-              ],
-            ),
-            const SizedBox(height: 8),
-            if (settings.isEmpty)
-              const Card(child: ListTile(title: Text('Sem parâmetros personalizados'), subtitle: Text('Os valores padrão da RC1 estão ativos.')))
-            else
-              ...settings.map(
-                (setting) => Card(
-                  child: ListTile(
-                    title: Text(setting['key']?.toString() ?? ''),
-                    subtitle: Text(setting['value']?.toString() ?? ''),
-                    trailing: const Icon(Icons.edit_outlined),
-                    onTap: () => _editSetting(setting),
+            if (_canManageSettings) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(child: Text('Parâmetros do clube', style: Theme.of(context).textTheme.titleLarge)),
+                  FilledButton.icon(onPressed: () => _editSetting(), icon: const Icon(Icons.add), label: const Text('Novo')),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (settings.isEmpty)
+                const Card(child: ListTile(title: Text('Sem parâmetros personalizados'), subtitle: Text('Os valores padrão da RC1 estão ativos.')))
+              else
+                ...settings.map(
+                  (setting) => Card(
+                    child: ListTile(
+                      title: Text(setting['key']?.toString() ?? ''),
+                      subtitle: Text(setting['value']?.toString() ?? ''),
+                      trailing: const Icon(Icons.edit_outlined),
+                      onTap: () => _editSetting(setting),
+                    ),
                   ),
                 ),
-              ),
+            ],
           ],
         );
       },
