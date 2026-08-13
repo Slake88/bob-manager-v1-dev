@@ -26,11 +26,12 @@ class FeesRepository {
     return role == 'super_admin';
   }
 
-  bool get canConfigureFees => canDeleteObligations;
+  bool get canConfigureFees =>
+      PermissionPolicy.allows(currentRole, AppPermission.manageFees);
 
   Future<void> ensureYear(int year) async {
     _require(AppPermission.viewFees);
-    if (AppConfig.demoMode) return;
+    if (AppConfig.demoMode || !canConfigureFees) return;
     await _supabase.rpc(
       'sync_member_fee_obligations_v1',
       params: {
@@ -62,9 +63,7 @@ class FeesRepository {
     required double monthlyAmount,
     required double registrationAmount,
   }) async {
-    if (!canConfigureFees) {
-      throw StateError('Apenas o Super Admin pode alterar as definições de quotas.');
-    }
+    _require(AppPermission.manageFees);
     if (AppConfig.demoMode) return;
     await _supabase.rpc(
       'update_fee_settings_v1',
@@ -84,16 +83,14 @@ class FeesRepository {
       final rows = await _dataService.list('fee_obligations');
       rows.sort((a, b) => (b['due_date']?.toString() ?? '')
           .compareTo(a['due_date']?.toString() ?? ''));
-      return rows;
+      return rows.map(_decorate).toList();
     }
 
     var query = _supabase
         .from('fee_obligations')
         .select('*, member:members!fee_obligations_member_id_fkey(full_name)')
         .eq('club_id', AppSession.instance.clubId);
-    if (year != null) {
-      query = query.eq('reference_year', year);
-    }
+    if (year != null) query = query.eq('reference_year', year);
     final response = await query
         .order('reference_year', ascending: false)
         .order('reference_month', ascending: false)
@@ -101,20 +98,31 @@ class FeesRepository {
 
     return List<Map<String, dynamic>>.from(response).map((row) {
       final member = row['member'];
-      final amount = _asDouble(row['amount']);
-      final paid = _asDouble(row['paid_amount']);
-      final type = row['obligation_type']?.toString() ?? 'monthly';
-      return <String, dynamic>{
+      return _decorate(<String, dynamic>{
         ...row,
         'member_name': member is Map ? member['full_name'] : null,
-        'period_label': type == 'registration'
-            ? 'Inscrição'
-            : _periodLabel(row['reference_year'], row['reference_month']),
-        'credit_amount': 0.0,
-        'balance': (amount - paid).clamp(0, double.infinity),
-        'status': _displayStatus(row),
-      };
+      });
     }).toList();
+  }
+
+  Map<String, dynamic> _decorate(Map<String, dynamic> row) {
+    final amount = _asDouble(row['amount']);
+    final paid = _asDouble(row['paid_amount']);
+    final exempt = _asDouble(row['exempt_amount']);
+    final adjustment = _asDouble(row['adjustment_amount']);
+    final total = (amount + adjustment - exempt).clamp(0, double.infinity);
+    final type = row['obligation_type']?.toString() ?? 'monthly';
+    return <String, dynamic>{
+      ...row,
+      'period_label': row['period_label'] ??
+          (type == 'registration'
+              ? 'Inscrição'
+              : _periodLabel(row['reference_year'], row['reference_month'])),
+      'credit_amount': _asDouble(row['credit_amount']),
+      'total_due': total,
+      'balance': (total - paid).clamp(0, double.infinity),
+      'status': _displayStatus(row),
+    };
   }
 
   Future<List<Map<String, dynamic>>> listMembers() async {
@@ -142,9 +150,7 @@ class FeesRepository {
     final normalized = _normalize(values);
 
     if (AppConfig.demoMode) {
-      if (id == null) {
-        return _dataService.insert('fee_obligations', normalized);
-      }
+      if (id == null) return _dataService.insert('fee_obligations', normalized);
       return _dataService.update('fee_obligations', id, normalized);
     }
 
@@ -162,44 +168,34 @@ class FeesRepository {
             .split('T')
             .first;
 
-    final payload = <String, dynamic>{
-      'club_id': AppSession.instance.clubId,
-      'member_id': values['member_id'],
-      'reference_year': period.$1,
-      'reference_month': period.$2,
-      'due_date': dueDate,
-      'amount': normalized['amount'],
-      'paid_amount': normalized['paid_amount'],
-      'status': normalized['status'] == 'overdue'
-          ? 'pending'
-          : normalized['status'],
-      'obligation_type': type,
-      'notes': _nullableText(values['notes']),
-    };
-
     try {
-      if (id == null) {
-        final response = await _supabase
-            .from('fee_obligations')
-            .insert(payload)
-            .select()
-            .single();
-        return Map<String, dynamic>.from(response);
-      }
-
-      final response = await _supabase
+      final response = await _supabase.rpc(
+        'save_fee_obligation_v1',
+        params: {
+          'target_club': AppSession.instance.clubId,
+          'p_obligation': id,
+          'p_member': values['member_id'],
+          'p_reference_year': period.$1,
+          'p_reference_month': period.$2,
+          'p_due_date': dueDate,
+          'p_amount': normalized['amount'],
+          'p_obligation_type': type,
+          'p_notes': _nullableText(values['notes']),
+        },
+      );
+      final obligationId = response.toString();
+      final refreshed = await _supabase
           .from('fee_obligations')
-          .update(payload)
-          .eq('id', id)
-          .eq('club_id', AppSession.instance.clubId)
           .select()
+          .eq('id', obligationId)
+          .eq('club_id', AppSession.instance.clubId)
           .single();
-      return Map<String, dynamic>.from(response);
+      return Map<String, dynamic>.from(refreshed);
     } on PostgrestException catch (error) {
       if (error.code == '23505') {
         throw StateError('Já existe uma quota para este membro nesse mês.');
       }
-      rethrow;
+      throw StateError(error.message);
     }
   }
 
@@ -225,9 +221,9 @@ class FeesRepository {
       );
     } on PostgrestException catch (error) {
       final message = error.message;
-      if (message.contains('pagamentos')) {
+      if (message.contains('pagamentos') || message.contains('histórico')) {
         throw StateError(
-          'Esta quota já tem pagamentos e não pode ser apagada. Deve ser anulada.',
+          'Esta quota já tem histórico e não pode ser apagada. Usa as operações de correção.',
         );
       }
       throw StateError(message);
@@ -245,13 +241,10 @@ class FeesRepository {
     }
 
     final id = obligation['id']?.toString();
-    if (id == null || id.isEmpty) {
-      throw ArgumentError('Quota sem identificador.');
-    }
-
+    if (id == null || id.isEmpty) throw ArgumentError('Quota sem identificador.');
     final balance = _asDouble(obligation['balance']);
     if (balance > 0 && amount > balance) {
-      throw StateError('O pagamento excede o valor em dívida.');
+      throw StateError('O pagamento excede o valor em dívida desta mensalidade.');
     }
 
     if (AppConfig.demoMode) {
@@ -265,7 +258,6 @@ class FeesRepository {
         },
         id: id,
       );
-
       await _dataService.insert('financial_transactions', {
         'transaction_date': DateTime.now().toIso8601String().split('T').first,
         'kind': 'income',
@@ -307,11 +299,14 @@ class FeesRepository {
   Map<String, dynamic> _normalize(Map<String, dynamic> values) {
     final amount = _asDouble(values['amount']);
     final paid = _asDouble(values['paid_amount']);
+    final exempt = _asDouble(values['exempt_amount']);
+    final adjustment = _asDouble(values['adjustment_amount']);
     final credit = _asDouble(values['credit_amount']);
-    final balance = (amount - paid - credit).clamp(0, double.infinity);
+    final total = (amount + adjustment - exempt).clamp(0, double.infinity);
+    final balance = (total - paid).clamp(0, double.infinity);
 
     var status = values['status']?.toString() ?? 'pending';
-    if (balance == 0 && amount > 0) {
+    if (balance == 0 && total > 0) {
       status = 'paid';
     } else if (paid > 0) {
       status = 'partial';
@@ -323,6 +318,8 @@ class FeesRepository {
       ...values,
       'amount': amount,
       'paid_amount': paid,
+      'exempt_amount': exempt,
+      'adjustment_amount': adjustment,
       'credit_amount': credit,
       'balance': balance,
       'status': status,
@@ -427,5 +424,5 @@ const List<String> _monthNames = [
 
 double _asDouble(Object? value) {
   if (value is num) return value.toDouble();
-  return double.tryParse(value?.toString() ?? '') ?? 0;
+  return double.tryParse(value?.toString().replaceAll(',', '.') ?? '') ?? 0;
 }
