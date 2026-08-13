@@ -32,6 +32,7 @@ enum AppPermission {
   viewCommunication,
   manageCommunication,
   acknowledgeCommunication,
+  manageImports,
   manageUserAccess,
   manageSettings,
 }
@@ -69,8 +70,9 @@ extension AppPermissionMeta on AppPermission {
         AppPermission.viewCommunication ||
         AppPermission.manageCommunication ||
         AppPermission.acknowledgeCommunication => 'Comunicação',
-        AppPermission.manageUserAccess || AppPermission.manageSettings =>
-          'Administração',
+        AppPermission.manageImports ||
+        AppPermission.manageUserAccess ||
+        AppPermission.manageSettings => 'Administração',
       };
 
   String get label => switch (this) {
@@ -105,6 +107,7 @@ extension AppPermissionMeta on AppPermission {
         AppPermission.viewCommunication => 'Ver comunicação',
         AppPermission.manageCommunication => 'Gerir comunicação',
         AppPermission.acknowledgeCommunication => 'Confirmar leitura',
+        AppPermission.manageImports => 'Importar dados por ficheiro',
         AppPermission.manageUserAccess => 'Gerir contas e acessos de utilizadores',
         AppPermission.manageSettings => 'Gerir configurações',
       };
@@ -184,6 +187,7 @@ class PermissionPolicy {
       AppPermission.acknowledgeCommunication => role != AppRole.unknown,
       AppPermission.manageMembers => role == AppRole.secretary,
       AppPermission.manageFinancialAccounts ||
+      AppPermission.manageImports ||
       AppPermission.manageUserAccess ||
       AppPermission.manageSettings => false,
     };
