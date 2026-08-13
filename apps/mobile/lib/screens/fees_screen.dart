@@ -163,38 +163,87 @@ class _FeesScreenState extends State<FeesScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
               children: [
-                Row(
-                  children: [
-                    IconButton(
-                      tooltip: 'Ano anterior',
-                      onPressed: () => _changeYear(-1),
-                      icon: const Icon(Icons.chevron_left),
-                    ),
-                    Text(
-                      'Quotas $_year',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    IconButton(
-                      tooltip: 'Ano seguinte',
-                      onPressed: () => _changeYear(1),
-                      icon: const Icon(Icons.chevron_right),
-                    ),
-                    const Spacer(),
-                    if (_repository.canConfigureFees)
-                      OutlinedButton.icon(
-                        onPressed: () => _openSettings(data),
-                        icon: const Icon(Icons.settings_outlined),
-                        label: const Text('Configurar'),
-                      ),
-                    if (_canManage) ...[
-                      const SizedBox(width: 8),
-                      FilledButton.icon(
-                        onPressed: () => _newObligation(data),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Quota manual'),
-                      ),
-                    ],
-                  ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compact = constraints.maxWidth < 600;
+                    final actions = <Widget>[
+                      if (_repository.canConfigureFees)
+                        OutlinedButton.icon(
+                          onPressed: () => _openSettings(data),
+                          icon: const Icon(Icons.settings_outlined),
+                          label: const Text('Configurar'),
+                        ),
+                      if (_canManage)
+                        FilledButton.icon(
+                          onPressed: () => _newObligation(data),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Quota manual'),
+                        ),
+                    ];
+
+                    if (compact) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              IconButton(
+                                tooltip: 'Ano anterior',
+                                onPressed: () => _changeYear(-1),
+                                icon: const Icon(Icons.chevron_left),
+                              ),
+                              Expanded(
+                                child: Text(
+                                  'Quotas $_year',
+                                  style: Theme.of(context).textTheme.headlineSmall,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'Ano seguinte',
+                                onPressed: () => _changeYear(1),
+                                icon: const Icon(Icons.chevron_right),
+                              ),
+                            ],
+                          ),
+                          if (actions.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: actions,
+                            ),
+                          ],
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        IconButton(
+                          tooltip: 'Ano anterior',
+                          onPressed: () => _changeYear(-1),
+                          icon: const Icon(Icons.chevron_left),
+                        ),
+                        Text(
+                          'Quotas $_year',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        IconButton(
+                          tooltip: 'Ano seguinte',
+                          onPressed: () => _changeYear(1),
+                          icon: const Icon(Icons.chevron_right),
+                        ),
+                        const Spacer(),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: actions,
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 12),
                 Wrap(
