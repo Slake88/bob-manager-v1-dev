@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'treasury_operational_screen.dart';
 import 'treasury_reports_screen.dart';
 import 'treasury_screen.dart';
 
@@ -9,14 +10,15 @@ class TreasuryModuleScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const DefaultTabController(
-      length: 2,
+      length: 3,
       child: Column(
         children: [
           Material(
             child: TabBar(
               tabs: [
-                Tab(text: 'Tesouraria', icon: Icon(Icons.account_balance_wallet_outlined)),
-                Tab(text: 'Extratos & Relatórios', icon: Icon(Icons.assessment_outlined)),
+                Tab(text: 'Resumo', icon: Icon(Icons.account_balance_wallet_outlined)),
+                Tab(text: 'Operações', icon: Icon(Icons.tune_outlined)),
+                Tab(text: 'Relatórios', icon: Icon(Icons.assessment_outlined)),
               ],
             ),
           ),
@@ -24,6 +26,7 @@ class TreasuryModuleScreen extends StatelessWidget {
             child: TabBarView(
               children: [
                 TreasuryScreen(),
+                TreasuryOperationalScreen(),
                 TreasuryReportsScreen(),
               ],
             ),

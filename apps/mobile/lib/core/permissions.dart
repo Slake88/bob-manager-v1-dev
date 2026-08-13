@@ -11,6 +11,10 @@ enum AppPermission {
   manageFinancialAccounts,
   approveExpenseRequests,
   viewFinancialReports,
+  manageTreasuryPlanning,
+  manageCashSessions,
+  approveCashDifferences,
+  reverseTreasuryMovement,
   viewFees,
   manageFees,
   viewLottery,
@@ -50,7 +54,11 @@ extension AppPermissionMeta on AppPermission {
         AppPermission.transferBetweenAccounts ||
         AppPermission.manageFinancialAccounts ||
         AppPermission.approveExpenseRequests ||
-        AppPermission.viewFinancialReports => 'Tesouraria',
+        AppPermission.viewFinancialReports ||
+        AppPermission.manageTreasuryPlanning ||
+        AppPermission.manageCashSessions ||
+        AppPermission.approveCashDifferences ||
+        AppPermission.reverseTreasuryMovement => 'Tesouraria',
         AppPermission.viewFees || AppPermission.manageFees => 'Quotas',
         AppPermission.viewLottery || AppPermission.manageLottery => 'Euromilhões',
         AppPermission.viewEvents ||
@@ -86,6 +94,10 @@ extension AppPermissionMeta on AppPermission {
         AppPermission.manageFinancialAccounts => 'Gerir contas e centros de custo',
         AppPermission.approveExpenseRequests => 'Aprovar pedidos de despesa',
         AppPermission.viewFinancialReports => 'Ver relatórios financeiros',
+        AppPermission.manageTreasuryPlanning => 'Gerir planeamento financeiro',
+        AppPermission.manageCashSessions => 'Gerir sessões de caixa',
+        AppPermission.approveCashDifferences => 'Aprovar diferenças de caixa',
+        AppPermission.reverseTreasuryMovement => 'Reverter movimentos de tesouraria',
         AppPermission.viewFees => 'Ver quotas',
         AppPermission.manageFees => 'Gerir quotas e pagamentos',
         AppPermission.viewLottery => 'Ver Euromilhões',
@@ -155,6 +167,10 @@ class PermissionPolicy {
       AppPermission.transferBetweenAccounts => role == AppRole.treasurer,
       AppPermission.approveExpenseRequests => role == AppRole.treasurer,
       AppPermission.viewFinancialReports => role == AppRole.treasurer,
+      AppPermission.manageTreasuryPlanning => role == AppRole.treasurer,
+      AppPermission.manageCashSessions => role == AppRole.treasurer,
+      AppPermission.approveCashDifferences => false,
+      AppPermission.reverseTreasuryMovement => role == AppRole.treasurer,
       AppPermission.viewFees => role != AppRole.unknown,
       AppPermission.manageFees =>
         role == AppRole.treasurer || role == AppRole.secretary,

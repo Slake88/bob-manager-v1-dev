@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/app_config.dart';
 import '../core/app_session.dart';
+import '../core/treasury_economics.dart';
 import '../services/data_service.dart';
 import 'treasury_repository.dart';
 
@@ -57,29 +58,40 @@ class TreasuryReportsRepository {
   }) async {
     final accounts = await _treasury.listAccounts();
     final costCenters = await _treasury.listCostCenters();
-    final allToDate = await _transactionsUntil(to);
+    final rawToDate = await _transactionsUntil(to);
+    final effectiveToDate = effectiveTreasuryRows(rawToDate);
 
-    final periodRows = allToDate.where((row) {
+    bool inPeriod(Map<String, dynamic> row) {
       final date = DateTime.tryParse(row['transaction_date']?.toString() ?? '');
-      if (date == null || date.isBefore(_dateOnly(from))) return false;
-      if (!_matchesFilters(row, accountId, costCenterId, kind)) return false;
-      return true;
-    }).toList();
+      return date != null && !date.isBefore(_dateOnly(from));
+    }
 
-    final beforeRows = allToDate.where((row) {
+    bool beforePeriod(Map<String, dynamic> row) {
       final date = DateTime.tryParse(row['transaction_date']?.toString() ?? '');
-      if (date == null || !date.isBefore(_dateOnly(from))) return false;
-      return _matchesFilters(row, accountId, costCenterId, kind);
-    }).toList();
+      return date != null && date.isBefore(_dateOnly(from));
+    }
+
+    final periodRows = effectiveToDate
+        .where(inPeriod)
+        .where((row) => _matchesFilters(row, accountId, costCenterId, kind))
+        .toList();
+    final beforeRows = effectiveToDate
+        .where(beforePeriod)
+        .where((row) => _matchesFilters(row, accountId, costCenterId, kind))
+        .toList();
+    final displayRows = rawToDate
+        .where(inPeriod)
+        .where((row) => _matchesFilters(row, accountId, costCenterId, kind))
+        .toList();
 
     final opening = _net(beforeRows, accountId);
     final periodDelta = _net(periodRows, accountId);
     final income = periodRows
         .where((row) => row['kind'] == 'income')
-        .fold<double>(0, (sum, row) => sum + _num(row['amount']));
+        .fold<double>(0, (sum, row) => sum + treasuryNumber(row['amount']));
     final expense = periodRows
         .where((row) => row['kind'] == 'expense')
-        .fold<double>(0, (sum, row) => sum + _num(row['amount']));
+        .fold<double>(0, (sum, row) => sum + treasuryNumber(row['amount']));
 
     final monthlyMap = <String, List<double>>{};
     for (final row in periodRows) {
@@ -87,8 +99,8 @@ class TreasuryReportsRepository {
       if (date == null) continue;
       final key = '${date.year}-${date.month.toString().padLeft(2, '0')}';
       final values = monthlyMap.putIfAbsent(key, () => [0, 0]);
-      if (row['kind'] == 'income') values[0] += _num(row['amount']);
-      if (row['kind'] == 'expense') values[1] += _num(row['amount']);
+      if (row['kind'] == 'income') values[0] += treasuryNumber(row['amount']);
+      if (row['kind'] == 'expense') values[1] += treasuryNumber(row['amount']);
     }
     final monthly = monthlyMap.entries.map((entry) {
       final parts = entry.key.split('-');
@@ -103,7 +115,7 @@ class TreasuryReportsRepository {
           ? a.year.compareTo(b.year)
           : a.month.compareTo(b.month));
 
-    periodRows.sort((a, b) {
+    displayRows.sort((a, b) {
       final date = (b['transaction_date']?.toString() ?? '')
           .compareTo(a['transaction_date']?.toString() ?? '');
       if (date != 0) return date;
@@ -112,7 +124,7 @@ class TreasuryReportsRepository {
     });
 
     return TreasuryReportData(
-      movements: periodRows,
+      movements: displayRows,
       accounts: accounts,
       costCenters: costCenters,
       openingBalance: opening,
@@ -148,7 +160,7 @@ class TreasuryReportsRepository {
   double _net(Iterable<Map<String, dynamic>> rows, String? accountId) {
     var value = 0.0;
     for (final row in rows) {
-      final amount = _num(row['amount']);
+      final amount = treasuryNumber(row['amount']);
       if (row['kind'] == 'income') value += amount;
       if (row['kind'] == 'expense') value -= amount;
       if (row['kind'] == 'transfer' && accountId != null && accountId.isNotEmpty) {
@@ -201,9 +213,6 @@ class TreasuryReportsRepository {
   }
 }
 
-double _num(Object? value) => value is num
-    ? value.toDouble()
-    : double.tryParse(value?.toString() ?? '') ?? 0;
 DateTime _dateOnly(DateTime value) => DateTime(value.year, value.month, value.day);
 String _isoDate(DateTime value) =>
     '${value.year.toString().padLeft(4, '0')}-${value.month.toString().padLeft(2, '0')}-${value.day.toString().padLeft(2, '0')}';
