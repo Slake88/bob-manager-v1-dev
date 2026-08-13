@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_config.dart';
 import '../repositories/inventory_foundation_repository.dart';
 import 'assets_module_screen.dart';
 import 'assets_qr_screen.dart';
@@ -33,6 +34,8 @@ class _InventoryHubScreenState extends State<InventoryHubScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final demo = AppConfig.demoMode;
+
     return DefaultTabController(
       length: 9,
       child: Column(
@@ -66,18 +69,142 @@ class _InventoryHubScreenState extends State<InventoryHubScreen> {
             child: TabBarView(
               children: [
                 _SummaryTab(future: _future, onRefresh: _reload),
-                const ShopScreen(),
-                const ProductPhotosScreen(),
-                const BarScreenV3(),
-                const AssetsModuleScreen(),
-                const AssetsQrScreen(),
-                const InventoryLocationsScreen(),
-                const InventoryMovementsScreen(),
-                const PhysicalInventoryScreen(),
+                demo
+                    ? const _InventoryDemoPreview(
+                        title: 'Loja',
+                        icon: Icons.storefront_outlined,
+                        description:
+                            'Artigos, variantes, encomendas e gestão de merchandising usam dados reais do clube.',
+                      )
+                    : const ShopScreen(),
+                demo
+                    ? const _InventoryDemoPreview(
+                        title: 'Fotos de produtos',
+                        icon: Icons.photo_library_outlined,
+                        description:
+                            'A galeria de produtos depende do Storage e dos registos reais do inventário.',
+                      )
+                    : const ProductPhotosScreen(),
+                demo
+                    ? const _InventoryDemoPreview(
+                        title: 'Bar',
+                        icon: Icons.local_bar_outlined,
+                        description:
+                            'Stocks, consumos, compras e operações do Bar são carregados do ambiente real.',
+                      )
+                    : const BarScreenV3(),
+                demo
+                    ? const _InventoryDemoPreview(
+                        title: 'Património',
+                        icon: Icons.home_repair_service_outlined,
+                        description:
+                            'Bens, estados, atribuições e operações patrimoniais usam a base de dados do clube.',
+                      )
+                    : const AssetsModuleScreen(),
+                demo
+                    ? const _InventoryDemoPreview(
+                        title: 'QR',
+                        icon: Icons.qr_code_scanner,
+                        description:
+                            'A leitura e associação de códigos QR necessita dos ativos reais do clube.',
+                      )
+                    : const AssetsQrScreen(),
+                demo
+                    ? const _InventoryDemoPreview(
+                        title: 'Localizações',
+                        icon: Icons.place_outlined,
+                        description:
+                            'As localizações e respetivos stocks são apresentadas com dados reais por clube.',
+                      )
+                    : const InventoryLocationsScreen(),
+                demo
+                    ? const _InventoryDemoPreview(
+                        title: 'Movimentos',
+                        icon: Icons.swap_horiz_outlined,
+                        description:
+                            'Entradas, saídas, transferências e reservas são operações auditadas no ambiente real.',
+                      )
+                    : const InventoryMovementsScreen(),
+                demo
+                    ? const _InventoryDemoPreview(
+                        title: 'Inventário físico',
+                        icon: Icons.fact_check_outlined,
+                        description:
+                            'As contagens físicas e reconciliações dependem das localizações e stocks reais.',
+                      )
+                    : const PhysicalInventoryScreen(),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _InventoryDemoPreview extends StatelessWidget {
+  const _InventoryDemoPreview({
+    required this.title,
+    required this.icon,
+    required this.description,
+  });
+
+  final String title;
+  final IconData icon;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 96),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520),
+          child: Card(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    radius: 32,
+                    backgroundColor: colors.primaryContainer,
+                    foregroundColor: colors.onPrimaryContainer,
+                    child: Icon(icon, size: 32),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Chip(
+                    avatar: Icon(Icons.science_outlined, size: 18),
+                    label: Text('Pré-visualização em modo demonstração'),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    description,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  const SizedBox(height: 14),
+                  Text(
+                    'Neste modo não é feita ligação ao Supabase. No ambiente real este separador carrega os dados e operações autorizados pelas permissões do utilizador.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -175,11 +302,21 @@ class _SummaryTab extends StatelessWidget {
                     'Definir artigos para Público / Prospect / Full Color, preços próprios e ver o que falta encomendar ao fornecedor.',
                   ),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(context).push<void>(
-                    MaterialPageRoute(
-                      builder: (_) => const ShopManagementScreen(),
-                    ),
-                  ),
+                  onTap: AppConfig.demoMode
+                      ? () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'A gestão avançada da Loja requer o ambiente real.',
+                              ),
+                            ),
+                          );
+                        }
+                      : () => Navigator.of(context).push<void>(
+                            MaterialPageRoute(
+                              builder: (_) => const ShopManagementScreen(),
+                            ),
+                          ),
                 ),
               ),
             ],
