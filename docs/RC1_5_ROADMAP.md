@@ -1,17 +1,34 @@
 # BOB Manager — Roadmap RC1.5
 
-## Princípio transversal: mobile-first
+## Política transversal obrigatória: Mobile First + Web complementar
 
-A interface deve ser desenhada e validada para utilização diária em telemóveis Android e iOS, mantendo também boa utilização em Web/Desktop.
+Android e iOS são as plataformas principais do BOB Manager. A experiência deve ser desenhada e validada primeiro para utilização diária em smartphone, mantendo também uma experiência profissional e totalmente funcional em tablet e Web/Desktop.
 
-Requisitos mínimos:
+A política completa está definida em `docs/RC1_PLATFORM_UX_WEB_STRATEGY.md` e aplica-se a todos os commits a partir do Commit 23.
+
+Requisitos mínimos para qualquer UI nova ou significativamente alterada:
 - leitura confortável em ecrãs estreitos;
 - controlos com área de toque adequada;
+- ações principais fáceis de encontrar e executar com o dedo;
 - formulários com disposição vertical em mobile;
-- tabelas/grelhas com scroll, condensação ou representação alternativa quando necessário;
-- evitar colunas fixas que prejudiquem a leitura em telemóvel;
-- diálogos e bottom sheets com scroll e respeito por safe areas/teclado;
-- testar os módulos críticos em larguras típicas de smartphone Android e iPhone antes de fechar cada versão.
+- tabelas/grelhas com condensação, scroll controlado ou representação alternativa quando necessário;
+- evitar colunas fixas e scroll horizontal como navegação normal em telemóvel;
+- diálogos, bottom sheets e formulários com scroll e respeito por safe areas/teclado;
+- loading, estado vazio, erro e falta de permissão explicitamente tratados;
+- navegação adaptativa: mobile primeiro, tablet intermédio, Web/Desktop expandido;
+- permissões e privacidade idênticas em todas as plataformas;
+- testar módulos críticos em larguras típicas de smartphone Android e iPhone antes de fechar cada versão;
+- manter `flutter analyze`, `flutter test` e `flutter build web` verdes.
+
+### Portal Web dos membros
+
+O BOB Manager deve ficar preparado para publicação futura num subdomínio do domínio institucional do clube, preferencialmente:
+
+`https://app.<dominio-do-clube>`
+
+O site público continuará em `www.<dominio-do-clube>` e terá um botão/imagem `Área de Membros` que abre diretamente o BOB Manager. Sem sessão válida, o membro vê o login; com sessão válida, a aplicação restaura o acesso e abre a área autorizada.
+
+O portal Web usa a mesma aplicação Flutter, autenticação, base de dados, Storage, permissões e auditoria do Android/iOS. Não será criado um backend paralelo para PC.
 
 ## Extratos e Relatórios Financeiros
 
