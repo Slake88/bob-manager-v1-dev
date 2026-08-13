@@ -231,7 +231,6 @@ class _DatasetSpec {
     required this.table,
     required this.queryColumns,
     required this.exportColumns,
-    this.sourceKeyOverride,
     this.collectIds = true,
     this.directClubId = false,
     this.parentSource,
@@ -251,7 +250,6 @@ class _DatasetSpec {
   final String table;
   final String queryColumns;
   final List<String> exportColumns;
-  final String? sourceKeyOverride;
   final bool collectIds;
   final bool directClubId;
   final String? parentSource;
@@ -265,7 +263,7 @@ class _DatasetSpec {
   final String? fileSizeColumn;
   final String fileArchiveFolder;
 
-  String get sourceKey => sourceKeyOverride ?? table;
+  String get sourceKey => table;
 }
 
 List<_DatasetSpec> get _allExportSpecs => [
