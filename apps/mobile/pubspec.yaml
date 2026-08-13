@@ -28,6 +28,7 @@ dependencies:
   excel:
     path: ../../packages/excel_compat
   share_plus: ^11.1.0
+  archive: ^4.0.9
 dev_dependencies:
   flutter_test:
     sdk: flutter

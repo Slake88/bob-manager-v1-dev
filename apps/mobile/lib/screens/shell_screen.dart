@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/app_session.dart';
+import '../core/club_export.dart';
 import '../core/module_definition.dart';
 import '../core/notification_center.dart';
 import '../core/permissions.dart';
@@ -65,7 +66,9 @@ class _ShellScreenState extends State<ShellScreen> {
       'inventory' => session.can(AppPermission.viewInventory),
       'documents' => session.can(AppPermission.viewDocuments),
       'communication' => session.can(AppPermission.viewCommunication),
-      'reports' => ReportCatalog.canOpenCenter(session.can),
+      'reports' =>
+        ReportCatalog.canOpenCenter(session.can) ||
+            ClubExportPolicy.canExport(session),
       'settings' =>
         session.can(AppPermission.manageSettings) ||
         session.can(AppPermission.manageUserAccess),

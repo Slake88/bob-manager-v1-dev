@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/module_definition.dart';
 import 'activity_screen.dart';
+import 'agenda_screen.dart';
 import 'communication_screen.dart';
 import 'dashboard_screen.dart';
 import 'documents_screen.dart';
@@ -12,11 +13,10 @@ import 'financial_requests_screen.dart';
 import 'inventory_hub_screen.dart';
 import 'lottery_screen.dart';
 import 'members_screen.dart';
-import 'reports_screen.dart';
+import 'reports_hub_screen.dart';
 import 'settings_screen.dart';
 import 'treasury_module_screen.dart';
 import 'weekly_officer_screen.dart';
-import 'agenda_screen.dart';
 
 class ModuleRouter extends StatelessWidget {
   const ModuleRouter({super.key, required this.module});
@@ -39,7 +39,7 @@ class ModuleRouter extends StatelessWidget {
       'inventory' => const InventoryHubScreen(),
       'documents' => const DocumentsScreen(),
       'communication' => const CommunicationScreen(),
-      'reports' => const ReportsScreen(),
+      'reports' => const ReportsHubScreen(),
       'settings' => const SettingsScreen(),
       'emergency' => const EmergencyScreen(),
       _ => const SizedBox.shrink(),
