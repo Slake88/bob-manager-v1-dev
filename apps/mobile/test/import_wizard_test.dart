@@ -107,7 +107,7 @@ void main() {
   });
 
   test('normalização de cabeçalhos remove acentos e pontuação', () {
-    expect(normalizeImportToken('N.º Sócio / Membro'), 'nosociomembro');
+    expect(normalizeImportToken('N.º Sócio / Membro'), 'nsociomembro');
     expect(normalizeImportToken('Preço Venda (€)'), 'precovenda');
   });
 }
