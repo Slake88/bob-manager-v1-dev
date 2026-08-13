@@ -527,7 +527,7 @@ class _ImportWizardScreenState extends State<ImportWizardScreen> {
               icon: const Icon(Icons.playlist_add_check_circle_outlined),
               label: const Padding(
                 padding: EdgeInsets.symmetric(vertical: 14),
-                child: Text('Aplicar importpãção'),
+                child: Text('Aplicar importação'),
               ),
             ),
           ],
@@ -546,7 +546,7 @@ class _ImportWizardScreenState extends State<ImportWizardScreen> {
               if (snapshot.hasError) {
                 return const Card(
                   child: ListTile(
-                    title: Text('Não foi possível carregar o`histórico.'),
+                    title: Text('Não foi possível carregar o histórico.'),
                   ),
                 );
               }
@@ -615,8 +615,8 @@ class _ImportWizardScreenState extends State<ImportWizardScreen> {
             'applied' => Icons.check_circle_outline,
             'reverted' => Icons.undo_outlined,
             'failed' => Icons.error_outline,
-            'ready' => Icons.fact_check_outline,
-            _ => Icons.edit_note_outline,
+            'ready' => Icons.fact_check_outlined,
+            _ => Icons.edit_outlined,
           },
         ),
         title: Text('$targetTitle • ${entry.filename}'),
