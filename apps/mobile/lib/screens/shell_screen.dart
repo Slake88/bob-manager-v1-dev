@@ -13,6 +13,7 @@ import '../repositories/activity_repository.dart';
 import '../services/auth_service.dart';
 import '../services/push_notification_service.dart';
 import 'activity_screen.dart';
+import 'global_search_screen.dart';
 import 'login_screen.dart';
 import 'module_router.dart';
 
@@ -131,9 +132,22 @@ class _ShellScreenState extends State<ShellScreen> {
     if (route != null) await _openActionRoute(route);
   }
 
+  Future<void> _openGlobalSearch() async {
+    final moduleCode = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const GlobalSearchScreen()),
+    );
+    if (!mounted || moduleCode == null) return;
+    _selectModuleCode(moduleCode);
+  }
+
   Future<void> _openActionRoute(String route) async {
     final code = notificationModuleFromRoute(route);
     if (code == null || !mounted) return;
+    _selectModuleCode(code);
+  }
+
+  void _selectModuleCode(String code) {
+    if (!mounted) return;
     final modules = _visibleModules;
     final index = modules.indexWhere((module) => module.code == code);
     if (index < 0) return;
@@ -157,6 +171,11 @@ class _ShellScreenState extends State<ShellScreen> {
       appBar: AppBar(
         title: Text(module.title),
         actions: [
+          IconButton(
+            tooltip: 'Pesquisa Global',
+            onPressed: _openGlobalSearch,
+            icon: const Icon(Icons.search),
+          ),
           FutureBuilder<int>(
             future: _unreadFuture,
             builder: (context, snapshot) {
