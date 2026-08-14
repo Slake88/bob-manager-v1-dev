@@ -107,8 +107,7 @@ class _AnnualBooksScreenState extends State<AnnualBooksScreen> {
         ),
       ),
     );
-    if (!mounted) return;
-    setState(_reload);
+    if (mounted) setState(_reload);
   }
 
   @override
@@ -275,33 +274,13 @@ class _AnnualBookEditorScreenState extends State<AnnualBookEditorScreen> {
       documentSnack(context, 'Não existem documentos disponíveis.');
       return;
     }
-    final selected = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Adicionar documento'),
-        content: SizedBox(
-          width: 520,
-          height: 420,
-          child: ListView.builder(
-            itemCount: candidates.length,
-            itemBuilder: (context, index) {
-              final row = candidates[index];
-              return ListTile(
-                leading: const Icon(Icons.description_outlined),
-                title: Text(row['name']?.toString() ?? 'Documento'),
-                subtitle: Text(row['category']?.toString() ?? 'Documento'),
-                onTap: () => Navigator.pop(dialogContext, row),
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancelar'),
-          ),
-        ],
-      ),
+    final selected = await _pickBookSource(
+      context,
+      title: 'Adicionar documento',
+      rows: candidates,
+      icon: Icons.description_outlined,
+      titleFor: (row) => row['name']?.toString() ?? 'Documento',
+      subtitleFor: (row) => row['category']?.toString() ?? 'Documento',
     );
     if (selected == null || !mounted) return;
     try {
@@ -320,8 +299,7 @@ class _AnnualBookEditorScreenState extends State<AnnualBookEditorScreen> {
           selected['document_date']?.toString() ?? '',
         ),
       );
-      if (!mounted) return;
-      setState(_reload);
+      if (mounted) setState(_reload);
     } catch (error) {
       if (!mounted) return;
       documentSnack(context, documentFriendlyError(error));
@@ -335,37 +313,14 @@ class _AnnualBookEditorScreenState extends State<AnnualBookEditorScreen> {
       documentSnack(context, 'A timeline de $_year não tem registos.');
       return;
     }
-    final selected = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Timeline de $_year'),
-        content: SizedBox(
-          width: 520,
-          height: 420,
-          child: ListView.builder(
-            itemCount: timeline.length,
-            itemBuilder: (context, index) {
-              final row = timeline[index];
-              return ListTile(
-                leading: const Icon(Icons.timeline_outlined),
-                title: Text(row['title']?.toString() ?? 'Marco'),
-                subtitle: Text(
-                  '${row['event_date'] ?? ''}${row['description']?.toString().trim().isNotEmpty == true ? ' • ${row['description']}' : ''}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                onTap: () => Navigator.pop(dialogContext, row),
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancelar'),
-          ),
-        ],
-      ),
+    final selected = await _pickBookSource(
+      context,
+      title: 'Timeline de $_year',
+      rows: timeline,
+      icon: Icons.timeline_outlined,
+      titleFor: (row) => row['title']?.toString() ?? 'Marco',
+      subtitleFor: (row) =>
+          '${row['event_date'] ?? ''}${row['description']?.toString().trim().isNotEmpty == true ? ' • ${row['description']}' : ''}',
     );
     if (selected == null || !mounted) return;
     try {
@@ -381,8 +336,17 @@ class _AnnualBookEditorScreenState extends State<AnnualBookEditorScreen> {
           selected['event_date']?.toString() ?? '',
         ),
       );
+      if (mounted) setState(_reload);
+    } catch (error) {
       if (!mounted) return;
-      setState(_reload);
+      documentSnack(context, documentFriendlyError(error));
+    }
+  }
+
+  Future<void> _deleteItem(String id) async {
+    try {
+      await widget.repository.deleteBookItem(id);
+      if (mounted) setState(_reload);
     } catch (error) {
       if (!mounted) return;
       documentSnack(context, documentFriendlyError(error));
@@ -480,21 +444,7 @@ class _AnnualBookEditorScreenState extends State<AnnualBookEditorScreen> {
                       trailing: widget.repository.canManageBooks
                           ? IconButton(
                               icon: const Icon(Icons.delete_outline),
-                              onPressed: () async {
-                                try {
-                                  await widget.repository.deleteBookItem(
-                                    row['id'].toString(),
-                                  );
-                                  if (!mounted) return;
-                                  setState(_reload);
-                                } catch (error) {
-                                  if (!mounted) return;
-                                  documentSnack(
-                                    context,
-                                    documentFriendlyError(error),
-                                  );
-                                }
-                              },
+                              onPressed: () => _deleteItem(row['id'].toString()),
                             )
                           : null,
                     ),
@@ -599,6 +549,48 @@ class AnnualBookPreviewScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<Map<String, dynamic>?> _pickBookSource(
+  BuildContext context, {
+  required String title,
+  required List<Map<String, dynamic>> rows,
+  required IconData icon,
+  required String Function(Map<String, dynamic>) titleFor,
+  required String Function(Map<String, dynamic>) subtitleFor,
+}) {
+  return showDialog<Map<String, dynamic>>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(title),
+      content: SizedBox(
+        width: 520,
+        height: 420,
+        child: ListView.builder(
+          itemCount: rows.length,
+          itemBuilder: (context, index) {
+            final row = rows[index];
+            return ListTile(
+              leading: Icon(icon),
+              title: Text(titleFor(row)),
+              subtitle: Text(
+                subtitleFor(row),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              onTap: () => Navigator.pop(dialogContext, row),
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('Cancelar'),
+        ),
+      ],
+    ),
+  );
 }
 
 String _itemTypeLabel(Object? value) => switch (value?.toString()) {
