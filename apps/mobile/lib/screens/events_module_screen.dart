@@ -491,8 +491,8 @@ class _EventProposalsScreenState extends State<EventProposalsScreen> {
                                   );
                                   if (mounted) setState(_reload);
                                 } catch (error) {
-                                  if (context.mounted) {
-                                    _snack(context, _friendly(error));
+                                  if (mounted) {
+                                    _snack(this.context, _friendly(error));
                                   }
                                 }
                               },
