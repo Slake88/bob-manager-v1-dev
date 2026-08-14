@@ -136,7 +136,20 @@ class DocumentRepository {
     if (AppConfig.demoMode) {
       throw StateError('A abertura de ficheiros não está disponível em Demo.');
     }
-    return _client.storage.from(bucketName).createSignedUrl(path, 300);
+    final url = await _client.storage.from(bucketName).createSignedUrl(path, 300);
+    try {
+      await _client.from('document_access_log').insert({
+        'club_id': AppSession.instance.clubId,
+        'document_id': document['id'],
+        'version_id': document['current_version_id'],
+        'profile_id': _client.auth.currentUser?.id,
+        'action': 'signed_url',
+        'metadata': {'source': 'library'},
+      });
+    } catch (_) {
+      // Logging must not block an authorized file opening.
+    }
+    return url;
   }
 
   Future<void> deleteDocument(Map<String, dynamic> document) async {
@@ -150,14 +163,29 @@ class DocumentRepository {
       return _dataService.delete('documents', id);
     }
 
-    final path = document['storage_path']?.toString();
+    final paths = <String>{};
+    final currentPath = document['storage_path']?.toString();
+    if (currentPath != null && currentPath.isNotEmpty) paths.add(currentPath);
+    try {
+      final versions = await _client
+          .from('document_versions')
+          .select('storage_path')
+          .eq('document_id', id);
+      for (final row in List<Map<String, dynamic>>.from(versions)) {
+        final path = row['storage_path']?.toString();
+        if (path != null && path.isNotEmpty) paths.add(path);
+      }
+    } catch (_) {
+      // Compatibility with databases created before document versioning.
+    }
+
     await _client
         .from('documents')
         .delete()
         .eq('id', id)
         .eq('club_id', AppSession.instance.clubId);
-    if (path != null && path.isNotEmpty) {
-      await _client.storage.from(bucketName).remove([path]);
+    if (paths.isNotEmpty) {
+      await _client.storage.from(bucketName).remove(paths.toList());
     }
   }
 

@@ -39,6 +39,10 @@ enum AppPermission {
   viewDocuments,
   viewSensitiveDocuments,
   manageDocuments,
+  approveDocuments,
+  runDocumentOcr,
+  manageEventGallery,
+  manageAnnualBooks,
   viewCommunication,
   manageCommunication,
   acknowledgeCommunication,
@@ -86,7 +90,11 @@ extension AppPermissionMeta on AppPermission {
         AppPermission.performInventoryCount => 'Património & Inventário',
         AppPermission.viewDocuments ||
         AppPermission.viewSensitiveDocuments ||
-        AppPermission.manageDocuments => 'Documentos',
+        AppPermission.manageDocuments ||
+        AppPermission.approveDocuments ||
+        AppPermission.runDocumentOcr ||
+        AppPermission.manageEventGallery ||
+        AppPermission.manageAnnualBooks => 'Documentos',
         AppPermission.viewCommunication ||
         AppPermission.manageCommunication ||
         AppPermission.acknowledgeCommunication => 'Comunicação',
@@ -134,6 +142,10 @@ extension AppPermissionMeta on AppPermission {
         AppPermission.viewDocuments => 'Ver documentos',
         AppPermission.viewSensitiveDocuments => 'Ver documentos sensíveis',
         AppPermission.manageDocuments => 'Gerir documentos',
+        AppPermission.approveDocuments => 'Aprovar documentos',
+        AppPermission.runDocumentOcr => 'Executar OCR documental',
+        AppPermission.manageEventGallery => 'Gerir galeria de eventos',
+        AppPermission.manageAnnualBooks => 'Gerir Livro anual',
         AppPermission.viewCommunication => 'Ver comunicação',
         AppPermission.manageCommunication => 'Gerir comunicação',
         AppPermission.acknowledgeCommunication => 'Confirmar leitura',
@@ -228,6 +240,11 @@ class PermissionPolicy {
       AppPermission.viewSensitiveDocuments =>
         role == AppRole.secretary || role == AppRole.treasurer,
       AppPermission.manageDocuments => role == AppRole.secretary,
+      AppPermission.approveDocuments => role == AppRole.secretary,
+      AppPermission.runDocumentOcr => role == AppRole.secretary,
+      AppPermission.manageEventGallery =>
+        role == AppRole.secretary || role == AppRole.eventsManager,
+      AppPermission.manageAnnualBooks => role == AppRole.secretary,
       AppPermission.viewCommunication => role != AppRole.unknown,
       AppPermission.manageCommunication => role == AppRole.secretary,
       AppPermission.acknowledgeCommunication => role != AppRole.unknown,
