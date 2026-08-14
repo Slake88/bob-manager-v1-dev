@@ -22,6 +22,12 @@ enum AppPermission {
   viewEvents,
   manageEvents,
   manageEventParticipants,
+  proposeEvents,
+  approveEventProposals,
+  manageEventRoadbook,
+  manageEventOperations,
+  manageRockRide,
+  manageEventFinance,
   viewInventory,
   manageInventory,
   sellInventory,
@@ -63,7 +69,13 @@ extension AppPermissionMeta on AppPermission {
         AppPermission.viewLottery || AppPermission.manageLottery => 'Euromilhões',
         AppPermission.viewEvents ||
         AppPermission.manageEvents ||
-        AppPermission.manageEventParticipants => 'Eventos',
+        AppPermission.manageEventParticipants ||
+        AppPermission.proposeEvents ||
+        AppPermission.approveEventProposals ||
+        AppPermission.manageEventRoadbook ||
+        AppPermission.manageEventOperations ||
+        AppPermission.manageRockRide ||
+        AppPermission.manageEventFinance => 'Eventos',
         AppPermission.viewInventory ||
         AppPermission.manageInventory ||
         AppPermission.sellInventory ||
@@ -105,6 +117,12 @@ extension AppPermissionMeta on AppPermission {
         AppPermission.viewEvents => 'Ver eventos',
         AppPermission.manageEvents => 'Criar e editar eventos',
         AppPermission.manageEventParticipants => 'Gerir participantes e voluntários',
+        AppPermission.proposeEvents => 'Propor eventos',
+        AppPermission.approveEventProposals => 'Aprovar propostas de eventos',
+        AppPermission.manageEventRoadbook => 'Gerir roadbook de eventos',
+        AppPermission.manageEventOperations => 'Gerir operação de eventos',
+        AppPermission.manageRockRide => 'Gerir Rock & Ride In',
+        AppPermission.manageEventFinance => 'Gerir área financeira de eventos',
         AppPermission.viewInventory => 'Ver Património & Inventário',
         AppPermission.manageInventory => 'Gerir inventário geral',
         AppPermission.sellInventory => 'Registar vendas',
@@ -184,6 +202,18 @@ class PermissionPolicy {
         role == AppRole.secretary ||
         role == AppRole.roadCaptain ||
         role == AppRole.eventsManager,
+      AppPermission.proposeEvents => role != AppRole.unknown,
+      AppPermission.approveEventProposals =>
+        role == AppRole.secretary || role == AppRole.treasurer,
+      AppPermission.manageEventRoadbook ||
+      AppPermission.manageEventOperations =>
+        role == AppRole.secretary ||
+        role == AppRole.roadCaptain ||
+        role == AppRole.eventsManager,
+      AppPermission.manageRockRide =>
+        role == AppRole.secretary || role == AppRole.eventsManager,
+      AppPermission.manageEventFinance =>
+        role == AppRole.treasurer || role == AppRole.eventsManager,
       AppPermission.viewInventory => role != AppRole.unknown,
       AppPermission.manageInventory ||
       AppPermission.manageMerchandising ||
