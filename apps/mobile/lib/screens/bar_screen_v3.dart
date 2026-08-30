@@ -7,6 +7,7 @@ import '../core/permissions.dart';
 import '../repositories/bar_repository.dart';
 import '../repositories/financial_ocr_repository.dart';
 import 'bar_ocr_review_screen.dart';
+import 'bar_sales_screen.dart';
 
 class BarScreenV3 extends StatefulWidget {
   const BarScreenV3({super.key});
@@ -280,11 +281,12 @@ class _BarScreenV3State extends State<BarScreenV3> {
         );
 
         return DefaultTabController(
-          length: 2,
+          length: 3,
           child: Scaffold(
             appBar: const TabBar(
               tabs: [
-                Tab(text: 'Stock', icon: Icon(Icons.local_bar_outlined)),
+                Tab(text: 'Stock', icon: Icon(Icons.inventory_2_outlined)),
+                Tab(text: 'Venda', icon: Icon(Icons.point_of_sale_outlined)),
                 Tab(text: 'Movimentos', icon: Icon(Icons.history_outlined)),
               ],
             ),
@@ -331,6 +333,22 @@ class _BarScreenV3State extends State<BarScreenV3> {
                       if (_canManage) ...[
                         Card(
                           child: ListTile(
+                            leading: const Icon(Icons.add_circle_outline),
+                            title: const Text('Novo artigo do Bar'),
+                            subtitle: const Text(
+                              'Criar bebida ou consumível e definir embalagem, preço, conversão e stock mínimo.',
+                            ),
+                            trailing: FilledButton.tonalIcon(
+                              onPressed: () =>
+                                  _editProduct(data.events, data.accounts),
+                              icon: const Icon(Icons.add),
+                              label: const Text('Criar'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Card(
+                          child: ListTile(
                             leading: const Icon(Icons.document_scanner_outlined),
                             title: const Text('Registar compra a partir de talão / fatura'),
                             subtitle: const Text(
@@ -375,6 +393,7 @@ class _BarScreenV3State extends State<BarScreenV3> {
                     ],
                   ),
                 ),
+                const BarSalesScreen(),
                 RefreshIndicator(
                   onRefresh: _refresh,
                   child: ListView(
@@ -395,14 +414,6 @@ class _BarScreenV3State extends State<BarScreenV3> {
                 ),
               ],
             ),
-            floatingActionButton: _canManage
-                ? FloatingActionButton.extended(
-                    onPressed: () =>
-                        _editProduct(data.events, data.accounts),
-                    icon: const Icon(Icons.add),
-                    label: const Text('Novo artigo Bar'),
-                  )
-                : null,
           ),
         );
       },
@@ -476,7 +487,6 @@ class _ProductCard extends StatelessWidget {
                         value: 'purchase',
                         child: Text('Entrada / compra'),
                       ),
-                      PopupMenuItem(value: 'sale', child: Text('Venda')),
                       PopupMenuItem(value: 'offer', child: Text('Oferta')),
                       PopupMenuItem(
                         value: 'internal',
