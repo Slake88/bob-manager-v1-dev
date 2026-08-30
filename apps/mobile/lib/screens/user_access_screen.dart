@@ -459,6 +459,7 @@ const userAccessRoles = <UserAccessRoleOption>[
   UserAccessRoleOption('treasurer', 'Tesoureiro'),
   UserAccessRoleOption('secretary', 'Secretário'),
   UserAccessRoleOption('road_captain', 'Road Captain'),
+  UserAccessRoleOption('sergeant_at_arms', 'Sargento de Armas'),
   UserAccessRoleOption('inventory_manager', 'Responsável de Inventário'),
   UserAccessRoleOption('event_manager', 'Responsável de Eventos'),
   UserAccessRoleOption('euromillions_manager', 'Responsável Euromilhões'),
