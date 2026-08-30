@@ -21,11 +21,17 @@ class _PollsScreenState extends State<PollsScreen> {
     _reload();
   }
 
-  void _reload() => _future = _repository.listPolls();
+  void _reload() {
+    _future = _repository.listPolls();
+  }
 
-  void _refresh() {
+  Future<void> _refresh() async {
     if (!mounted) return;
-    setState(_reload);
+    final next = _repository.listPolls();
+    setState(() {
+      _future = next;
+    });
+    await next;
   }
 
   Future<void> _create() async {
@@ -34,7 +40,7 @@ class _PollsScreenState extends State<PollsScreen> {
         builder: (_) => PollEditorScreen(repository: _repository),
       ),
     );
-    if (changed == true) _refresh();
+    if (changed == true) await _refresh();
   }
 
   Future<void> _open(Map<String, dynamic> poll) async {
@@ -46,7 +52,7 @@ class _PollsScreenState extends State<PollsScreen> {
         ),
       ),
     );
-    if (changed == true) _refresh();
+    if (changed == true) await _refresh();
   }
 
   @override
@@ -65,11 +71,31 @@ class _PollsScreenState extends State<PollsScreen> {
       child: Scaffold(
         body: Column(
           children: [
-            const Material(
-              child: TabBar(
-                tabs: [
-                  Tab(icon: Icon(Icons.how_to_vote_outlined), text: 'Votações'),
-                  Tab(icon: Icon(Icons.bar_chart_outlined), text: 'Resultados'),
+            Material(
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: TabBar(
+                      tabs: [
+                        Tab(
+                          icon: Icon(Icons.how_to_vote_outlined),
+                          text: 'Votações',
+                        ),
+                        Tab(
+                          icon: Icon(Icons.bar_chart_outlined),
+                          text: 'Resultados',
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Atualizar',
+                    onPressed: () {
+                      _refresh();
+                    },
+                    icon: const Icon(Icons.refresh),
+                  ),
+                  const SizedBox(width: 4),
                 ],
               ),
             ),
@@ -78,7 +104,12 @@ class _PollsScreenState extends State<PollsScreen> {
                 future: _future,
                 builder: (context, snapshot) {
                   if (snapshot.hasError) {
-                    return _PollError(error: snapshot.error!, onRetry: _refresh);
+                    return _PollError(
+                      error: snapshot.error!,
+                      onRetry: () {
+                        _refresh();
+                      },
+                    );
                   }
                   if (!snapshot.hasData) {
                     return const Center(child: CircularProgressIndicator());
@@ -98,20 +129,14 @@ class _PollsScreenState extends State<PollsScreen> {
                             ? 'Ainda não existem votações ou inquéritos.'
                             : 'Não existem votações disponíveis para o teu perfil.',
                         onOpen: _open,
-                        onRefresh: () async {
-                          _refresh();
-                          await _future;
-                        },
+                        onRefresh: _refresh,
                       ),
                       _PollList(
                         polls: resultPolls,
                         emptyText: 'Ainda não existem resultados disponíveis.',
                         resultsMode: true,
                         onOpen: _open,
-                        onRefresh: () async {
-                          _refresh();
-                          await _future;
-                        },
+                        onRefresh: _refresh,
                       ),
                     ],
                   );
@@ -219,7 +244,9 @@ class _PollList extends StatelessWidget {
                               Chip(label: Text(pollStatusLabel(effectiveStatus))),
                               Chip(
                                 label: Text(
-                                  poll['anonymous'] == true ? 'Anónima' : 'Identificada',
+                                  poll['anonymous'] == true
+                                      ? 'Anónima'
+                                      : 'Identificada',
                                 ),
                               ),
                               if (poll['multiple_choice'] == true)
