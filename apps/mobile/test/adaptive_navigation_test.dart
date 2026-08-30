@@ -24,6 +24,7 @@ void main() {
               'documents',
               'dashboard',
               'agenda',
+              'bar',
               'members',
               'treasury',
             }.contains(module.code),
@@ -34,11 +35,11 @@ void main() {
 
       expect(
         plan.primary.map((module) => module.code).toList(),
-        ['dashboard', 'members', 'agenda', 'events'],
+        ['dashboard', 'members', 'bar', 'events'],
       );
       expect(
         plan.secondary.map((module) => module.code).toSet(),
-        {'treasury', 'documents'},
+        {'treasury', 'agenda', 'documents'},
       );
     });
 
@@ -67,7 +68,7 @@ void main() {
             (module) => <String>{
               'dashboard',
               'members',
-              'agenda',
+              'bar',
               'events',
               'documents',
             }.contains(module.code),
