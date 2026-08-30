@@ -37,7 +37,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _reload() {
-    setState(() => _settingsFuture = _loadSettings());
+    setState(() {
+      _settingsFuture = _loadSettings();
+    });
   }
 
   Future<void> _editSetting([Map<String, dynamic>? setting]) async {
@@ -75,6 +77,81 @@ class _SettingsScreenState extends State<SettingsScreen> {
     keyController.dispose();
     valueController.dispose();
     if (saved == true) _reload();
+  }
+
+  Future<void> _editDinnerFee(List<Map<String, dynamic>> settings) async {
+    if (!_canManageSettings) return;
+    final setting = _findSetting(settings, 'dinner_fee_amount');
+    final current = _settingAmount(setting?['value']);
+    final controller = TextEditingController(
+      text: current == null
+          ? ''
+          : current.toStringAsFixed(2).replaceAll('.', ','),
+    );
+
+    final value = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Valor do jantar'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(
+            labelText: 'Dinner fee amount (€)',
+            helperText: 'Valor fixo usado automaticamente nas vendas do BAR.',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            icon: const Icon(Icons.save_outlined),
+            label: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value == null) return;
+
+    final amount = _settingAmount(value);
+    if (amount == null || amount <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('O valor do jantar tem de ser superior a zero.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      await _repository.saveSetting(
+        key: 'dinner_fee_amount',
+        value: amount.toStringAsFixed(2),
+        settingId: setting?['id']?.toString(),
+      );
+      if (!mounted) return;
+      _reload();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Valor do jantar atualizado para ${_settingMoney(amount)}.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString())),
+      );
+    }
   }
 
   Future<void> _showAuditLog() async {
@@ -133,6 +210,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         final settings = snapshot.data!;
+        final dinnerSetting = _findSetting(settings, 'dinner_fee_amount');
+        final dinnerAmount = _settingAmount(dinnerSetting?['value']);
+        final customSettings = settings
+            .where(
+              (setting) =>
+                  setting['key']?.toString() != 'dinner_fee_amount',
+            )
+            .toList();
+
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -187,6 +273,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 subtitle: Text('A gestão operacional das contas é feita diretamente na Tesouraria.'),
               ),
             ),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.dinner_dining_outlined),
+                title: const Text('Valor do jantar'),
+                subtitle: Text(
+                  dinnerAmount == null || dinnerAmount <= 0
+                      ? 'Ainda não definido. É usado automaticamente nas vendas do BAR.'
+                      : '${_settingMoney(dinnerAmount)} · usado automaticamente nas vendas do BAR.',
+                ),
+                trailing: _canManageSettings
+                    ? const Icon(Icons.edit_outlined)
+                    : const Icon(Icons.lock_outline),
+                onTap: _canManageSettings
+                    ? () => _editDinnerFee(settings)
+                    : null,
+              ),
+            ),
             if (_canManageSettings) ...[
               const SizedBox(height: 8),
               Row(
@@ -196,10 +299,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
               const SizedBox(height: 8),
-              if (settings.isEmpty)
+              if (customSettings.isEmpty)
                 const Card(child: ListTile(title: Text('Sem parâmetros personalizados'), subtitle: Text('Os valores padrão da RC1 estão ativos.')))
               else
-                ...settings.map(
+                ...customSettings.map(
                   (setting) => Card(
                     child: ListTile(
                       title: Text(setting['key']?.toString() ?? ''),
@@ -216,3 +319,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 }
+
+Map<String, dynamic>? _findSetting(
+  List<Map<String, dynamic>> settings,
+  String key,
+) {
+  for (final setting in settings) {
+    if (setting['key']?.toString() == key) return setting;
+  }
+  return null;
+}
+
+double? _settingAmount(Object? value) {
+  final text = value?.toString().trim().replaceAll(',', '.') ?? '';
+  if (text.isEmpty) return null;
+  return double.tryParse(text);
+}
+
+String _settingMoney(double value) =>
+    '${value.toStringAsFixed(2).replaceAll('.', ',')} €';
