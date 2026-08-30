@@ -684,7 +684,6 @@ class _QuantityCard extends StatelessWidget {
     required this.onMinus,
     required this.onPlus,
     required this.canPlus,
-    this.trailing,
   });
 
   final String title;
@@ -694,7 +693,6 @@ class _QuantityCard extends StatelessWidget {
   final VoidCallback onMinus;
   final VoidCallback? onPlus;
   final bool canPlus;
-  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -720,7 +718,6 @@ class _QuantityCard extends StatelessWidget {
                 ],
               ),
             ),
-            if (trailing != null) trailing!,
             IconButton(
               tooltip: 'Diminuir',
               onPressed: quantity > 0 ? onMinus : null,
