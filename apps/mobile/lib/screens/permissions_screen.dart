@@ -445,6 +445,7 @@ const _roles = <_RoleOption>[
   _RoleOption('treasurer', 'Tesoureiro'),
   _RoleOption('secretary', 'Secretário'),
   _RoleOption('road_captain', 'Road Captain'),
+  _RoleOption('sergeant_at_arms', 'Sargento de Armas'),
   _RoleOption('inventory_manager', 'Responsável de Inventário'),
   _RoleOption('event_manager', 'Responsável de Eventos'),
   _RoleOption('euromillions_manager', 'Responsável Euromilhões'),
