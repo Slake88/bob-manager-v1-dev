@@ -37,7 +37,12 @@ class _DocumentLibraryAdvancedScreenState
 
   Future<void> _openManager() async {
     await Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => const DocumentsScreen()),
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Gestão da biblioteca')),
+          body: const DocumentsScreen(),
+        ),
+      ),
     );
     if (!mounted) return;
     setState(_reload);
