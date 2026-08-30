@@ -28,7 +28,9 @@ class _DocumentLibraryAdvancedScreenState
     _reload();
   }
 
-  void _reload() => _future = widget.repository.listDocuments();
+  void _reload() {
+    _future = widget.repository.listDocuments();
+  }
 
   Future<void> _refresh() async {
     setState(_reload);
