@@ -23,7 +23,7 @@ class AppNavigationPolicy {
   static const List<String> compactPriorityCodes = <String>[
     'dashboard',
     'members',
-    'agenda',
+    'bar',
     'events',
   ];
 
