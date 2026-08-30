@@ -28,12 +28,13 @@ enum AppPermission {
   manageEventOperations,
   manageRockRide,
   manageEventFinance,
+  viewBar,
+  manageBar,
+  selectBarFinancialAccount,
   viewInventory,
   manageInventory,
   sellInventory,
   manageMerchandising,
-  manageBar,
-  selectBarFinancialAccount,
   manageAssets,
   performInventoryCount,
   viewDocuments,
@@ -80,12 +81,13 @@ extension AppPermissionMeta on AppPermission {
         AppPermission.manageEventOperations ||
         AppPermission.manageRockRide ||
         AppPermission.manageEventFinance => 'Eventos',
+        AppPermission.viewBar ||
+        AppPermission.manageBar ||
+        AppPermission.selectBarFinancialAccount => 'Bar',
         AppPermission.viewInventory ||
         AppPermission.manageInventory ||
         AppPermission.sellInventory ||
         AppPermission.manageMerchandising ||
-        AppPermission.manageBar ||
-        AppPermission.selectBarFinancialAccount ||
         AppPermission.manageAssets ||
         AppPermission.performInventoryCount => 'Património & Inventário',
         AppPermission.viewDocuments ||
@@ -131,12 +133,13 @@ extension AppPermissionMeta on AppPermission {
         AppPermission.manageEventOperations => 'Gerir operação de eventos',
         AppPermission.manageRockRide => 'Gerir Rock & Ride In',
         AppPermission.manageEventFinance => 'Gerir área financeira de eventos',
+        AppPermission.viewBar => 'Ver Bar',
+        AppPermission.manageBar => 'Gerir Bar, stock e vendas',
+        AppPermission.selectBarFinancialAccount => 'Escolher conta financeira do Bar',
         AppPermission.viewInventory => 'Ver Património & Inventário',
         AppPermission.manageInventory => 'Gerir inventário geral',
         AppPermission.sellInventory => 'Registar vendas',
         AppPermission.manageMerchandising => 'Gerir Loja e merchandising',
-        AppPermission.manageBar => 'Gerir Bar e consumíveis',
-        AppPermission.selectBarFinancialAccount => 'Escolher conta financeira do Bar',
         AppPermission.manageAssets => 'Gerir património e equipamentos',
         AppPermission.performInventoryCount => 'Realizar inventário físico',
         AppPermission.viewDocuments => 'Ver documentos',
@@ -226,14 +229,15 @@ class PermissionPolicy {
         role == AppRole.secretary || role == AppRole.eventsManager,
       AppPermission.manageEventFinance =>
         role == AppRole.treasurer || role == AppRole.eventsManager,
+      AppPermission.viewBar => role != AppRole.unknown,
+      AppPermission.manageBar => role == AppRole.inventoryManager,
+      AppPermission.selectBarFinancialAccount =>
+        role == AppRole.president || role == AppRole.treasurer,
       AppPermission.viewInventory => role != AppRole.unknown,
       AppPermission.manageInventory ||
       AppPermission.manageMerchandising ||
-      AppPermission.manageBar ||
       AppPermission.manageAssets ||
       AppPermission.performInventoryCount => role == AppRole.inventoryManager,
-      AppPermission.selectBarFinancialAccount =>
-        role == AppRole.president || role == AppRole.treasurer,
       AppPermission.sellInventory =>
         role == AppRole.inventoryManager || role == AppRole.treasurer,
       AppPermission.viewDocuments => role != AppRole.unknown,
