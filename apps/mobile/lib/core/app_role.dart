@@ -5,6 +5,7 @@ enum AppRole {
   treasurer,
   secretary,
   roadCaptain,
+  sergeantAtArms,
   inventoryManager,
   eventsManager,
   euromillionsManager,
@@ -40,6 +41,9 @@ enum AppRole {
       'tesoureiro' || 'treasurer' => AppRole.treasurer,
       'secretario' || 'secretary' => AppRole.secretary,
       'road captain' => AppRole.roadCaptain,
+      'sargento de armas' ||
+      'sargento armas' ||
+      'sergeant at arms' => AppRole.sergeantAtArms,
       'responsavel inventario' ||
       'responsavel de inventario' ||
       'inventory manager' => AppRole.inventoryManager,
