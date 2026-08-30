@@ -10,7 +10,7 @@ import 'emergency_screen.dart';
 import 'events_module_screen.dart';
 import 'fees_screen.dart';
 import 'financial_requests_screen.dart';
-import 'inventory_hub_screen.dart';
+import 'inventory_module_screen.dart';
 import 'lottery_screen.dart';
 import 'members_screen.dart';
 import 'reports_hub_screen.dart';
@@ -36,7 +36,7 @@ class ModuleRouter extends StatelessWidget {
       'events' => const EventsModuleScreen(),
       'weekly_officer' => const WeeklyOfficerScreen(),
       'agenda' => const AgendaScreen(),
-      'inventory' => const InventoryHubScreen(),
+      'inventory' => const InventoryModuleScreen(),
       'documents' => const DocumentsModuleScreen(),
       'communication' => const CommunicationScreen(),
       'reports' => const ReportsHubScreen(),
