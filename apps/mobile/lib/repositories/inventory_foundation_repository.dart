@@ -13,10 +13,11 @@ class InventoryFoundationRepository {
 
   Future<Map<String, dynamic>> summary() async {
     if (AppConfig.demoMode) {
-      final products = await _dataService.list('products');
+      final products = (await _dataService.list('products'))
+          .where((row) => row['inventory_area'] != 'bar')
+          .toList();
       return {
         'shop_products': products.length,
-        'bar_products': 0,
         'assets': 0,
         'low_stock': products.where((row) {
           final current = _asDouble(row['current_stock']);
@@ -42,7 +43,8 @@ class InventoryFoundationRepository {
           .from('products')
           .select('inventory_area,current_stock,reserved_stock,minimum_stock,cost')
           .eq('club_id', clubId)
-          .eq('active', true),
+          .eq('active', true)
+          .neq('inventory_area', 'bar'),
     );
     final assetRows = List<Map<String, dynamic>>.from(
       await _client
@@ -52,17 +54,10 @@ class InventoryFoundationRepository {
           .eq('active', true),
     );
 
-    var shopProducts = 0;
-    var barProducts = 0;
     var lowStock = 0;
     var reservedUnits = 0.0;
     var stockValue = 0.0;
     for (final row in productRows) {
-      if (row['inventory_area'] == 'bar') {
-        barProducts++;
-      } else {
-        shopProducts++;
-      }
       final current = _asDouble(row['current_stock']);
       final minimum = _asDouble(row['minimum_stock']);
       if (current <= minimum) lowStock++;
@@ -71,8 +66,7 @@ class InventoryFoundationRepository {
     }
 
     return {
-      'shop_products': shopProducts,
-      'bar_products': barProducts,
+      'shop_products': productRows.length,
       'assets': assetRows.length,
       'low_stock': lowStock,
       'reserved_units': reservedUnits,
