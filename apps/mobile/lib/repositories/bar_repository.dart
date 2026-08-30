@@ -14,7 +14,7 @@ class BarRepository {
   }
 
   Future<List<Map<String, dynamic>>> products() async {
-    _require(AppPermission.viewInventory);
+    _require(AppPermission.viewBar);
     final response = await _client
         .from('products')
         .select('id,name,sku,category,description,supplier,unit,cost,sale_price,minimum_stock,current_stock,purchase_unit,consumption_unit,units_per_purchase,purchase_cost,active')
@@ -26,7 +26,7 @@ class BarRepository {
   }
 
   Future<List<Map<String, dynamic>>> events() async {
-    _require(AppPermission.viewInventory);
+    _require(AppPermission.viewBar);
     final response = await _client
         .from('events')
         .select('id,name,starts_at,status')
@@ -48,7 +48,7 @@ class BarRepository {
   }
 
   Future<List<Map<String, dynamic>>> operations({int limit = 100}) async {
-    _require(AppPermission.viewInventory);
+    _require(AppPermission.viewBar);
     final response = await _client
         .from('bar_operations')
         .select(
