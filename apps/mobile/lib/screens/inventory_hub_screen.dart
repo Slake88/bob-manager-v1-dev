@@ -4,7 +4,6 @@ import '../core/app_config.dart';
 import '../repositories/inventory_foundation_repository.dart';
 import 'assets_module_screen.dart';
 import 'assets_qr_screen.dart';
-import 'bar_screen_v3.dart';
 import 'inventory_locations_screen.dart';
 import 'inventory_movements_screen.dart';
 import 'physical_inventory_screen.dart';
@@ -37,7 +36,7 @@ class _InventoryHubScreenState extends State<InventoryHubScreen> {
     final demo = AppConfig.demoMode;
 
     return DefaultTabController(
-      length: 9,
+      length: 8,
       child: Column(
         children: [
           Material(
@@ -47,7 +46,6 @@ class _InventoryHubScreenState extends State<InventoryHubScreen> {
                 Tab(text: 'Resumo', icon: Icon(Icons.dashboard_outlined)),
                 Tab(text: 'Loja', icon: Icon(Icons.storefront_outlined)),
                 Tab(text: 'Fotos', icon: Icon(Icons.photo_library_outlined)),
-                Tab(text: 'Bar', icon: Icon(Icons.local_bar_outlined)),
                 Tab(
                   text: 'Património',
                   icon: Icon(Icons.home_repair_service_outlined),
@@ -85,14 +83,6 @@ class _InventoryHubScreenState extends State<InventoryHubScreen> {
                             'A galeria de produtos depende do Storage e dos registos reais do inventário.',
                       )
                     : const ProductPhotosScreen(),
-                demo
-                    ? const _InventoryDemoPreview(
-                        title: 'Bar',
-                        icon: Icons.local_bar_outlined,
-                        description:
-                            'Stocks, consumos, compras e operações do Bar são carregados do ambiente real.',
-                      )
-                    : const BarScreenV3(),
                 demo
                     ? const _InventoryDemoPreview(
                         title: 'Património',
@@ -247,7 +237,7 @@ class _SummaryTab extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               const Text(
-                'Visão global da Loja, Bar e património relevante do clube.',
+                'Visão global da Loja, património e inventário físico do clube.',
               ),
               const SizedBox(height: 16),
               Wrap(
@@ -258,11 +248,6 @@ class _SummaryTab extends StatelessWidget {
                     'Loja',
                     '${data['shop_products'] ?? 0}',
                     Icons.storefront_outlined,
-                  ),
-                  _Metric(
-                    'Bar',
-                    '${data['bar_products'] ?? 0}',
-                    Icons.local_bar_outlined,
                   ),
                   _Metric(
                     'Património',
