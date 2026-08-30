@@ -1,6 +1,9 @@
 import 'package:bob_manager_mobile/core/app_role.dart';
 import 'package:bob_manager_mobile/core/permissions.dart';
 import 'package:bob_manager_mobile/repositories/document_repository.dart';
+import 'package:bob_manager_mobile/repositories/documents_advanced_repository.dart';
+import 'package:bob_manager_mobile/screens/document_library_advanced_screen.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -60,5 +63,31 @@ void main() {
       ),
       isTrue,
     );
+  });
+
+  testWidgets('gestão da biblioteca tem navegação de regresso própria', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DocumentLibraryAdvancedScreen(
+            repository: DocumentsAdvancedRepository(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Gestão da biblioteca'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BackButton), findsOneWidget);
+    expect(find.text('Gestão da biblioteca'), findsWidgets);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Arquivo documental'), findsOneWidget);
   });
 }
