@@ -69,7 +69,7 @@ class _ShellScreenState extends State<ShellScreen> {
       'fees' => session.can(AppPermission.viewFees),
       'lottery' => session.can(AppPermission.viewLottery),
       'events' => session.can(AppPermission.viewEvents),
-      'bar' => session.can(AppPermission.viewInventory),
+      'bar' => session.can(AppPermission.viewBar),
       'inventory' => session.can(AppPermission.viewInventory),
       'documents' => session.can(AppPermission.viewDocuments),
       'communication' => session.can(AppPermission.viewCommunication),
