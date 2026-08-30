@@ -19,6 +19,7 @@ const ASSIGNABLE_ROLES = new Set([
   'treasurer',
   'secretary',
   'road_captain',
+  'sergeant_at_arms',
   'inventory_manager',
   'event_manager',
   'events_manager',
@@ -389,7 +390,7 @@ Deno.serve(async (req: Request) => {
       const { error: unbanError } = await admin.auth.admin.updateUserById(profileId, { ban_duration: 'none' });
       if (unbanError) throw unbanError;
       await audit(admin, clubId, caller.id, 'unblock', profileId, { access_role: targetMembership.access_role });
-      return response({ ok: true });
+      return response({ ok: true, access_state: 'active' });
     }
 
     if (action === 'change_role') {
