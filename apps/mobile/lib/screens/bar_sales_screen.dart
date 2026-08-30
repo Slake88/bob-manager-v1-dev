@@ -143,55 +143,6 @@ class _BarSalesScreenState extends State<BarSalesScreen> {
     return applied;
   }
 
-  Future<void> _editPreset(Map<String, dynamic> preset) async {
-    if (!_repository.canManage) return;
-    final controller = TextEditingController(
-      text: _number(preset['unit_price']),
-    );
-    final result = await showDialog<double>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Preço · ${preset['name'] ?? 'Item fixo'}'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-            labelText: 'Preço unitário (€)',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final price = _parse(controller.text);
-              if (price < 0) return;
-              Navigator.pop(dialogContext, price);
-            },
-            child: const Text('Guardar'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (result == null) return;
-    try {
-      await _repository.updatePresetPrice(
-        presetId: preset['id'].toString(),
-        price: result,
-      );
-      if (!mounted) return;
-      setState(() => _future = _load());
-      _message('Preço atualizado.');
-    } catch (error) {
-      _message(error.toString());
-    }
-  }
-
   Future<void> _addOther() async {
     if (!_repository.canManage) return;
     final result = await showDialog<_OtherSaleLine>(
@@ -322,7 +273,9 @@ class _BarSalesScreenState extends State<BarSalesScreen> {
       if (!mounted) return;
       final finalTotal = _double(result['total']);
       _resetLocal();
-      setState(() => _future = _load());
+      setState(() {
+        _future = _load();
+      });
       _message('Venda concluída · ${_money(finalTotal)}. Stock atualizado.');
     } catch (error) {
       _message(error.toString());
@@ -586,13 +539,17 @@ class _BarSalesScreenState extends State<BarSalesScreen> {
                           .titleLarge
                           ?.copyWith(fontWeight: FontWeight.w900),
                     ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'O valor do Jantar é definido em Configurações e aplicado automaticamente.',
+                    ),
                     const SizedBox(height: 8),
                     for (final preset in data.presets)
                       _QuantityCard(
                         title: preset['name']?.toString() ?? 'Item',
                         subtitle: _double(preset['unit_price']) > 0
                             ? _money(preset['unit_price'])
-                            : 'Preço ainda por definir',
+                            : 'Define o valor em Configurações',
                         quantity: _presetQuantities[preset['id']?.toString()] ?? 0,
                         lineTotal:
                             (_presetQuantities[preset['id']?.toString()] ?? 0) *
@@ -608,11 +565,6 @@ class _BarSalesScreenState extends State<BarSalesScreen> {
                                 )
                             : null,
                         canPlus: _double(preset['unit_price']) > 0,
-                        trailing: IconButton(
-                          tooltip: 'Alterar preço',
-                          onPressed: () => _editPreset(preset),
-                          icon: const Icon(Icons.edit_outlined),
-                        ),
                       ),
                   ],
                   const SizedBox(height: 14),
