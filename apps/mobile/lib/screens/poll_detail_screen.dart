@@ -37,31 +37,50 @@ class _PollDetailScreenState extends State<PollDetailScreen> {
     if (_selected.isEmpty && values[1].isNotEmpty) {
       _selected.addAll(values[1].map((row) => row['option_id'].toString()));
     }
-    return _PollDetailData(options: values[0], ownVotes: values[1], results: values[2]);
+    return _PollDetailData(
+      options: values[0],
+      ownVotes: values[1],
+      results: values[2],
+    );
   }
 
-  void _reload() {
+  Future<void> _refreshDetail() async {
     if (!mounted) return;
-    setState(() => _future = _load());
+    final next = _load();
+    setState(() {
+      _future = next;
+    });
+    await next;
   }
 
   Future<void> _vote() async {
     if (_submitting) return;
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+    });
     try {
-      await widget.repository.castVote(widget.poll['id'].toString(), _selected);
+      await widget.repository.castVote(
+        widget.poll['id'].toString(),
+        _selected,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Voto submetido. Não pode ser alterado.')),
+        const SnackBar(
+          content: Text('Voto submetido. Não pode ser alterado.'),
+        ),
       );
-      _reload();
+      await _refreshDetail();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_friendly(error))),
       );
     } finally {
-      if (mounted) setState(() => _submitting = false);
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+        });
+      }
     }
   }
 
@@ -133,12 +152,25 @@ class _PollDetailScreenState extends State<PollDetailScreen> {
       appBar: AppBar(
         title: Text(pollTypeLabel(poll['poll_type'])),
         actions: [
+          IconButton(
+            tooltip: 'Atualizar',
+            onPressed: () {
+              _refreshDetail();
+            },
+            icon: const Icon(Icons.refresh),
+          ),
           if (widget.repository.canManage && status == 'published')
             PopupMenuButton<String>(
               onSelected: _setStatus,
               itemBuilder: (_) => const [
-                PopupMenuItem(value: 'closed', child: Text('Encerrar votação')),
-                PopupMenuItem(value: 'cancelled', child: Text('Cancelar votação')),
+                PopupMenuItem(
+                  value: 'closed',
+                  child: Text('Encerrar votação'),
+                ),
+                PopupMenuItem(
+                  value: 'cancelled',
+                  child: Text('Cancelar votação'),
+                ),
               ],
             ),
         ],
@@ -147,19 +179,27 @@ class _PollDetailScreenState extends State<PollDetailScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return _DetailError(error: snapshot.error!, onRetry: _reload);
+            return _DetailError(
+              error: snapshot.error!,
+              onRetry: () {
+                _refreshDetail();
+              },
+            );
           }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
           final data = snapshot.data!;
           final alreadyVoted = data.ownVotes.isNotEmpty;
-          final canVoteNow = widget.repository.isEligible && pollIsOpen(poll) && !alreadyVoted;
+          final canVoteNow =
+              widget.repository.isEligible && pollIsOpen(poll) && !alreadyVoted;
           final counts = <String, int>{
             for (final row in data.results)
-              row['option_id'].toString(): int.tryParse(row['vote_count']?.toString() ?? '') ?? 0,
+              row['option_id'].toString():
+                  int.tryParse(row['vote_count']?.toString() ?? '') ?? 0,
           };
-          final totalVotes = counts.values.fold<int>(0, (sum, value) => sum + value);
+          final totalVotes =
+              counts.values.fold<int>(0, (sum, value) => sum + value);
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
@@ -178,8 +218,16 @@ class _PollDetailScreenState extends State<PollDetailScreen> {
                 runSpacing: 6,
                 children: [
                   Chip(label: Text(pollStatusLabel(effectiveStatus))),
-                  Chip(label: Text(poll['anonymous'] == true ? 'Anónima' : 'Identificada')),
-                  Chip(label: Text(multiple ? 'Escolha múltipla' : 'Escolha única')),
+                  Chip(
+                    label: Text(
+                      poll['anonymous'] == true ? 'Anónima' : 'Identificada',
+                    ),
+                  ),
+                  Chip(
+                    label: Text(
+                      multiple ? 'Escolha múltipla' : 'Escolha única',
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -195,7 +243,9 @@ class _PollDetailScreenState extends State<PollDetailScreen> {
                   child: ListTile(
                     leading: Icon(Icons.edit_note_outlined),
                     title: Text('Rascunho'),
-                    subtitle: Text('Revê as opções e publica quando estiver pronto.'),
+                    subtitle: Text(
+                      'Revê as opções e publica quando estiver pronto.',
+                    ),
                   ),
                 ),
                 for (final option in data.options)
@@ -205,7 +255,9 @@ class _PollDetailScreenState extends State<PollDetailScreen> {
                   ),
               ] else ...[
                 Text(
-                  alreadyVoted ? 'O teu voto' : 'Seleciona ${multiple ? 'as opções' : 'uma opção'}',
+                  alreadyVoted
+                      ? 'O teu voto'
+                      : 'Seleciona ${multiple ? 'as opções' : 'uma opção'}',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 6),
@@ -234,7 +286,9 @@ class _PollDetailScreenState extends State<PollDetailScreen> {
                     child: ListTile(
                       leading: Icon(Icons.verified_outlined),
                       title: Text('Voto submetido'),
-                      subtitle: Text('Por integridade da votação, o voto não pode ser editado nem apagado.'),
+                      subtitle: Text(
+                        'Por integridade da votação, o voto não pode ser editado nem apagado.',
+                      ),
                     ),
                   )
                 else if (!widget.repository.isEligible)
@@ -248,23 +302,34 @@ class _PollDetailScreenState extends State<PollDetailScreen> {
                   const Card(
                     child: ListTile(
                       leading: Icon(Icons.schedule_outlined),
-                      title: Text('A votação não está aberta neste momento.'),
+                      title: Text(
+                        'A votação não está aberta neste momento.',
+                      ),
                     ),
                   ),
               ],
               const Divider(height: 30),
-              Text('Resultados', style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                'Resultados',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               const SizedBox(height: 8),
               if (!resultsVisible)
                 const Card(
                   child: ListTile(
                     leading: Icon(Icons.visibility_off_outlined),
                     title: Text('Resultados ainda ocultos'),
-                    subtitle: Text('Ficam disponíveis após o encerramento desta votação.'),
+                    subtitle: Text(
+                      'Ficam disponíveis após o encerramento desta votação.',
+                    ),
                   ),
                 )
               else ...[
-                Text(totalVotes == 1 ? '1 seleção registada' : '$totalVotes seleções registadas'),
+                Text(
+                  totalVotes == 1
+                      ? '1 seleção registada'
+                      : '$totalVotes seleções registadas',
+                ),
                 const SizedBox(height: 8),
                 for (final option in data.options)
                   _ResultRow(
@@ -309,12 +374,15 @@ class _PollDetailScreenState extends State<PollDetailScreen> {
             );
           }
           final alreadyVoted = data.ownVotes.isNotEmpty;
-          if (widget.repository.isEligible && pollIsOpen(poll) && !alreadyVoted) {
+          if (widget.repository.isEligible &&
+              pollIsOpen(poll) &&
+              !alreadyVoted) {
             return SafeArea(
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: FilledButton.icon(
-                  onPressed: _selected.isEmpty || _submitting ? null : _vote,
+                  onPressed:
+                      _selected.isEmpty || _submitting ? null : _vote,
                   icon: _submitting
                       ? const SizedBox(
                           width: 18,
@@ -322,7 +390,9 @@ class _PollDetailScreenState extends State<PollDetailScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.how_to_vote_outlined),
-                  label: Text(_submitting ? 'A submeter…' : 'Submeter voto'),
+                  label: Text(
+                    _submitting ? 'A submeter…' : 'Submeter voto',
+                  ),
                 ),
               ),
             );
@@ -370,7 +440,9 @@ class _VoteOption extends StatelessWidget {
         leading: Icon(
           selected
               ? (multiple ? Icons.check_box : Icons.radio_button_checked)
-              : (multiple ? Icons.check_box_outline_blank : Icons.radio_button_unchecked),
+              : (multiple
+                  ? Icons.check_box_outline_blank
+                  : Icons.radio_button_unchecked),
         ),
         title: Text(label),
       ),
@@ -379,7 +451,11 @@ class _VoteOption extends StatelessWidget {
 }
 
 class _ResultRow extends StatelessWidget {
-  const _ResultRow({required this.label, required this.count, required this.total});
+  const _ResultRow({
+    required this.label,
+    required this.count,
+    required this.total,
+  });
 
   final String label;
   final int count;
