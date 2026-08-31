@@ -69,13 +69,44 @@ Critérios:
 - confirmar receitas, despesas e resultado por evento;
 - validar permissões de Eventos, Secretaria e Road Captain.
 
+## BAR V4
+
+Estado: **validado funcionalmente em 31/08/2026** no ambiente real ligado ao Supabase.
+
+- BAR disponível diretamente na navegação principal;
+- separadores Stock, Venda e Movimentos carregam sem ecrã vermelho;
+- criar e editar artigo do BAR;
+- configurar embalagem/unidade base e conversão de stock;
+- configurar múltiplas formas de venda no mesmo artigo, incluindo Shot e Dose;
+- confirmar que Shot e Dose descontam do mesmo stock físico;
+- configurar quantidade consumida por forma de venda;
+- configurar preço Público e preço Membro por forma de venda;
+- selecionar Público ou Membro na venda e aplicar automaticamente a tabela correta;
+- selecionar membro existente quando a venda é a preço de membro;
+- usar conta/nome de grupo quando aplicável;
+- configurar o valor do Jantar em Configurações e utilizá-lo automaticamente na venda;
+- adicionar item genérico Outro com descrição, quantidade e valor;
+- concluir venda e confirmar baixa automática de stock;
+- confirmar que uma venda com várias formas do mesmo produto não permite ultrapassar o stock disponível;
+- confirmar criação de uma única receita automática na Tesouraria/Club House;
+- confirmar método de pagamento e total da venda;
+- confirmar que venda concluída mantém histórico da forma de venda, quantidade de stock consumida e preço aplicado;
+- confirmar utilizador, data e hora nos Movimentos do BAR;
+- confirmar múltiplas fotografias de cartão de consumo;
+- confirmar que OCR apenas cria sugestões e nunca altera stock/Tesouraria antes da confirmação;
+- confirmar que OCR distingue Shot/Dose apenas quando a informação é inequívoca;
+- confirmar rollback transacional em caso de stock insuficiente;
+- confirmar persistência dos dados após atualização;
+- confirmar que a Auditoria regista utilizador, data/hora e valores antes/depois para as operações do BAR.
+
+Resultado dos testes reais: **aprovado**.
+
 ## Inventário
 
 - criar e editar produto;
 - registar entrada, saída e ajuste;
 - reservar e libertar stock;
-- impedir venda de stock indisponível ou reservado;
-- registar venda e confirmar receita automática na conta Club House;
+- impedir saída de stock indisponível ou reservado;
 - confirmar alerta de stock mínimo.
 
 ## Documentos
@@ -101,7 +132,10 @@ Critérios:
 - criar e editar configuração;
 - consultar auditoria;
 - confirmar que membro comum não acede;
-- verificar registo de utilizador, ação e data.
+- verificar registo de utilizador, ação e data/hora;
+- abrir detalhe de auditoria e confirmar valores antes/depois;
+- confirmar que operações técnicas/derivadas não poluem a auditoria;
+- confirmar preservação do anonimato dos votos.
 
 ## Registo de resultado
 
