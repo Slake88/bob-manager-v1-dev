@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../core/app_session.dart';
 import '../core/permissions.dart';
@@ -44,21 +47,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _editSetting([Map<String, dynamic>? setting]) async {
     if (!_canManageSettings) return;
-    final keyController = TextEditingController(text: setting?['key']?.toString() ?? '');
-    final valueController = TextEditingController(text: setting?['value']?.toString() ?? '');
+    final keyController =
+        TextEditingController(text: setting?['key']?.toString() ?? '');
+    final valueController =
+        TextEditingController(text: setting?['value']?.toString() ?? '');
     final saved = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(setting == null ? 'Nova configuração' : 'Editar configuração'),
+        title: Text(
+          setting == null ? 'Nova configuração' : 'Editar configuração',
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: keyController, decoration: const InputDecoration(labelText: 'Chave')),
-            TextField(controller: valueController, decoration: const InputDecoration(labelText: 'Valor')),
+            TextField(
+              controller: keyController,
+              decoration: const InputDecoration(labelText: 'Chave'),
+            ),
+            TextField(
+              controller: valueController,
+              decoration: const InputDecoration(labelText: 'Valor'),
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
           FilledButton(
             onPressed: () async {
               if (keyController.text.trim().isEmpty) return;
@@ -163,23 +179,111 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Auditoria'),
         content: SizedBox(
-          width: 620,
+          width: 760,
+          height: MediaQuery.sizeOf(context).height * 0.68,
           child: rows.isEmpty
-              ? const Text('Ainda não existem registos de auditoria.')
-              : ListView.builder(
-                  shrinkWrap: true,
+              ? const Center(
+                  child: Text('Ainda não existem registos de auditoria.'),
+                )
+              : ListView.separated(
                   itemCount: rows.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final row = rows[index];
+                    final actor = _auditActor(row);
+                    final moment = _auditMoment(row['created_at']);
+                    final entity = _auditEntity(row['entity_type']);
+                    final action = _auditAction(row['action']);
                     return ListTile(
-                      leading: const Icon(Icons.history),
-                      title: Text(row['description']?.toString() ?? row['action']?.toString() ?? 'Alteração'),
-                      subtitle: Text(row['created_at']?.toString() ?? ''),
+                      leading: const CircleAvatar(
+                        child: Icon(Icons.history_outlined),
+                      ),
+                      title: Text('$action · $entity'),
+                      subtitle: Text('$actor\n$moment'),
+                      isThreeLine: true,
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _showAuditDetail(row),
                     );
                   },
                 ),
         ),
-        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Fechar'))],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fechar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAuditDetail(Map<String, dynamic> row) async {
+    if (!mounted) return;
+    final actor = _auditActor(row);
+    final moment = _auditMoment(row['created_at']);
+    final entity = _auditEntity(row['entity_type']);
+    final action = _auditAction(row['action']);
+    final entityId = row['entity_id']?.toString();
+    final before = _auditJson(row['before_data']);
+    final after = _auditJson(row['after_data']);
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('$action · $entity'),
+        content: SizedBox(
+          width: 720,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.person_outline),
+                  title: const Text('Utilizador'),
+                  subtitle: Text(actor),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.schedule_outlined),
+                  title: const Text('Data e hora'),
+                  subtitle: Text(moment),
+                ),
+                if (entityId != null && entityId.isNotEmpty)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.tag_outlined),
+                    title: const Text('ID do registo'),
+                    subtitle: SelectableText(entityId),
+                  ),
+                if (before != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Antes',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 6),
+                  SelectableText(before),
+                ],
+                if (after != null) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    'Depois',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 6),
+                  SelectableText(after),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Fechar'),
+          ),
+        ],
       ),
     );
   }
@@ -214,8 +318,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final dinnerAmount = _settingAmount(dinnerSetting?['value']);
         final customSettings = settings
             .where(
-              (setting) =>
-                  setting['key']?.toString() != 'dinner_fee_amount',
+              (setting) => setting['key']?.toString() != 'dinner_fee_amount',
             )
             .toList();
 
@@ -228,7 +331,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                Text('Administração', style: Theme.of(context).textTheme.headlineSmall),
+                Text(
+                  'Administração',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
                 if (_canManageSettings)
                   OutlinedButton.icon(
                     onPressed: _showAuditLog,
@@ -262,7 +368,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ? 'Definir o que cada cargo e utilizador pode ver e fazer.'
                       : 'A gestão da matriz de permissões é exclusiva do Super Admin.',
                 ),
-                trailing: AppSession.instance.superAdmin ? const Icon(Icons.chevron_right) : const Icon(Icons.lock_outline),
+                trailing: AppSession.instance.superAdmin
+                    ? const Icon(Icons.chevron_right)
+                    : const Icon(Icons.lock_outline),
                 onTap: AppSession.instance.superAdmin ? _openPermissions : null,
               ),
             ),
@@ -270,7 +378,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: ListTile(
                 leading: Icon(Icons.account_balance_outlined),
                 title: Text('Contas e centros de custo'),
-                subtitle: Text('A gestão operacional das contas é feita diretamente na Tesouraria.'),
+                subtitle: Text(
+                  'A gestão operacional das contas é feita diretamente na Tesouraria.',
+                ),
               ),
             ),
             Card(
@@ -294,13 +404,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Expanded(child: Text('Parâmetros do clube', style: Theme.of(context).textTheme.titleLarge)),
-                  FilledButton.icon(onPressed: () => _editSetting(), icon: const Icon(Icons.add), label: const Text('Novo')),
+                  Expanded(
+                    child: Text(
+                      'Parâmetros do clube',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  FilledButton.icon(
+                    onPressed: () => _editSetting(),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Novo'),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
               if (customSettings.isEmpty)
-                const Card(child: ListTile(title: Text('Sem parâmetros personalizados'), subtitle: Text('Os valores padrão da RC1 estão ativos.')))
+                const Card(
+                  child: ListTile(
+                    title: Text('Sem parâmetros personalizados'),
+                    subtitle: Text('Os valores padrão da RC1 estão ativos.'),
+                  ),
+                )
               else
                 ...customSettings.map(
                   (setting) => Card(
@@ -338,3 +462,52 @@ double? _settingAmount(Object? value) {
 
 String _settingMoney(double value) =>
     '${value.toStringAsFixed(2).replaceAll('.', ',')} €';
+
+String _auditActor(Map<String, dynamic> row) {
+  final actor = row['actor'];
+  if (actor is Map) {
+    final name = actor['full_name']?.toString().trim() ?? '';
+    final email = actor['email']?.toString().trim() ?? '';
+    if (name.isNotEmpty && email.isNotEmpty) return '$name · $email';
+    if (name.isNotEmpty) return name;
+    if (email.isNotEmpty) return email;
+  }
+  final actorId = row['actor_id']?.toString().trim() ?? '';
+  if (actorId.isEmpty) return 'Sistema / automatismo';
+  return 'Utilizador $actorId';
+}
+
+String _auditMoment(Object? value) {
+  final parsed = DateTime.tryParse(value?.toString() ?? '')?.toLocal();
+  if (parsed == null) return value?.toString() ?? 'Data desconhecida';
+  return DateFormat('dd/MM/yyyy HH:mm:ss').format(parsed);
+}
+
+String _auditAction(Object? value) {
+  return switch (value?.toString()) {
+    'created' => 'Criado',
+    'updated' => 'Alterado',
+    'deleted' => 'Eliminado',
+    'insert' => 'Criado',
+    'update' => 'Alterado',
+    'upsert' => 'Criado/alterado',
+    final String text when text.isNotEmpty => text,
+    _ => 'Alteração',
+  };
+}
+
+String _auditEntity(Object? value) {
+  final text = value?.toString().trim() ?? '';
+  if (text.isEmpty) return 'Registo';
+  final normalized = text.replaceAll('_', ' ');
+  return '${normalized[0].toUpperCase()}${normalized.substring(1)}';
+}
+
+String? _auditJson(Object? value) {
+  if (value == null) return null;
+  try {
+    return const JsonEncoder.withIndent('  ').convert(value);
+  } catch (_) {
+    return value.toString();
+  }
+}
