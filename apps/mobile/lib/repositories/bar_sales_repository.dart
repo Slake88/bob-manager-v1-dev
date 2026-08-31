@@ -34,12 +34,45 @@ class BarSalesRepository {
     final response = await _client
         .from('products')
         .select(
-          'id,name,category,consumption_unit,current_stock,sale_price,minimum_stock,active',
+          'id,name,category,consumption_unit,current_stock,minimum_stock,active,'
+          'bar_product_sale_options(id,name,stock_quantity,public_price,member_price,sort_order,active)',
         )
         .eq('club_id', _clubId)
         .eq('inventory_area', 'bar')
         .eq('active', true)
         .order('name');
+    final rows = List<Map<String, dynamic>>.from(response);
+    for (final product in rows) {
+      final raw = product['bar_product_sale_options'];
+      final options = raw is List
+          ? raw
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .where((row) => row['active'] != false)
+              .toList()
+          : <Map<String, dynamic>>[];
+      options.sort((a, b) {
+        final aSort = (a['sort_order'] as num?)?.toInt() ?? 0;
+        final bSort = (b['sort_order'] as num?)?.toInt() ?? 0;
+        final bySort = aSort.compareTo(bSort);
+        if (bySort != 0) return bySort;
+        return (a['name']?.toString() ?? '')
+            .compareTo(b['name']?.toString() ?? '');
+      });
+      product['sale_options'] = options;
+    }
+    return rows;
+  }
+
+  Future<List<Map<String, dynamic>>> members() async {
+    _requireView();
+    if (AppConfig.demoMode) return const [];
+    final response = await _client
+        .from('members')
+        .select('id,member_number,full_name,nickname,status')
+        .eq('club_id', _clubId)
+        .inFilter('status', const ['active', 'full_color', 'honorary'])
+        .order('full_name');
     return List<Map<String, dynamic>>.from(response);
   }
 
@@ -54,24 +87,6 @@ class BarSalesRepository {
         .order('sort_order')
         .order('name');
     return List<Map<String, dynamic>>.from(response);
-  }
-
-  Future<void> updatePresetPrice({
-    required String presetId,
-    required double price,
-  }) async {
-    _requireManage();
-    if (price < 0) throw ArgumentError('O preço não pode ser negativo.');
-    if (AppConfig.demoMode) return;
-    await _client
-        .from('bar_sale_presets')
-        .update({
-          'unit_price': price,
-          'updated_by': _client.auth.currentUser?.id,
-          'updated_at': DateTime.now().toUtc().toIso8601String(),
-        })
-        .eq('club_id', _clubId)
-        .eq('id', presetId);
   }
 
   Future<List<Map<String, dynamic>>> events() async {
@@ -103,8 +118,10 @@ class BarSalesRepository {
     final response = await _client
         .from('bar_sales')
         .select(
-          'id,source_mode,status,customer_label,payment_method,total_amount,notes,created_at,completed_at,event_id,events(name),'
-          'bar_sale_items(id,item_kind,description,quantity,unit_price,line_total),'
+          'id,source_mode,status,customer_label,customer_type,member_id,payment_method,total_amount,notes,created_at,completed_at,completed_by,event_id,'
+          'events(name),member:members!bar_sales_member_id_fkey(id,full_name,nickname),'
+          'completed_actor:profiles!bar_sales_completed_by_fkey(full_name,email),'
+          'bar_sale_items(id,item_kind,description,quantity,unit_price,line_total,sale_option_name,stock_quantity_per_unit,price_tier),'
           'bar_sale_attachments(id,original_file_name,mime_type,file_size,ocr_status,ocr_confidence)',
         )
         .eq('club_id', _clubId)
@@ -117,6 +134,8 @@ class BarSalesRepository {
   Future<String> createDraft({
     String sourceMode = 'manual',
     String? customerLabel,
+    String customerType = 'public',
+    String? memberId,
     String? eventId,
     String? notes,
   }) async {
@@ -125,10 +144,12 @@ class BarSalesRepository {
       throw StateError('As vendas reais não estão disponíveis em Demo.');
     }
     final response = await _client.rpc(
-      'create_bar_sale_v1',
+      'create_bar_sale_v2',
       params: {
         'target_club': _clubId,
         'p_customer_label': _emptyToNull(customerLabel),
+        'p_customer_type': customerType,
+        'p_member': memberId,
         'p_source_mode': sourceMode,
         'p_event': eventId,
         'p_notes': _emptyToNull(notes),
@@ -253,6 +274,8 @@ class BarSalesRepository {
     required String saleId,
     required List<Map<String, dynamic>> lines,
     required String paymentMethod,
+    required String customerType,
+    String? memberId,
     String? accountId,
     String? customerLabel,
     String? eventId,
@@ -267,7 +290,7 @@ class BarSalesRepository {
       throw StateError('Sem permissão para escolher a conta financeira.');
     }
     final response = await _client.rpc(
-      'complete_bar_sale_v1',
+      'complete_bar_sale_v2',
       params: {
         'target_club': _clubId,
         'p_sale': saleId,
@@ -275,6 +298,8 @@ class BarSalesRepository {
         'p_payment_method': paymentMethod,
         'p_account': accountId,
         'p_customer_label': _emptyToNull(customerLabel),
+        'p_customer_type': customerType,
+        'p_member': memberId,
         'p_event': eventId,
         'p_notes': _emptyToNull(notes),
       },
