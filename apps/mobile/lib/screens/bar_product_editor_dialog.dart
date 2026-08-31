@@ -28,76 +28,55 @@ class _BarProductEditorDialogState extends State<BarProductEditorDialog> {
       purchaseUnit: 'Barril 50 L',
       stockUnit: 'Copo 0,25 L',
       conversion: 200,
-      options: [
-        _PresetOption('Copo 0,25 L', 1),
-      ],
+      options: [_PresetOption('Copo 0,25 L', 1)],
     ),
     'Barril 30 L → Copo 0,25 L': _ProductPreset(
       purchaseUnit: 'Barril 30 L',
       stockUnit: 'Copo 0,25 L',
       conversion: 120,
-      options: [
-        _PresetOption('Copo 0,25 L', 1),
-      ],
+      options: [_PresetOption('Copo 0,25 L', 1)],
     ),
     'Garrafa 700 ml → Shot / Dose': _ProductPreset(
       purchaseUnit: 'Garrafa 700 ml',
       stockUnit: 'ml',
       conversion: 700,
-      options: [
-        _PresetOption('Shot', 25),
-        _PresetOption('Dose', 50),
-      ],
+      options: [_PresetOption('Shot', 25), _PresetOption('Dose', 50)],
     ),
     'Garrafa 750 ml → Shot / Dose': _ProductPreset(
       purchaseUnit: 'Garrafa 750 ml',
       stockUnit: 'ml',
       conversion: 750,
-      options: [
-        _PresetOption('Shot', 25),
-        _PresetOption('Dose', 50),
-      ],
+      options: [_PresetOption('Shot', 25), _PresetOption('Dose', 50)],
     ),
     'Garrafa 1 L → Shot / Dose': _ProductPreset(
       purchaseUnit: 'Garrafa 1 L',
       stockUnit: 'ml',
       conversion: 1000,
-      options: [
-        _PresetOption('Shot', 25),
-        _PresetOption('Dose', 50),
-      ],
+      options: [_PresetOption('Shot', 25), _PresetOption('Dose', 50)],
     ),
     'Pack 6 → Unidade': _ProductPreset(
       purchaseUnit: 'Pack 6',
       stockUnit: 'unidade',
       conversion: 6,
-      options: [
-        _PresetOption('Unidade', 1),
-      ],
+      options: [_PresetOption('Unidade', 1)],
     ),
     'Caixa 24 → Unidade': _ProductPreset(
       purchaseUnit: 'Caixa 24',
       stockUnit: 'unidade',
       conversion: 24,
-      options: [
-        _PresetOption('Unidade', 1),
-      ],
+      options: [_PresetOption('Unidade', 1)],
     ),
     'Caixa 33 → Unidade': _ProductPreset(
       purchaseUnit: 'Caixa 33',
       stockUnit: 'unidade',
       conversion: 33,
-      options: [
-        _PresetOption('Unidade', 1),
-      ],
+      options: [_PresetOption('Unidade', 1)],
     ),
     'Personalizado': _ProductPreset(
       purchaseUnit: '',
       stockUnit: '',
       conversion: 1,
-      options: [
-        _PresetOption('Unidade', 1),
-      ],
+      options: [_PresetOption('Unidade', 1)],
     ),
   };
 
@@ -141,8 +120,12 @@ class _BarProductEditorDialogState extends State<BarProductEditorDialog> {
             id: value['id']?.toString(),
             name: value['name']?.toString() ?? 'Unidade',
             stockQuantity: _number(value['stock_quantity'] ?? 1),
-            publicPrice: _number(value['public_price'] ?? product['sale_price'] ?? 0),
-            memberPrice: _number(value['member_price'] ?? product['sale_price'] ?? 0),
+            publicPrice: _number(
+              value['public_price'] ?? product['sale_price'] ?? 0,
+            ),
+            memberPrice: _number(
+              value['member_price'] ?? product['sale_price'] ?? 0,
+            ),
           ),
         );
       }
@@ -225,18 +208,9 @@ class _BarProductEditorDialogState extends State<BarProductEditorDialog> {
   void _removeOption(int index) {
     if (_options.length <= 1) return;
     setState(() {
-      final removed = _options.removeAt(index);
-      removed.dispose();
+      _options.removeAt(index).dispose();
     });
   }
-
-  InputDecoration _decoration(String label, {String? helper}) => InputDecoration(
-        labelText: label,
-        helperText: helper,
-        floatingLabelBehavior: FloatingLabelBehavior.always,
-        border: const OutlineInputBorder(),
-        alignLabelWithHint: true,
-      );
 
   Widget _field(
     TextEditingController controller,
@@ -254,7 +228,13 @@ class _BarProductEditorDialogState extends State<BarProductEditorDialog> {
             ? const TextInputType.numberWithOptions(decimal: true)
             : null,
         onChanged: (_) => setState(() {}),
-        decoration: _decoration(label, helper: helper),
+        decoration: InputDecoration(
+          labelText: label,
+          helperText: helper,
+          floatingLabelBehavior: FloatingLabelBehavior.always,
+          border: const OutlineInputBorder(),
+          alignLabelWithHint: true,
+        ),
       ),
     );
   }
@@ -276,11 +256,13 @@ class _BarProductEditorDialogState extends State<BarProductEditorDialog> {
               children: [
                 Icon(icon, size: 20),
                 const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                        ),
+                  ),
                 ),
               ],
             ),
@@ -297,14 +279,20 @@ class _BarProductEditorDialogState extends State<BarProductEditorDialog> {
     final purchaseUnit = _purchaseUnit.text.trim();
     final stockUnit = _stockUnit.text.trim();
     final conversion = _parse(_conversion.text);
-    if (name.isEmpty || purchaseUnit.isEmpty || stockUnit.isEmpty || conversion <= 0) {
-      _show('Preenche nome, unidade de compra, unidade base de stock e conversão.');
+    if (name.isEmpty ||
+        purchaseUnit.isEmpty ||
+        stockUnit.isEmpty ||
+        conversion <= 0) {
+      _show(
+        'Preenche nome, unidade de compra, unidade base de stock e conversão.',
+      );
       return;
     }
     if (_parse(_purchaseCost.text) < 0 || _parse(_minimum.text) < 0) {
       _show('Custos e stock mínimo não podem ser negativos.');
       return;
     }
+
     final options = <Map<String, dynamic>>[];
     final names = <String>{};
     for (final option in _options) {
@@ -313,15 +301,16 @@ class _BarProductEditorDialogState extends State<BarProductEditorDialog> {
       final publicPrice = _parse(option.publicPrice.text);
       final memberPrice = _parse(option.memberPrice.text);
       if (optionName.isEmpty || stockQuantity <= 0) {
-        _show('Cada forma de venda precisa de nome e quantidade de stock superior a zero.');
+        _show(
+          'Cada forma de venda precisa de nome e quantidade de stock superior a zero.',
+        );
         return;
       }
       if (publicPrice < 0 || memberPrice < 0) {
         _show('Os preços não podem ser negativos.');
         return;
       }
-      final normalized = optionName.toLowerCase();
-      if (!names.add(normalized)) {
+      if (!names.add(optionName.toLowerCase())) {
         _show('Não podes ter duas formas de venda com o mesmo nome.');
         return;
       }
@@ -363,109 +352,133 @@ class _BarProductEditorDialogState extends State<BarProductEditorDialog> {
     final baseCost = conversion > 0 ? purchaseCost / conversion : 0;
 
     return AlertDialog(
-      title: Text(widget.product == null ? 'Novo artigo do BAR' : 'Editar artigo do BAR'),
+      title: Text(
+        widget.product == null ? 'Novo artigo do BAR' : 'Editar artigo do BAR',
+      ),
       contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      content: SizedBox(
-        width: 720,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _section(context, 'Modelo rápido', Icons.auto_awesome_outlined, [
-                DropdownButtonFormField<String>(
-                  initialValue: _preset,
-                  isExpanded: true,
-                  decoration: _decoration('Modelo de embalagem / serviço'),
-                  items: _presets.keys
-                      .map(
-                        (value) => DropdownMenuItem(
-                          value: value,
-                          child: Text(value),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 720),
+        child: SizedBox(
+          width: MediaQuery.sizeOf(context).width,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _section(
+                  context,
+                  'Modelo rápido',
+                  Icons.auto_awesome_outlined,
+                  [
+                    DropdownButtonFormField<String>(
+                      initialValue: _preset,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Modelo de embalagem / serviço',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: _presets.keys
+                          .map(
+                            (value) => DropdownMenuItem(
+                              value: value,
+                              child: Text(value),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: _applyPreset,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+                _section(context, 'Geral', Icons.info_outline, [
+                  _field(_name, 'Nome *'),
+                  _field(_sku, 'Código / SKU'),
+                  _field(_category, 'Categoria'),
+                  _field(_supplier, 'Fornecedor'),
+                  _field(_description, 'Descrição', maxLines: 2),
+                ]),
+                _section(
+                  context,
+                  'Stock base',
+                  Icons.inventory_2_outlined,
+                  [
+                    _field(
+                      _purchaseUnit,
+                      'Como compras este artigo? *',
+                      helper: 'Ex.: Garrafa 700 ml, Caixa 24, Barril 50 L.',
+                    ),
+                    _field(
+                      _stockUnit,
+                      'Unidade base que fica em stock *',
+                      helper:
+                          'Ex.: ml, unidade, Copo 0,25 L. Shot/Dose usam esta base.',
+                    ),
+                    _field(
+                      _conversion,
+                      'Quantas unidades base entram por compra? *',
+                      numeric: true,
+                    ),
+                    if (conversion > 0)
+                      Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.sync_alt_outlined),
+                          title: Text(
+                            '1 ${_purchaseUnit.text.trim().isEmpty ? 'compra' : _purchaseUnit.text} = ${_number(conversion)} ${_stockUnit.text.trim().isEmpty ? 'unidades base' : _stockUnit.text}',
+                          ),
                         ),
-                      )
-                      .toList(),
-                  onChanged: _applyPreset,
-                ),
-                const SizedBox(height: 12),
-              ]),
-              _section(context, 'Geral', Icons.info_outline, [
-                _field(_name, 'Nome *'),
-                _field(_sku, 'Código / SKU'),
-                _field(_category, 'Categoria'),
-                _field(_supplier, 'Fornecedor'),
-                _field(_description, 'Descrição', maxLines: 2),
-              ]),
-              _section(context, 'Stock base', Icons.inventory_2_outlined, [
-                _field(
-                  _purchaseUnit,
-                  'Como compras este artigo? *',
-                  helper: 'Ex.: Garrafa 700 ml, Caixa 24, Barril 50 L.',
-                ),
-                _field(
-                  _stockUnit,
-                  'Unidade base que fica em stock *',
-                  helper: 'Ex.: ml, unidade, Copo 0,25 L. Shots/Doses usam esta base.',
-                ),
-                _field(
-                  _conversion,
-                  'Quantas unidades base entram por compra? *',
-                  numeric: true,
-                ),
-                if (conversion > 0)
-                  Card(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    child: ListTile(
-                      dense: true,
-                      leading: const Icon(Icons.sync_alt_outlined),
-                      title: Text(
-                        '1 ${_purchaseUnit.text.trim().isEmpty ? 'compra' : _purchaseUnit.text} = ${_number(conversion)} ${_stockUnit.text.trim().isEmpty ? 'unidades base' : _stockUnit.text}',
+                      ),
+                    _field(
+                      _purchaseCost,
+                      'Custo de 1 ${_purchaseUnit.text.trim().isEmpty ? 'embalagem' : _purchaseUnit.text} (€)',
+                      numeric: true,
+                    ),
+                    Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.calculate_outlined),
+                        title: const Text('Custo teórico por unidade base'),
+                        subtitle: Text('${_money(baseCost)} / ${_stockUnit.text}'),
                       ),
                     ),
-                  ),
-                _field(
-                  _purchaseCost,
-                  'Custo de 1 ${_purchaseUnit.text.trim().isEmpty ? 'embalagem' : _purchaseUnit.text} (€)',
-                  numeric: true,
+                    _field(
+                      _minimum,
+                      'Stock mínimo (${_stockUnit.text.trim().isEmpty ? 'unidade base' : _stockUnit.text})',
+                      numeric: true,
+                    ),
+                  ],
                 ),
-                Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ListTile(
-                    dense: true,
-                    leading: const Icon(Icons.calculate_outlined),
-                    title: const Text('Custo teórico por unidade base'),
-                    subtitle: Text('${_money(baseCost)} / ${_stockUnit.text}'),
-                  ),
+                _section(
+                  context,
+                  'Formas de venda e preços',
+                  Icons.point_of_sale_outlined,
+                  [
+                    const Text(
+                      'Cada forma usa o mesmo stock do artigo. Define quanto consome e os preços de Público e Membro.',
+                    ),
+                    const SizedBox(height: 12),
+                    for (var index = 0; index < _options.length; index++)
+                      _SaleOptionCard(
+                        editor: _options[index],
+                        stockUnit: _stockUnit.text,
+                        canRemove: _options.length > 1,
+                        onChanged: () => setState(() {}),
+                        onRemove: () => _removeOption(index),
+                      ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        onPressed: _addOption,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Adicionar forma de venda'),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                 ),
-                _field(
-                  _minimum,
-                  'Stock mínimo (${_stockUnit.text.trim().isEmpty ? 'unidade base' : _stockUnit.text})',
-                  numeric: true,
-                ),
-              ]),
-              _section(context, 'Formas de venda e preços', Icons.point_of_sale_outlined, [
-                const Text(
-                  'Cada forma usa o mesmo stock do artigo. Define quanto consome e o preço para Público e Membro.',
-                ),
-                const SizedBox(height: 12),
-                for (var index = 0; index < _options.length; index++)
-                  _SaleOptionCard(
-                    editor: _options[index],
-                    stockUnit: _stockUnit.text,
-                    canRemove: _options.length > 1,
-                    onChanged: () => setState(() {}),
-                    onRemove: () => _removeOption(index),
-                  ),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton.icon(
-                    onPressed: _addOption,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Adicionar forma de venda'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ]),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -499,6 +512,21 @@ class _SaleOptionCard extends StatelessWidget {
   final VoidCallback onChanged;
   final VoidCallback onRemove;
 
+  Widget _numberField(
+    TextEditingController controller,
+    String label,
+  ) {
+    return TextField(
+      controller: controller,
+      onChanged: (_) => onChanged(),
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -506,6 +534,7 @@ class _SaleOptionCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               children: [
@@ -533,52 +562,38 @@ class _SaleOptionCard extends StatelessWidget {
             const SizedBox(height: 10),
             LayoutBuilder(
               builder: (context, constraints) {
-                final narrow = constraints.maxWidth < 620;
-                final fields = [
-                  Expanded(
-                    child: TextField(
-                      controller: editor.stockQuantity,
-                      onChanged: (_) => onChanged(),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: InputDecoration(
-                        labelText: 'Consome (${stockUnit.isEmpty ? 'stock' : stockUnit})',
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8, height: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: editor.publicPrice,
-                      onChanged: (_) => onChanged(),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Preço público (€)',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8, height: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: editor.memberPrice,
-                      onChanged: (_) => onChanged(),
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Preço membro (€)',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                ];
-                if (!narrow) return Row(children: fields);
-                return Column(
+                final stockField = _numberField(
+                  editor.stockQuantity,
+                  'Consome (${stockUnit.isEmpty ? 'stock' : stockUnit})',
+                );
+                final publicField = _numberField(
+                  editor.publicPrice,
+                  'Preço público (€)',
+                );
+                final memberField = _numberField(
+                  editor.memberPrice,
+                  'Preço membro (€)',
+                );
+                if (constraints.maxWidth < 560) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      stockField,
+                      const SizedBox(height: 10),
+                      publicField,
+                      const SizedBox(height: 10),
+                      memberField,
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (final child in fields)
-                      if (child is SizedBox)
-                        const SizedBox(height: 8)
-                      else
-                        SizedBox(width: double.infinity, child: child),
+                    Expanded(child: stockField),
+                    const SizedBox(width: 8),
+                    Expanded(child: publicField),
+                    const SizedBox(width: 8),
+                    Expanded(child: memberField),
                   ],
                 );
               },
@@ -687,4 +702,5 @@ String _number(Object? value) {
       : number.toStringAsFixed(2).replaceAll('.', ',');
 }
 
-String _money(Object? value) => '${_double(value).toStringAsFixed(2).replaceAll('.', ',')} €';
+String _money(Object? value) =>
+    '${_double(value).toStringAsFixed(2).replaceAll('.', ',')} €';
