@@ -85,7 +85,16 @@ class BarRepository {
         .eq('club_id', _clubId)
         .order('created_at', ascending: false)
         .limit(limit);
-    return List<Map<String, dynamic>>.from(response);
+    final rows = List<Map<String, dynamic>>.from(response);
+    for (final row in rows) {
+      final actor = row['actor'];
+      if (actor is Map) {
+        final name = actor['full_name']?.toString().trim() ?? '';
+        final email = actor['email']?.toString().trim() ?? '';
+        row['actor_label'] = name.isNotEmpty ? name : email;
+      }
+    }
+    return rows;
   }
 
   Future<Map<String, dynamic>> saveProduct({
@@ -99,8 +108,9 @@ class BarRepository {
     required String consumptionUnit,
     required double unitsPerPurchase,
     required double purchaseCost,
+    double? salePrice,
     required double minimumStock,
-    required List<Map<String, dynamic>> saleOptions,
+    List<Map<String, dynamic>>? saleOptions,
   }) async {
     _require(AppPermission.manageBar);
     if (name.trim().isEmpty) throw ArgumentError('Indica o nome do artigo.');
@@ -109,10 +119,17 @@ class BarRepository {
         'A quantidade por embalagem de compra deve ser superior a zero.',
       );
     }
-    if (saleOptions.isEmpty) {
-      throw ArgumentError('Define pelo menos uma forma de venda.');
-    }
-    for (final option in saleOptions) {
+    final options = saleOptions == null || saleOptions.isEmpty
+        ? <Map<String, dynamic>>[
+            {
+              'name': _defaultSaleOptionName(consumptionUnit),
+              'stock_quantity': 1,
+              'public_price': salePrice ?? 0,
+              'member_price': salePrice ?? 0,
+            },
+          ]
+        : saleOptions;
+    for (final option in options) {
       if ((option['name']?.toString().trim() ?? '').isEmpty) {
         throw ArgumentError('Todas as formas de venda precisam de nome.');
       }
@@ -142,7 +159,7 @@ class BarRepository {
         'p_units_per_purchase': unitsPerPurchase,
         'p_purchase_cost': purchaseCost,
         'p_minimum_stock': minimumStock,
-        'p_sale_options': saleOptions,
+        'p_sale_options': options,
       },
     );
     if (response is! Map || response['id'] == null) {
@@ -259,6 +276,17 @@ class BarRepository {
       },
     );
   }
+}
+
+String _defaultSaleOptionName(String consumptionUnit) {
+  final value = consumptionUnit.trim();
+  if (value.isEmpty ||
+      value == '1' ||
+      value.toLowerCase() == 'unidade' ||
+      value.toLowerCase() == 'unit') {
+    return 'Unidade';
+  }
+  return value;
 }
 
 double _double(Object? value) {
