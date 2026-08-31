@@ -46,7 +46,9 @@ class AdminRepository {
         'value': value.trim(),
         'updated_by': AppSession.instance.profileId,
       };
-      if (settingId == null) return _dataService.insert('club_settings', values);
+      if (settingId == null) {
+        return _dataService.insert('club_settings', values);
+      }
       return _dataService.update('club_settings', settingId, values);
     }
 
@@ -57,35 +59,22 @@ class AdminRepository {
       'updated_by': AppSession.instance.profileId,
       'updated_at': DateTime.now().toIso8601String(),
     };
-    final Map<String, dynamic> saved;
     if (settingId == null) {
       final response = await _client
           .from('club_settings')
           .upsert(payload, onConflict: 'club_id,key')
           .select()
           .single();
-      saved = Map<String, dynamic>.from(response);
-    } else {
-      final response = await _client
-          .from('club_settings')
-          .update(payload)
-          .eq('id', settingId)
-          .eq('club_id', AppSession.instance.clubId)
-          .select()
-          .single();
-      saved = Map<String, dynamic>.from(response);
+      return Map<String, dynamic>.from(response);
     }
-
-    await _client.from('audit_log').insert({
-      'club_id': AppSession.instance.clubId,
-      'actor_id': AppSession.instance.profileId,
-      'entity_type': 'club_setting',
-      'entity_id': saved['id']?.toString(),
-      'action': settingId == null ? 'upsert' : 'update',
-      'after_data': saved,
-      'data': {'key': normalizedKey},
-    });
-    return saved;
+    final response = await _client
+        .from('club_settings')
+        .update(payload)
+        .eq('id', settingId)
+        .eq('club_id', AppSession.instance.clubId)
+        .select()
+        .single();
+    return Map<String, dynamic>.from(response);
   }
 
   Future<List<Map<String, dynamic>>> listAuditLog({int limit = 100}) async {
@@ -98,14 +87,18 @@ class AdminRepository {
     }
     final response = await _client
         .from('audit_log')
-        .select()
+        .select(
+          'id,actor_id,action,entity_type,entity_id,before_data,after_data,data,created_at,'
+          'actor:profiles!audit_log_actor_id_fkey(full_name,email)',
+        )
         .eq('club_id', AppSession.instance.clubId)
         .order('created_at', ascending: false)
         .limit(limit);
     return List<Map<String, dynamic>>.from(response).map((row) {
       return <String, dynamic>{
         ...row,
-        'description': '${row['action'] ?? 'Alteração'} — ${row['entity_type'] ?? 'registo'}',
+        'description':
+            '${row['action'] ?? 'Alteração'} — ${row['entity_type'] ?? 'registo'}',
       };
     }).toList();
   }
