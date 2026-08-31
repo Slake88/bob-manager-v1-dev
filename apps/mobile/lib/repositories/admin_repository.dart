@@ -85,18 +85,21 @@ class AdminRepository {
           .compareTo(a['created_at']?.toString() ?? ''));
       return rows.take(limit).toList();
     }
-    final response = await _client
-        .from('audit_log')
-        .select(
-          'id,actor_id,action,entity_type,entity_id,before_data,after_data,data,created_at,'
-          'actor:profiles!audit_log_actor_id_fkey(full_name,email)',
-        )
-        .eq('club_id', AppSession.instance.clubId)
-        .order('created_at', ascending: false)
-        .limit(limit);
-    return List<Map<String, dynamic>>.from(response).map((row) {
+
+    final response = await _client.rpc(
+      'list_audit_log_v2',
+      params: {
+        'target_club': AppSession.instance.clubId,
+        'p_limit': limit,
+      },
+    );
+    return List<Map<String, dynamic>>.from(response as List).map((row) {
       return <String, dynamic>{
         ...row,
+        'actor': {
+          'full_name': row['actor_name'],
+          'email': row['actor_email'],
+        },
         'description':
             '${row['action'] ?? 'Alteração'} — ${row['entity_type'] ?? 'registo'}',
       };
