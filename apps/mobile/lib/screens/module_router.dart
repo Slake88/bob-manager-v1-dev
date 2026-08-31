@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/module_definition.dart';
 import 'activity_screen.dart';
 import 'agenda_screen.dart';
-import 'bar_screen_v3.dart';
+import 'bar_screen_v4.dart';
 import 'communication_module_screen.dart';
 import 'dashboard_screen.dart';
 import 'documents_module_screen.dart';
@@ -37,7 +37,7 @@ class ModuleRouter extends StatelessWidget {
       'events' => const EventsModuleScreen(),
       'weekly_officer' => const WeeklyOfficerScreen(),
       'agenda' => const AgendaScreen(),
-      'bar' => const BarScreenV3(),
+      'bar' => const BarScreenV4(),
       'inventory' => const InventoryModuleScreen(),
       'documents' => const DocumentsModuleScreen(),
       'communication' => const CommunicationModuleScreen(),
