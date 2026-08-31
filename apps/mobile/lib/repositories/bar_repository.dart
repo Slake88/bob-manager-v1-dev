@@ -17,12 +17,37 @@ class BarRepository {
     _require(AppPermission.viewBar);
     final response = await _client
         .from('products')
-        .select('id,name,sku,category,description,supplier,unit,cost,sale_price,minimum_stock,current_stock,purchase_unit,consumption_unit,units_per_purchase,purchase_cost,active')
+        .select(
+          'id,name,sku,category,description,supplier,unit,cost,sale_price,minimum_stock,current_stock,purchase_unit,consumption_unit,units_per_purchase,purchase_cost,active,'
+          'bar_product_sale_options(id,name,stock_quantity,public_price,member_price,sort_order,active)',
+        )
         .eq('club_id', _clubId)
         .eq('inventory_area', 'bar')
         .eq('active', true)
         .order('name');
-    return List<Map<String, dynamic>>.from(response);
+    final rows = List<Map<String, dynamic>>.from(response);
+    for (final row in rows) {
+      final raw = row['bar_product_sale_options'];
+      if (raw is List) {
+        final options = raw
+            .whereType<Map>()
+            .map((value) => Map<String, dynamic>.from(value))
+            .where((value) => value['active'] != false)
+            .toList()
+          ..sort((a, b) {
+            final sortA = (a['sort_order'] as num?)?.toInt() ?? 0;
+            final sortB = (b['sort_order'] as num?)?.toInt() ?? 0;
+            final bySort = sortA.compareTo(sortB);
+            if (bySort != 0) return bySort;
+            return (a['name']?.toString() ?? '')
+                .compareTo(b['name']?.toString() ?? '');
+          });
+        row['sale_options'] = options;
+      } else {
+        row['sale_options'] = <Map<String, dynamic>>[];
+      }
+    }
+    return rows;
   }
 
   Future<List<Map<String, dynamic>>> events() async {
@@ -52,7 +77,10 @@ class BarRepository {
     final response = await _client
         .from('bar_operations')
         .select(
-          'id,operation_type,purchase_units,consumption_quantity,unit_price,total_amount,payment_method,notes,created_at,event_id,products(name,consumption_unit),events(name),treasury_transactions(account_id,source_account:treasury_accounts!treasury_transactions_account_id_fkey(name))',
+          'id,operation_type,purchase_units,consumption_quantity,unit_price,total_amount,payment_method,notes,created_at,created_by,event_id,sale_id,sale_option_name,customer_type,'
+          'actor:profiles!bar_operations_created_by_fkey(full_name,email),'
+          'products(name,consumption_unit),events(name),'
+          'treasury_transactions(account_id,source_account:treasury_accounts!treasury_transactions_account_id_fkey(name))',
         )
         .eq('club_id', _clubId)
         .order('created_at', ascending: false)
@@ -71,48 +99,67 @@ class BarRepository {
     required String consumptionUnit,
     required double unitsPerPurchase,
     required double purchaseCost,
-    required double salePrice,
     required double minimumStock,
+    required List<Map<String, dynamic>> saleOptions,
   }) async {
     _require(AppPermission.manageBar);
     if (name.trim().isEmpty) throw ArgumentError('Indica o nome do artigo.');
     if (unitsPerPurchase <= 0) {
-      throw ArgumentError('A quantidade por embalagem de compra deve ser superior a zero.');
+      throw ArgumentError(
+        'A quantidade por embalagem de compra deve ser superior a zero.',
+      );
     }
-    final unitCost = purchaseCost / unitsPerPurchase;
-    final values = <String, dynamic>{
-      'inventory_area': 'bar',
-      'name': name.trim(),
-      'sku': sku.trim().isEmpty ? null : sku.trim(),
-      'category': category.trim().isEmpty ? 'Bebidas' : category.trim(),
-      'description': description.trim().isEmpty ? null : description.trim(),
-      'supplier': supplier.trim().isEmpty ? null : supplier.trim(),
-      'unit': consumptionUnit.trim().isEmpty ? 'unidade' : consumptionUnit.trim(),
-      'purchase_unit': purchaseUnit.trim().isEmpty ? 'unidade' : purchaseUnit.trim(),
-      'consumption_unit': consumptionUnit.trim().isEmpty ? 'unidade' : consumptionUnit.trim(),
-      'units_per_purchase': unitsPerPurchase,
-      'purchase_cost': purchaseCost,
-      'cost': unitCost,
-      'sale_price': salePrice,
-      'minimum_stock': minimumStock,
-      'active': true,
-    };
-    if (id == null) {
-      final response = await _client
-          .from('products')
-          .insert({...values, 'club_id': _clubId, 'current_stock': 0, 'reserved_stock': 0})
-          .select()
-          .single();
-      return Map<String, dynamic>.from(response);
+    if (saleOptions.isEmpty) {
+      throw ArgumentError('Define pelo menos uma forma de venda.');
     }
-    final response = await _client
+    for (final option in saleOptions) {
+      if ((option['name']?.toString().trim() ?? '').isEmpty) {
+        throw ArgumentError('Todas as formas de venda precisam de nome.');
+      }
+      if (_double(option['stock_quantity']) <= 0) {
+        throw ArgumentError(
+          'A quantidade de stock por forma de venda deve ser superior a zero.',
+        );
+      }
+      if (_double(option['public_price']) < 0 ||
+          _double(option['member_price']) < 0) {
+        throw ArgumentError('Os preços não podem ser negativos.');
+      }
+    }
+
+    final response = await _client.rpc(
+      'save_bar_product_v3',
+      params: {
+        'target_club': _clubId,
+        'p_product': id,
+        'p_name': name.trim(),
+        'p_sku': sku.trim(),
+        'p_category': category.trim(),
+        'p_description': description.trim(),
+        'p_supplier': supplier.trim(),
+        'p_purchase_unit': purchaseUnit.trim(),
+        'p_consumption_unit': consumptionUnit.trim(),
+        'p_units_per_purchase': unitsPerPurchase,
+        'p_purchase_cost': purchaseCost,
+        'p_minimum_stock': minimumStock,
+        'p_sale_options': saleOptions,
+      },
+    );
+    if (response is! Map || response['id'] == null) {
+      throw StateError('Resposta inválida ao guardar o artigo do Bar.');
+    }
+
+    final productId = response['id'].toString();
+    final saved = await _client
         .from('products')
-        .update(values)
-        .eq('id', id)
+        .select(
+          'id,name,sku,category,description,supplier,unit,cost,sale_price,minimum_stock,current_stock,purchase_unit,consumption_unit,units_per_purchase,purchase_cost,active,'
+          'bar_product_sale_options(id,name,stock_quantity,public_price,member_price,sort_order,active)',
+        )
         .eq('club_id', _clubId)
-        .select()
+        .eq('id', productId)
         .single();
-    return Map<String, dynamic>.from(response);
+    return Map<String, dynamic>.from(saved);
   }
 
   Future<void> purchase({
@@ -156,7 +203,14 @@ class BarRepository {
     bool postFinancial = false,
   }) async {
     _require(AppPermission.manageBar);
-    if (!const ['sale', 'offer', 'internal', 'waste', 'adjustment_in', 'adjustment_out'].contains(operation)) {
+    if (!const [
+      'sale',
+      'offer',
+      'internal',
+      'waste',
+      'adjustment_in',
+      'adjustment_out',
+    ].contains(operation)) {
       throw ArgumentError('Operação de Bar inválida.');
     }
     await _operate(
@@ -184,21 +238,26 @@ class BarRepository {
     String notes = '',
     required bool postFinancial,
   }) async {
-    if (quantity <= 0) throw ArgumentError('A quantidade deve ser superior a zero.');
+    if (quantity <= 0) {
+      throw ArgumentError('A quantidade deve ser superior a zero.');
+    }
     if (accountId != null) _require(AppPermission.selectBarFinancialAccount);
-    await _client.rpc('bar_operation_v2', params: {
-      'target_club': _clubId,
-      'p_product': productId,
-      'p_operation': operation,
-      'p_quantity': quantity,
-      'p_event': eventId,
-      'p_purchase_units': purchaseUnits,
-      'p_unit_price': unitPrice,
-      'p_payment_method': paymentMethod,
-      'p_notes': notes.trim(),
-      'p_post_financial': postFinancial,
-      'p_account': accountId,
-    });
+    await _client.rpc(
+      'bar_operation_v2',
+      params: {
+        'target_club': _clubId,
+        'p_product': productId,
+        'p_operation': operation,
+        'p_quantity': quantity,
+        'p_event': eventId,
+        'p_purchase_units': purchaseUnits,
+        'p_unit_price': unitPrice,
+        'p_payment_method': paymentMethod,
+        'p_notes': notes.trim(),
+        'p_post_financial': postFinancial,
+        'p_account': accountId,
+      },
+    );
   }
 }
 
