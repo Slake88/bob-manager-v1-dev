@@ -89,6 +89,24 @@ class BarSalesRepository {
     return List<Map<String, dynamic>>.from(response);
   }
 
+  Future<void> updatePresetPrice({
+    required String presetId,
+    required double price,
+  }) async {
+    _requireManage();
+    if (price < 0) throw ArgumentError('O preço não pode ser negativo.');
+    if (AppConfig.demoMode) return;
+    await _client
+        .from('bar_sale_presets')
+        .update({
+          'unit_price': price,
+          'updated_by': _client.auth.currentUser?.id,
+          'updated_at': DateTime.now().toUtc().toIso8601String(),
+        })
+        .eq('club_id', _clubId)
+        .eq('id', presetId);
+  }
+
   Future<List<Map<String, dynamic>>> events() async {
     _requireView();
     if (AppConfig.demoMode) return const [];
@@ -274,7 +292,7 @@ class BarSalesRepository {
     required String saleId,
     required List<Map<String, dynamic>> lines,
     required String paymentMethod,
-    required String customerType,
+    String customerType = 'public',
     String? memberId,
     String? accountId,
     String? customerLabel,
