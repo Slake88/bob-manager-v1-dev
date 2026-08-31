@@ -16,6 +16,8 @@ type J = Record<string, unknown>;
 type Candidate = {
   kind: 'stock' | 'preset';
   product_id?: string;
+  sale_option_id?: string;
+  sale_option_name?: string;
   preset_id?: string;
   description: string;
   quantity: number;
@@ -131,6 +133,29 @@ function quantityFromLine(line: string, name: string) {
   return null;
 }
 
+function saleOptions(product: J) {
+  const raw = product.bar_product_sale_options;
+  if (!Array.isArray(raw)) return [] as J[];
+  return raw
+    .filter((value) => value && typeof value === 'object')
+    .map((value) => value as J)
+    .filter((value) => value.active !== false);
+}
+
+function matchSaleOption(line: string, product: J) {
+  const options = saleOptions(product);
+  if (options.length === 1) return options[0];
+  if (options.length === 0) return null;
+
+  const normalizedLine = normalize(line);
+  const explicit = options.filter((option) => {
+    const optionName = normalize(String(option.name ?? ''));
+    return optionName.length > 0 && normalizedLine.includes(optionName);
+  });
+  if (explicit.length === 1) return explicit[0];
+  return null;
+}
+
 function suggestions(
   text: string,
   products: J[],
@@ -147,19 +172,32 @@ function suggestions(
     const sku = String(product.sku ?? '').trim();
     if (!name) continue;
     let best: Candidate | null = null;
+
     for (const line of lines) {
       const normalizedLine = normalize(line);
       const matchesName = normalizedLine.includes(normalize(name));
-      const matchesSku = sku && normalizedLine.includes(normalize(sku));
+      const matchesSku = sku.length > 0 && normalizedLine.includes(normalize(sku));
       if (!matchesName && !matchesSku) continue;
-      const quantity = quantityFromLine(line, matchesName ? name : sku);
+
+      const matchedToken = matchesName ? name : sku;
+      const quantity = quantityFromLine(line, matchedToken);
       if (!quantity || !Number.isFinite(quantity.quantity) || quantity.quantity <= 0) {
         continue;
       }
+
+      const option = matchSaleOption(line, product);
+      if (!option) {
+        // Com várias formas possíveis (ex.: Shot/Dose), nunca adivinhar.
+        // A fotografia continua guardada e o utilizador confirma manualmente.
+        continue;
+      }
+      const optionName = String(option.name ?? '').trim();
       const candidate: Candidate = {
         kind: 'stock',
         product_id: String(product.id),
-        description: name,
+        sale_option_id: String(option.id),
+        sale_option_name: optionName,
+        description: optionName ? `${name} · ${optionName}` : name,
         quantity: quantity.quantity,
         confidence: quantity.confidence,
         evidence: line.slice(0, 240),
@@ -252,11 +290,17 @@ Deno.serve(async (req: Request) => {
 
     const { data: claimed, error: claimError } = await admin
       .from('bar_sale_attachments')
-      .update({ ocr_status: 'processing', ocr_error: null, updated_at: new Date().toISOString() })
+      .update({
+        ocr_status: 'processing',
+        ocr_error: null,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', attachmentId)
       .select('storage_path,mime_type')
       .single();
-    if (claimError || !claimed) throw claimError ?? new Error('Não foi possível iniciar o OCR.');
+    if (claimError || !claimed) {
+      throw claimError ?? new Error('Não foi possível iniciar o OCR.');
+    }
 
     const mime = String(claimed.mime_type ?? '').toLowerCase();
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(mime)) {
@@ -273,11 +317,15 @@ Deno.serve(async (req: Request) => {
       .from('financial-documents')
       .download(String(claimed.storage_path));
     if (downloadError || !file) {
-      throw new Error(`Não foi possível obter a fotografia: ${downloadError?.message ?? 'ficheiro indisponível'}`);
+      throw new Error(
+        `Não foi possível obter a fotografia: ${downloadError?.message ?? 'ficheiro indisponível'}`,
+      );
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (!bytes.length) throw new Error('A fotografia está vazia.');
-    if (bytes.length > MAX_BYTES) throw new Error('Comprime a fotografia para menos de 7 MB para OCR.');
+    if (bytes.length > MAX_BYTES) {
+      throw new Error('Comprime a fotografia para menos de 7 MB para OCR.');
+    }
 
     const endpoint = `https://eu-vision.googleapis.com/v1/projects/${encodeURIComponent(project)}/locations/eu/images:annotate`;
     const visionResponse = await fetch(`${endpoint}?key=${encodeURIComponent(key)}`, {
@@ -305,10 +353,15 @@ Deno.serve(async (req: Request) => {
     const read = visionText(vision);
     if (!read.text) throw new Error('O OCR não encontrou texto legível no cartão.');
 
-    const [{ data: products, error: productsError }, { data: presets, error: presetsError }] = await Promise.all([
+    const [
+      { data: products, error: productsError },
+      { data: presets, error: presetsError },
+    ] = await Promise.all([
       admin
         .from('products')
-        .select('id,name,sku,current_stock,sale_price')
+        .select(
+          'id,name,sku,current_stock,bar_product_sale_options(id,name,stock_quantity,public_price,member_price,active,sort_order)',
+        )
         .eq('club_id', clubId)
         .eq('inventory_area', 'bar')
         .eq('active', true),
@@ -343,6 +396,7 @@ Deno.serve(async (req: Request) => {
     return response({
       status: 'ready',
       attachment_id: attachmentId,
+      provider: PROVIDER,
       suggestion_count: found.length,
       confidence: read.confidence,
       requires_review: true,
