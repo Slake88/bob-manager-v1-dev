@@ -10,8 +10,19 @@ import 'screens/password_setup_screen.dart';
 import 'screens/shell_screen.dart';
 import 'services/auth_service.dart';
 
+bool _initialPasswordRecovery = false;
+
+bool _isPasswordRecoveryUri(Uri uri) {
+  if (uri.queryParameters['type'] == 'recovery') return true;
+  final fragment = uri.fragment;
+  return fragment == 'type=recovery' ||
+      fragment.startsWith('type=recovery&') ||
+      fragment.contains('&type=recovery');
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  _initialPasswordRecovery = _isPasswordRecoveryUri(Uri.base);
 
   if (!AppConfig.demoMode) {
     AppConfig.validateForRealMode();
@@ -69,7 +80,7 @@ class _AppBootstrap extends StatefulWidget {
 class _AppBootstrapState extends State<_AppBootstrap> {
   late Future<bool> _restoreFuture;
   StreamSubscription<AuthState>? _authSubscription;
-  bool _passwordRecovery = false;
+  bool _passwordRecovery = _initialPasswordRecovery;
 
   @override
   void initState() {
