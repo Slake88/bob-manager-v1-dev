@@ -18,6 +18,25 @@ Critérios:
 - uma sessão válida é recuperada após atualizar a página;
 - terminar sessão regressa ao login.
 
+
+## Web RC1 — Produção
+
+Estado: **validado funcionalmente em 01/09/2026** no ambiente real de produção.
+
+- aplicação publicada em `https://bobmanager.blueonblack.pt`;
+- domínio personalizado e HTTPS ativos sem avisos de segurança;
+- frontend Flutter Web publicado por GitHub Pages em modo real, ligado ao Supabase;
+- login com credenciais reais concluído com sucesso;
+- terminar sessão regressa corretamente ao login;
+- pedido de recuperação de palavra-passe envia o email do Supabase Auth;
+- link de recuperação abre o ecrã `Definir nova palavra-passe`;
+- tentativa de reutilizar a palavra-passe atual é recusada;
+- nova palavra-passe é aceite e permite entrar sem erro;
+- após terminar sessão, novo login com a nova palavra-passe funciona corretamente;
+- fluxo de recuperação de palavra-passe validado de ponta a ponta.
+
+Resultado dos testes Web de produção: **aprovado**.
+
 ## Dashboard
 
 - abre sem ecrã vermelho;
