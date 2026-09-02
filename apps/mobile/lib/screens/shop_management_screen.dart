@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_session.dart';
+import '../core/permissions.dart';
 import '../repositories/shop_repository.dart';
 
 class ShopManagementScreen extends StatefulWidget {
@@ -38,6 +40,23 @@ class _ShopManagementScreenState extends State<ShopManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!AppSession.instance.can(AppPermission.manageMerchandising)) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Gestão da Loja'),
+        ),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'Sem permissão para gerir a Loja e o merchandising.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -46,7 +65,9 @@ class _ShopManagementScreenState extends State<ShopManagementScreen> {
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Públicos e preços', icon: Icon(Icons.groups_outlined)),
-              Tab(text: 'A encomendar', icon: Icon(Icons.shopping_cart_checkout_outlined)),
+              Tab(
+                  text: 'A encomendar',
+                  icon: Icon(Icons.shopping_cart_checkout_outlined)),
             ],
           ),
         ),
@@ -113,7 +134,8 @@ class _AudienceTab extends StatelessWidget {
                 child: ListTile(
                   leading: const CircleAvatar(child: Icon(Icons.sell_outlined)),
                   title: Text(product['name']?.toString() ?? 'Artigo'),
-                  subtitle: Text(product['category']?.toString() ?? 'Merchandising'),
+                  subtitle:
+                      Text(product['category']?.toString() ?? 'Merchandising'),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _configure(context, product),
                 ),
@@ -257,7 +279,8 @@ class _AudienceDialogState extends State<_AudienceDialog> {
             TextField(
               controller: _prices[key],
               enabled: _visibility[key] == true,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(labelText: 'Preço'),
             ),
           ],
@@ -367,8 +390,7 @@ double _double(Object? value) => value is num
     ? value.toDouble()
     : double.tryParse(value?.toString().replaceAll(',', '.') ?? '') ?? 0;
 
-double _parse(String value) =>
-    double.tryParse(value.replaceAll(',', '.')) ?? 0;
+double _parse(String value) => double.tryParse(value.replaceAll(',', '.')) ?? 0;
 
 String _number(Object? value) {
   final number = _double(value);

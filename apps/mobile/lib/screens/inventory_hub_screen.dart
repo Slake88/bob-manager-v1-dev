@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_config.dart';
+import '../core/app_session.dart';
+import '../core/permissions.dart';
 import '../repositories/inventory_foundation_repository.dart';
 import 'assets_module_screen.dart';
 import 'assets_qr_screen.dart';
@@ -211,6 +213,9 @@ class _SummaryTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final canManageShop =
+        AppSession.instance.can(AppPermission.manageMerchandising);
+
     return FutureBuilder<Map<String, dynamic>>(
       future: future,
       builder: (context, snapshot) {
@@ -277,33 +282,34 @@ class _SummaryTab extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              Card(
-                child: ListTile(
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.manage_search_outlined),
-                  ),
-                  title: const Text('Gestão avançada da Loja'),
-                  subtitle: const Text(
-                    'Definir artigos para Público / Prospect / Full Color, preços próprios e ver o que falta encomendar ao fornecedor.',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: AppConfig.demoMode
-                      ? () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'A gestão avançada da Loja requer o ambiente real.',
+              if (canManageShop)
+                Card(
+                  child: ListTile(
+                    leading: const CircleAvatar(
+                      child: Icon(Icons.manage_search_outlined),
+                    ),
+                    title: const Text('Gestão avançada da Loja'),
+                    subtitle: const Text(
+                      'Definir artigos para Público / Prospect / Full Color, preços próprios e ver o que falta encomendar ao fornecedor.',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: AppConfig.demoMode
+                        ? () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'A gestão avançada da Loja requer o ambiente real.',
+                                ),
+                              ),
+                            );
+                          }
+                        : () => Navigator.of(context).push<void>(
+                              MaterialPageRoute(
+                                builder: (_) => const ShopManagementScreen(),
                               ),
                             ),
-                          );
-                        }
-                      : () => Navigator.of(context).push<void>(
-                            MaterialPageRoute(
-                              builder: (_) => const ShopManagementScreen(),
-                            ),
-                          ),
+                  ),
                 ),
-              ),
             ],
           ),
         );
