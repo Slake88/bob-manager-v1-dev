@@ -84,6 +84,54 @@ class MemberRepository {
         _normaliseMember(Map<String, dynamic>.from(response));
   }
 
+  Future<Map<String, dynamic>> updateOwnMemberProfile(
+    Map<String, dynamic> values,
+  ) async {
+    if (AppConfig.demoMode) {
+      final members = await _dataService.list('members');
+      Map<String, dynamic>? ownMember;
+      for (final member in members) {
+        if (member['profile_id']?.toString() == AppSession.instance.profileId) {
+          ownMember = member;
+          break;
+        }
+      }
+      if (ownMember == null) {
+        throw StateError('N?o existe uma ficha ligada ao utilizador atual.');
+      }
+      return _dataService.update(
+        'members',
+        ownMember['id'].toString(),
+        values,
+      );
+    }
+
+    final response = await _supabase.rpc(
+      'update_own_member_profile_v1',
+      params: {
+        'target_club': AppSession.instance.clubId,
+        'p_email': _stringOrNull(values['email']),
+        'p_phone': _stringOrNull(values['phone']),
+        'p_address': _stringOrNull(values['address']),
+        'p_postal_code': _stringOrNull(values['postal_code']),
+        'p_locality': _stringOrNull(values['locality']),
+        'p_emergency_name': _stringOrNull(values['emergency_name']),
+        'p_emergency_relation': _stringOrNull(values['emergency_relation']),
+        'p_emergency_phone': _stringOrNull(values['emergency_phone']),
+        'p_blood_type': _stringOrNull(values['blood_type']),
+        'p_allergies': _stringOrNull(values['allergies']),
+        'p_medical_notes': _stringOrNull(values['medical_notes']),
+      },
+    );
+
+    final memberId = response.toString();
+    final refreshed = await getMember(memberId);
+    if (refreshed == null) {
+      throw StateError('N?o foi poss?vel recarregar a ficha atualizada.');
+    }
+    return refreshed;
+  }
+
   Future<void> deleteMember(String memberId) async {
     if (AppConfig.demoMode) {
       await _dataService.delete('members', memberId);

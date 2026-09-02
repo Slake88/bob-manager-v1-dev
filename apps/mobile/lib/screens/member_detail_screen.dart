@@ -33,6 +33,28 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
         AppPermission.manageMembers,
       );
 
+  static const Set<String> _selfEditableKeys = <String>{
+    'email',
+    'phone',
+    'address',
+    'postal_code',
+    'locality',
+    'emergency_name',
+    'emergency_relation',
+    'emergency_phone',
+    'blood_type',
+    'allergies',
+    'medical_notes',
+  };
+
+  bool get _isOwnProfile =>
+      _member['profile_id']?.toString() == AppSession.instance.profileId;
+
+  Set<String> get _selfProfileReadOnlyKeys => memberDefinition.fields
+      .map((field) => field.key)
+      .where((key) => !_selfEditableKeys.contains(key))
+      .toSet();
+
   Set<String> get _memberReadOnlyKeys =>
       AppSession.instance.canEditMemberMilestoneDates
           ? const <String>{}
@@ -62,14 +84,21 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
   }
 
   Future<void> _edit() async {
+    final managingMember = _canManage;
     final changed = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => EntityFormScreen(
           definition: memberDefinition,
           initialValues: _member,
-          readOnlyKeys: _memberReadOnlyKeys,
+          readOnlyKeys: managingMember
+              ? _memberReadOnlyKeys
+              : _selfProfileReadOnlyKeys,
           onSave: (values, id) async {
-            await _repository.saveMember(values, memberId: id);
+            if (managingMember) {
+              await _repository.saveMember(values, memberId: id);
+            } else {
+              await _repository.updateOwnMemberProfile(values);
+            }
           },
         ),
       ),
@@ -301,7 +330,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       appBar: AppBar(
         title: Text(name),
         actions: [
-          if (_canManage)
+          if (_canManage || _isOwnProfile)
             IconButton(
               tooltip: 'Editar membro',
               onPressed: _edit,
