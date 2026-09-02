@@ -20,7 +20,22 @@ class FeesOperationalRepository {
   bool get isDemo => AppConfig.demoMode;
   bool get canManage => AppSession.instance.can(AppPermission.manageFees);
 
-  Future<List<Map<String, dynamic>>> listMembers() => _fees.listMembers();
+  Future<List<Map<String, dynamic>>> listMembers() async {
+    if (isDemo || canManage) {
+      return _fees.listMembers();
+    }
+
+    final response = await _supabase
+        .from('members')
+        .select(
+          'id, full_name, member_number, status, prospect_joined_at, joined_at',
+        )
+        .eq('club_id', AppSession.instance.clubId)
+        .eq('profile_id', AppSession.instance.profileId)
+        .order('full_name');
+
+    return List<Map<String, dynamic>>.from(response);
+  }
 
   Future<List<Map<String, dynamic>>> listObligations({
     String? memberId,
