@@ -561,9 +561,6 @@ class _MovementDialogState extends State<_MovementDialog> {
     if (widget.accounts.isNotEmpty) {
       _accountId = widget.accounts.first['id']?.toString();
     }
-    if (widget.kind == 'expense' && widget.costCenters.isNotEmpty) {
-      _costCenterId = widget.costCenters.first['id']?.toString();
-    }
   }
 
   @override
@@ -665,8 +662,10 @@ class _MovementDialogState extends State<_MovementDialog> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: _costCenterId,
-                    decoration:
-                        const InputDecoration(labelText: 'Centro de custo'),
+                    decoration: const InputDecoration(
+                      labelText: 'Centro de custo',
+                      hintText: 'Selecionar centro de custo',
+                    ),
                     items: widget.costCenters
                         .map(
                           (center) => DropdownMenuItem<String>(
