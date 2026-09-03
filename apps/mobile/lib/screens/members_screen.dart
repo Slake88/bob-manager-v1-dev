@@ -6,6 +6,7 @@ import '../core/entity_definition.dart';
 import '../core/permissions.dart';
 import '../repositories/member_photo_repository.dart';
 import '../repositories/member_repository.dart';
+import '../repositories/user_access_repository.dart';
 import '../widgets/member_photo_avatar.dart';
 import 'entity_form_screen.dart';
 import 'member_detail_screen.dart';
@@ -19,6 +20,7 @@ class MembersScreen extends StatefulWidget {
 
 class _MembersScreenState extends State<MembersScreen> {
   final MemberRepository _repository = MemberRepository();
+  final UserAccessRepository _accessRepository = UserAccessRepository();
   final MemberPhotoRepository _photoRepository = MemberPhotoRepository();
   final TextEditingController _searchController = TextEditingController();
   late Future<List<Map<String, dynamic>>> _future;
@@ -102,7 +104,9 @@ class _MembersScreenState extends State<MembersScreen> {
     if (confirmed != true) return;
 
     try {
-      await _repository.deleteMember(member['id'].toString());
+      await _accessRepository.deleteMemberWithAccessCleanup(
+        member['id'].toString(),
+      );
       if (!mounted) return;
       setState(_reload);
       ScaffoldMessenger.of(context)
