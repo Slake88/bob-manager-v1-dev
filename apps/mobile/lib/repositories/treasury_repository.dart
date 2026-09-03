@@ -323,16 +323,10 @@ class TreasuryRepository {
     Map<String, dynamic> values,
   ) async {
     _require(AppPermission.createTreasuryMovement);
-    if (AppConfig.demoMode) {
-      return _dataService.insert('financial_transactions', {
-        ...values,
-        'created_by': AppSession.instance.profileId,
-        'status': values['status'] ?? 'confirmed',
-      });
-    }
 
     final kind = values['kind']?.toString();
     final accountId = values['account_id']?.toString();
+    final costCenterId = values['cost_center_id']?.toString();
     final amount = _asDouble(values['amount']);
     if (kind != 'income' && kind != 'expense') {
       throw const TreasuryUserException('Tipo de movimento inválido.');
@@ -342,6 +336,18 @@ class TreasuryRepository {
     }
     if (amount <= 0) {
       throw const TreasuryUserException('O valor deve ser superior a zero.');
+    }
+    if (kind == 'expense' &&
+        (costCenterId == null || costCenterId.isEmpty)) {
+      throw const TreasuryUserException('Seleciona o centro de custo.');
+    }
+
+    if (AppConfig.demoMode) {
+      return _dataService.insert('financial_transactions', {
+        ...values,
+        'created_by': AppSession.instance.profileId,
+        'status': values['status'] ?? 'confirmed',
+      });
     }
 
     if (kind == 'expense') {
@@ -370,7 +376,7 @@ class TreasuryRepository {
                 DateTime.now().toIso8601String().split('T').first,
             'description': values['description']?.toString().trim(),
             'amount': amount,
-            'cost_center_id': values['cost_center_id'],
+            'cost_center_id': costCenterId,
             'payment_method': values['payment_method'],
             'notes': values['notes'],
             'created_by': AppSession.instance.profileId,
