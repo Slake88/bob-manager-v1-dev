@@ -39,6 +39,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
     'address',
     'postal_code',
     'locality',
+    'tax_number',
     'emergency_name',
     'emergency_relation',
     'emergency_phone',
@@ -429,6 +430,7 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
             children: [
               _line('Telefone', _text('phone')),
               _line('Email', _text('email')),
+              _line('NIF', _text('tax_number')),
               _line('Morada', _text('address')),
               _line('Localidade', _text('locality')),
             ],
