@@ -107,7 +107,7 @@ class MemberRepository {
     }
 
     final response = await _supabase.rpc(
-      'update_own_member_profile_v1',
+      'update_own_member_profile_v2',
       params: {
         'target_club': AppSession.instance.clubId,
         'p_email': _stringOrNull(values['email']),
@@ -115,6 +115,7 @@ class MemberRepository {
         'p_address': _stringOrNull(values['address']),
         'p_postal_code': _stringOrNull(values['postal_code']),
         'p_locality': _stringOrNull(values['locality']),
+        'p_tax_number': _stringOrNull(values['tax_number']),
         'p_emergency_name': _stringOrNull(values['emergency_name']),
         'p_emergency_relation': _stringOrNull(values['emergency_relation']),
         'p_emergency_phone': _stringOrNull(values['emergency_phone']),
