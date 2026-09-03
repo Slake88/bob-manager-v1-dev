@@ -105,11 +105,88 @@ async function requireTarget(
   if (error) throw error;
   if (!membership) throw new Error('A conta não pertence a este clube.');
   const targetRole = text(membership.access_role);
-  if (profileId === callerId) throw new Error('Não podes alterar ou bloquear a tua própria conta por este ecrã.');
+  if (profileId === callerId) throw new Error('cannot_remove_own_access');
   if (targetRole === 'super_admin' && callerRole !== 'super_admin') {
     throw new Error('A conta Super Admin só pode ser gerida por outro Super Admin.');
   }
   return membership as { profile_id: string; access_role: string; active: boolean };
+}
+
+async function retireAccess(
+  admin: AdminClient,
+  clubId: string,
+  profileId: string,
+  actorId: string,
+) {
+  if (profileId === actorId) throw new Error('cannot_remove_own_access');
+
+  const { data: memberships, error: membershipsError } = await admin
+    .from('club_memberships')
+    .select('club_id,profile_id,access_role,active')
+    .eq('profile_id', profileId);
+  if (membershipsError) throw membershipsError;
+
+  const currentMembership = (memberships ?? []).find((row) => String(row.club_id) === clubId);
+  if (!currentMembership) throw new Error('account_membership_not_found');
+  if (text(currentMembership.access_role) === 'super_admin') {
+    throw new Error('super_admin_access_cannot_be_removed');
+  }
+
+  const otherMemberships = (memberships ?? []).filter((row) => String(row.club_id) !== clubId);
+  const now = new Date().toISOString();
+
+  const { error: disableMembershipError } = await admin
+    .from('club_memberships')
+    .update({
+      active: false,
+      updated_by: actorId,
+      updated_at: now,
+    })
+    .eq('club_id', clubId)
+    .eq('profile_id', profileId);
+  if (disableMembershipError) throw disableMembershipError;
+
+  let authSoftDeleted = false;
+  if (otherMemberships.length === 0) {
+    const { error: profileError } = await admin
+      .from('profiles')
+      .update({
+        active: false,
+        updated_at: now,
+      })
+      .eq('id', profileId);
+    if (profileError) throw profileError;
+
+    const { error: deleteUserError } = await admin.auth.admin.deleteUser(profileId, true);
+    if (deleteUserError) throw deleteUserError;
+    authSoftDeleted = true;
+  }
+
+  const { error: unlinkError } = await admin
+    .from('members')
+    .update({
+      profile_id: null,
+      updated_by: actorId,
+      updated_at: now,
+    })
+    .eq('club_id', clubId)
+    .eq('profile_id', profileId);
+  if (unlinkError) throw unlinkError;
+
+  const { error: deleteMembershipError } = await admin
+    .from('club_memberships')
+    .delete()
+    .eq('club_id', clubId)
+    .eq('profile_id', profileId);
+  if (deleteMembershipError) throw deleteMembershipError;
+
+  await audit(admin, clubId, actorId, 'remove_access', profileId, {
+    access_role: text(currentMembership.access_role),
+    auth_soft_deleted: authSoftDeleted,
+    other_club_memberships: otherMemberships.length,
+  });
+
+  return { authSoftDeleted, otherMemberships: otherMemberships.length };
 }
 
 Deno.serve(async (req: Request) => {
@@ -150,12 +227,19 @@ Deno.serve(async (req: Request) => {
     const caller = callerData.user;
     if (callerError || !caller) return response({ error: 'authentication_required' }, 401);
 
+    const requestedPermission = action === 'delete_member' ? 'manageMembers' : 'manageUserAccess';
     const { data: allowed, error: permissionError } = await userClient.rpc('has_club_permission', {
       target_club: clubId,
-      requested_permission: 'manageUserAccess',
+      requested_permission: requestedPermission,
     });
     if (permissionError) throw permissionError;
-    if (allowed !== true) return response({ error: 'user_access_permission_required' }, 403);
+    if (allowed !== true) {
+      return response({
+        error: action === 'delete_member'
+          ? 'member_management_permission_required'
+          : 'user_access_permission_required',
+      }, 403);
+    }
 
     const { data: callerMembership, error: callerMembershipError } = await admin
       .from('club_memberships')
@@ -267,8 +351,33 @@ Deno.serve(async (req: Request) => {
       if (text(member.profile_id)) return response({ error: 'member_already_has_access' }, 409);
 
       const existingUsers = await allAuthUsers(admin);
-      if (existingUsers.some((u) => text(u.email).toLowerCase() === email)) {
-        return response({ error: 'email_already_registered' }, 409);
+      const existingUser = existingUsers.find((u) => text(u.email).toLowerCase() === email) ?? null;
+      if (existingUser) {
+        const [{ data: existingMembership, error: existingMembershipError }, { data: linkedMember, error: linkedMemberError }] = await Promise.all([
+          admin
+            .from('club_memberships')
+            .select('profile_id,access_role,active')
+            .eq('club_id', clubId)
+            .eq('profile_id', existingUser.id)
+            .maybeSingle(),
+          admin
+            .from('members')
+            .select('id')
+            .eq('club_id', clubId)
+            .eq('profile_id', existingUser.id)
+            .maybeSingle(),
+        ]);
+        if (existingMembershipError) throw existingMembershipError;
+        if (linkedMemberError) throw linkedMemberError;
+
+        if (existingMembership && !linkedMember && existingUser.id !== caller.id && text(existingMembership.access_role) !== 'super_admin') {
+          const retired = await retireAccess(admin, clubId, existingUser.id, caller.id);
+          if (!retired.authSoftDeleted) {
+            return response({ error: 'email_registered_in_other_club' }, 409);
+          }
+        } else {
+          return response({ error: 'email_already_registered' }, 409);
+        }
       }
 
       let createdUser: User | null = null;
@@ -323,6 +432,39 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    if (action === 'delete_member') {
+      const memberId = text(body.member_id);
+      if (!memberId) return response({ error: 'member_id_required' }, 400);
+
+      const { data: member, error: memberError } = await admin
+        .from('members')
+        .select('id,full_name,email,profile_id')
+        .eq('club_id', clubId)
+        .eq('id', memberId)
+        .maybeSingle();
+      if (memberError) throw memberError;
+      if (!member) return response({ error: 'member_not_found' }, 404);
+
+      const profileId = text(member.profile_id);
+      if (profileId) {
+        await retireAccess(admin, clubId, profileId, caller.id);
+      }
+
+      const { error: deleteError } = await userClient
+        .from('members')
+        .delete()
+        .eq('club_id', clubId)
+        .eq('id', memberId);
+      if (deleteError) throw deleteError;
+
+      await audit(admin, clubId, caller.id, 'delete_member', memberId, {
+        full_name: text(member.full_name),
+        email: text(member.email),
+        retired_profile_id: profileId || null,
+      });
+      return response({ ok: true });
+    }
+
     const profileId = text(body.profile_id);
     if (!profileId) return response({ error: 'profile_id_required' }, 400);
     const targetMembership = await requireTarget(admin, clubId, profileId, caller.id, callerRole);
@@ -330,6 +472,18 @@ Deno.serve(async (req: Request) => {
     if (targetError || !targetData.user) return response({ error: 'auth_user_not_found' }, 404);
     const targetUser = targetData.user;
     const email = text(targetUser.email).toLowerCase();
+
+    if (action === 'remove_access') {
+      if (targetMembership.access_role === 'super_admin') {
+        return response({ error: 'super_admin_access_cannot_be_removed' }, 403);
+      }
+      const retired = await retireAccess(admin, clubId, profileId, caller.id);
+      return response({
+        ok: true,
+        auth_soft_deleted: retired.authSoftDeleted,
+        other_club_memberships: retired.otherMemberships,
+      });
+    }
 
     if (action === 'resend_invite') {
       if (targetUser.last_sign_in_at) return response({ error: 'account_already_active' }, 409);
