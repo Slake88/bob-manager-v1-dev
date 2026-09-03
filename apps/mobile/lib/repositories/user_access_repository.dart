@@ -63,6 +63,15 @@ class UserAccessRepository {
     await _invoke('unblock', extra: {'profile_id': profileId});
   }
 
+  Future<void> removeAccess(String profileId) async {
+    _requireAccessManagement();
+    await _invoke('remove_access', extra: {'profile_id': profileId});
+  }
+
+  Future<void> deleteMemberWithAccessCleanup(String memberId) async {
+    await _invoke('delete_member', extra: {'member_id': memberId});
+  }
+
   Future<void> changeRole({
     required String profileId,
     required String accessRole,
@@ -101,11 +110,18 @@ class UserAccessRepository {
   static String _friendlyError(String error) => switch (error) {
         'user_access_permission_required' =>
           'Sem permissão para gerir contas e acessos.',
+        'member_management_permission_required' =>
+          'Sem permissão para eliminar membros.',
         'member_already_has_access' => 'Este membro já tem uma conta associada.',
         'email_already_registered' =>
           'Este email já está registado no BOB Manager.',
+        'email_registered_in_other_club' =>
+          'Este email está associado a acesso noutro clube e não pode ser recriado.',
         'account_already_active' =>
           'A conta já está ativa. Usa antes a reposição de palavra-passe.',
+        'cannot_remove_own_access' =>
+          'Não podes remover a tua própria conta de acesso.',
+        'super_admin_access_cannot_be_removed' ||
         'super_admin_cannot_be_blocked_here' ||
         'super_admin_role_cannot_be_changed_here' =>
           'A conta Super Admin está protegida neste ecrã.',
