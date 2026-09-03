@@ -100,8 +100,27 @@ class _MembersScreenState extends State<MembersScreen> {
       ),
     );
     if (confirmed != true) return;
-    await _repository.deleteMember(member['id'].toString());
-    if (mounted) setState(_reload);
+
+    try {
+      await _repository.deleteMember(member['id'].toString());
+      if (!mounted) return;
+      setState(_reload);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Membro eliminado com sucesso.')),
+        );
+    } catch (error, stackTrace) {
+      debugPrint('Erro ao eliminar membro: $error\n$stackTrace');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Não foi possível eliminar o membro. Erro: $error'),
+          ),
+        );
+    }
   }
 
   @override
