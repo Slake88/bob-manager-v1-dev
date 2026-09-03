@@ -183,6 +183,35 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
     );
   }
 
+  Future<void> _confirmRemoveAccess(Map<String, dynamic> account) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Remover conta de acesso?'),
+        content: Text(
+          '${account['full_name'] ?? 'Este utilizador'} deixará de ter acesso ao BOB Manager. '
+          'O email poderá voltar a ser usado num novo convite. O histórico de auditoria será preservado.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Remover conta'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await _run(
+      account,
+      () => _repository.removeAccess(account['profile_id'].toString()),
+      'Conta de acesso removida.',
+    );
+  }
+
   Future<void> _run(
     Map<String, dynamic> account,
     Future<void> Function() action,
@@ -243,7 +272,7 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'Convidar membros, reenviar convites, repor palavras-passe, alterar perfis e bloquear ou desbloquear acessos.',
+                  'Convidar membros, reenviar convites, repor palavras-passe, alterar perfis, bloquear e remover contas de acesso.',
                 ),
                 const SizedBox(height: 12),
                 Wrap(
@@ -390,6 +419,8 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
             () => _repository.unblock(account['profile_id'].toString()),
             'Acesso desbloqueado.',
           );
+        } else if (value == 'remove') {
+          await _confirmRemoveAccess(account);
         }
       },
       itemBuilder: (_) => [
@@ -414,6 +445,10 @@ class _UserAccessScreenState extends State<UserAccessScreen> {
             value: 'unblock',
             child: Text('Desbloquear acesso'),
           ),
+        const PopupMenuItem(
+          value: 'remove',
+          child: Text('Remover conta de acesso'),
+        ),
       ],
     );
   }
