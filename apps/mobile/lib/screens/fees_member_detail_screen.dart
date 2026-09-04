@@ -55,6 +55,21 @@ class _FeesMemberDetailScreenState extends State<FeesMemberDetailScreen> {
     await _dataFuture;
   }
 
+  Future<_MemberFeesData> _loadWithRetry(String memberId) async {
+    Object? lastError;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        return await _load(memberId);
+      } catch (error) {
+        lastError = error;
+        if (attempt < 2) {
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+        }
+      }
+    }
+    throw lastError ?? StateError('Não foi possível atualizar as quotas.');
+  }
+
   Future<void> _obligationAction(
     Map<String, dynamic> obligation,
     String action,
@@ -231,10 +246,17 @@ class _FeesMemberDetailScreenState extends State<FeesMemberDetailScreen> {
       return;
     }
 
+    final reasonText = reason.text.trim();
+    if (reasonText.length < 3) {
+      if (mounted) _message('Indica o motivo da reversão.');
+      reason.dispose();
+      return;
+    }
+
     try {
       await _repository.reversePayment(
         paymentId: payment['id'].toString(),
-        reason: reason.text,
+        reason: reasonText,
       );
     } catch (error) {
       if (mounted) _message(_friendly(error));
@@ -250,7 +272,7 @@ class _FeesMemberDetailScreenState extends State<FeesMemberDetailScreen> {
     try {
       final member = _memberId;
       if (member != null) {
-        final refreshed = _load(member);
+        final refreshed = _loadWithRetry(member);
         await refreshed;
         if (mounted) setState(() => _dataFuture = refreshed);
       }
