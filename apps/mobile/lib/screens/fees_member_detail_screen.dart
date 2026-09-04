@@ -159,16 +159,30 @@ class _FeesMemberDetailScreenState extends State<FeesMemberDetailScreen> {
           children: [
             TextField(
               controller: amount,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-              decoration: const InputDecoration(labelText: 'Valor (€; + ou -)'),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+                signed: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Valor (€; + ou -)',
+              ),
             ),
             const SizedBox(height: 12),
-            TextField(controller: reason, decoration: const InputDecoration(labelText: 'Motivo')),
+            TextField(
+              controller: reason,
+              decoration: const InputDecoration(labelText: 'Motivo'),
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Confirmar')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Confirmar'),
+          ),
         ],
       ),
     );
@@ -201,21 +215,52 @@ class _FeesMemberDetailScreenState extends State<FeesMemberDetailScreen> {
           decoration: const InputDecoration(labelText: 'Motivo da reversão'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Reverter')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Reverter'),
+          ),
         ],
       ),
     );
+    if (accepted != true) {
+      reason.dispose();
+      return;
+    }
+
     try {
-      if (accepted == true) {
-        await _repository.reversePayment(
-          paymentId: payment['id'].toString(),
-          reason: reason.text,
-        );
-        await _reload();
-      }
+      await _repository.reversePayment(
+        paymentId: payment['id'].toString(),
+        reason: reason.text,
+      );
     } catch (error) {
       if (mounted) _message(_friendly(error));
+      reason.dispose();
+      return;
+    }
+
+    if (!mounted) {
+      reason.dispose();
+      return;
+    }
+
+    try {
+      final member = _memberId;
+      if (member != null) {
+        final refreshed = _load(member);
+        await refreshed;
+        if (mounted) setState(() => _dataFuture = refreshed);
+      }
+      if (mounted) _message('Pagamento revertido com sucesso.');
+    } catch (_) {
+      if (mounted) {
+        _message(
+          'Pagamento revertido com sucesso, mas não foi possível atualizar o ecrã. Volta a abrir o membro.',
+        );
+      }
     } finally {
       reason.dispose();
     }
@@ -228,8 +273,12 @@ class _FeesMemberDetailScreenState extends State<FeesMemberDetailScreen> {
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _membersFuture,
         builder: (context, snapshot) {
-          if (snapshot.hasError) return Center(child: Text('Erro: ${snapshot.error}'));
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (snapshot.hasError) {
+            return Center(child: Text('Erro: ${snapshot.error}'));
+          }
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
           final members = snapshot.data!;
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
@@ -237,10 +286,16 @@ class _FeesMemberDetailScreenState extends State<FeesMemberDetailScreen> {
               DropdownButtonFormField<String>(
                 initialValue: _memberId,
                 decoration: const InputDecoration(labelText: 'Membro'),
-                items: members.map((member) => DropdownMenuItem<String>(
-                  value: member['id']?.toString(),
-                  child: Text(member['full_name']?.toString() ?? 'Membro'),
-                )).toList(),
+                items: members
+                    .map(
+                      (member) => DropdownMenuItem<String>(
+                        value: member['id']?.toString(),
+                        child: Text(
+                          member['full_name']?.toString() ?? 'Membro',
+                        ),
+                      ),
+                    )
+                    .toList(),
                 onChanged: _selectMember,
               ),
               if (_dataFuture != null) ...[
@@ -248,8 +303,12 @@ class _FeesMemberDetailScreenState extends State<FeesMemberDetailScreen> {
                 FutureBuilder<_MemberFeesData>(
                   future: _dataFuture,
                   builder: (context, dataSnapshot) {
-                    if (dataSnapshot.hasError) return Text('Erro: ${dataSnapshot.error}');
-                    if (!dataSnapshot.hasData) return const LinearProgressIndicator();
+                    if (dataSnapshot.hasError) {
+                      return Text('Erro: ${dataSnapshot.error}');
+                    }
+                    if (!dataSnapshot.hasData) {
+                      return const LinearProgressIndicator();
+                    }
                     return _buildData(context, dataSnapshot.data!);
                   },
                 ),
@@ -262,9 +321,19 @@ class _FeesMemberDetailScreenState extends State<FeesMemberDetailScreen> {
   }
 
   Widget _buildData(BuildContext context, _MemberFeesData data) {
-    final debt = data.obligations.fold<double>(0, (sum, row) => sum + feeObligationOutstanding(row));
-    final overdue = data.obligations.where(feeObligationOverdue).fold<double>(0, (sum, row) => sum + feeObligationOutstanding(row));
-    final paid = data.payments.where((row) => row['status'] != 'reversed').fold<double>(0, (sum, row) => sum + feeNumber(row['amount']));
+    final debt = data.obligations.fold<double>(
+      0,
+      (sum, row) => sum + feeObligationOutstanding(row),
+    );
+    final overdue = data.obligations
+        .where(feeObligationOverdue)
+        .fold<double>(
+          0,
+          (sum, row) => sum + feeObligationOutstanding(row),
+        );
+    final paid = data.payments
+        .where((row) => row['status'] != 'reversed')
+        .fold<double>(0, (sum, row) => sum + feeNumber(row['amount']));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -291,65 +360,104 @@ class _FeesMemberDetailScreenState extends State<FeesMemberDetailScreen> {
         ],
         const SizedBox(height: 16),
         Text('Quotas', style: Theme.of(context).textTheme.titleLarge),
-        ...data.obligations.map((row) => Card(
-          child: ListTile(
-            title: Text(row['period_label']?.toString() ?? 'Quota'),
-            subtitle: Text('Devido ${_money(feeObligationTotal(row))} · Pago ${_money(feeNumber(row['paid_amount']))}\n'
-                'Isento ${_money(feeNumber(row['exempt_amount']))} · Ajuste ${_money(feeNumber(row['adjustment_amount']))}'),
-            trailing: _repository.canManage && feeObligationOutstanding(row) > 0 && !_repository.isDemo
-                ? PopupMenuButton<String>(
-                    onSelected: (action) => _obligationAction(row, action),
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 'credit', child: Text('Aplicar crédito')),
-                      PopupMenuItem(value: 'exemption', child: Text('Isenção')),
-                      PopupMenuItem(value: 'adjustment', child: Text('Ajuste')),
-                    ],
-                  )
-                : Text(_money(feeObligationOutstanding(row))),
+        ...data.obligations.map(
+          (row) => Card(
+            child: ListTile(
+              title: Text(row['period_label']?.toString() ?? 'Quota'),
+              subtitle: Text(
+                'Devido ${_money(feeObligationTotal(row))} · Pago ${_money(feeNumber(row['paid_amount']))}\n'
+                'Isento ${_money(feeNumber(row['exempt_amount']))} · Ajuste ${_money(feeNumber(row['adjustment_amount']))}',
+              ),
+              trailing:
+                  _repository.canManage &&
+                      feeObligationOutstanding(row) > 0 &&
+                      !_repository.isDemo
+                  ? PopupMenuButton<String>(
+                      onSelected: (action) => _obligationAction(row, action),
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(
+                          value: 'credit',
+                          child: Text('Aplicar crédito'),
+                        ),
+                        PopupMenuItem(
+                          value: 'exemption',
+                          child: Text('Isenção'),
+                        ),
+                        PopupMenuItem(
+                          value: 'adjustment',
+                          child: Text('Ajuste'),
+                        ),
+                      ],
+                    )
+                  : Text(_money(feeObligationOutstanding(row))),
+            ),
           ),
-        )),
+        ),
         const SizedBox(height: 16),
         Text('Pagamentos', style: Theme.of(context).textTheme.titleLarge),
-        if (data.payments.isEmpty) const ListTile(title: Text('Sem pagamentos registados.')),
-        ...data.payments.map((row) => Card(
-          child: ListTile(
-            title: Text(_money(feeNumber(row['amount']))),
-            subtitle: Text('${row['payment_date'] ?? ''} · ${row['payment_method'] ?? ''} · ${row['status'] ?? ''}'),
-            trailing: _repository.canManage && row['status'] != 'reversed' && !_repository.isDemo
-                ? IconButton(
-                    tooltip: 'Reverter pagamento',
-                    icon: const Icon(Icons.undo_outlined),
-                    onPressed: () => _reversePayment(row),
-                  )
-                : null,
+        if (data.payments.isEmpty)
+          const ListTile(title: Text('Sem pagamentos registados.')),
+        ...data.payments.map(
+          (row) => Card(
+            child: ListTile(
+              title: Text(_money(feeNumber(row['amount']))),
+              subtitle: Text(
+                '${row['payment_date'] ?? ''} · ${row['payment_method'] ?? ''} · ${row['status'] ?? ''}',
+              ),
+              trailing:
+                  _repository.canManage &&
+                      row['status'] != 'reversed' &&
+                      !_repository.isDemo
+                  ? IconButton(
+                      tooltip: 'Reverter pagamento',
+                      icon: const Icon(Icons.undo_outlined),
+                      onPressed: () => _reversePayment(row),
+                    )
+                  : null,
+            ),
           ),
-        )),
+        ),
         const SizedBox(height: 16),
         ExpansionTile(
-          title: Text('Histórico económico (${data.credits.length + data.exemptions.length + data.adjustments.length})'),
+          title: Text(
+            'Histórico económico (${data.credits.length + data.exemptions.length + data.adjustments.length})',
+          ),
           children: [
-            ...data.credits.map((row) => ListTile(
-              leading: const Icon(Icons.savings_outlined),
-              title: Text('${_money(feeNumber(row['amount']))} · ${row['entry_type'] ?? ''}'),
-              subtitle: Text(row['reason']?.toString() ?? ''),
-            )),
-            ...data.exemptions.map((row) => ListTile(
-              leading: const Icon(Icons.remove_circle_outline),
-              title: Text('Isenção ${_money(feeNumber(row['amount']))} · ${row['status'] ?? ''}'),
-              subtitle: Text(row['reason']?.toString() ?? ''),
-            )),
-            ...data.adjustments.map((row) => ListTile(
-              leading: const Icon(Icons.tune_outlined),
-              title: Text('Ajuste ${_money(feeNumber(row['amount']))} · ${row['status'] ?? ''}'),
-              subtitle: Text(row['reason']?.toString() ?? ''),
-            )),
+            ...data.credits.map(
+              (row) => ListTile(
+                leading: const Icon(Icons.savings_outlined),
+                title: Text(
+                  '${_money(feeNumber(row['amount']))} · ${row['entry_type'] ?? ''}',
+                ),
+                subtitle: Text(row['reason']?.toString() ?? ''),
+              ),
+            ),
+            ...data.exemptions.map(
+              (row) => ListTile(
+                leading: const Icon(Icons.remove_circle_outline),
+                title: Text(
+                  'Isenção ${_money(feeNumber(row['amount']))} · ${row['status'] ?? ''}',
+                ),
+                subtitle: Text(row['reason']?.toString() ?? ''),
+              ),
+            ),
+            ...data.adjustments.map(
+              (row) => ListTile(
+                leading: const Icon(Icons.tune_outlined),
+                title: Text(
+                  'Ajuste ${_money(feeNumber(row['amount']))} · ${row['status'] ?? ''}',
+                ),
+                subtitle: Text(row['reason']?.toString() ?? ''),
+              ),
+            ),
           ],
         ),
       ],
     );
   }
 
-  void _message(String value) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+  void _message(String value) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
 }
 
 class _MemberFeesData {
@@ -361,6 +469,7 @@ class _MemberFeesData {
     required this.adjustments,
     required this.creditBalance,
   });
+
   final List<Map<String, dynamic>> obligations;
   final List<Map<String, dynamic>> payments;
   final List<Map<String, dynamic>> credits;
@@ -371,6 +480,7 @@ class _MemberFeesData {
 
 class _Metric extends StatelessWidget {
   const _Metric(this.label, this.value);
+
   final String label;
   final double value;
 
@@ -381,11 +491,14 @@ class _Metric extends StatelessWidget {
       child: Card(
         child: Padding(
           padding: const EdgeInsets.all(12),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label, style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 4),
-            Text(_money(value), style: Theme.of(context).textTheme.titleMedium),
-          ]),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 4),
+              Text(_money(value), style: Theme.of(context).textTheme.titleMedium),
+            ],
+          ),
         ),
       ),
     );
@@ -393,4 +506,7 @@ class _Metric extends StatelessWidget {
 }
 
 String _money(double value) => '${value.toStringAsFixed(2)} €';
-String _friendly(Object error) => error.toString().replaceFirst('StateError: ', '').replaceFirst('Invalid argument(s): ', '');
+String _friendly(Object error) => error
+    .toString()
+    .replaceFirst('StateError: ', '')
+    .replaceFirst('Invalid argument(s): ', '');
