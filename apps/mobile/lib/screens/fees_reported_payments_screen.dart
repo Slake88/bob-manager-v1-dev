@@ -1,9 +1,9 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../core/fees_economics.dart';
 import '../repositories/fees_operational_repository.dart';
+import '../widgets/bob_attachment_viewer.dart';
 
 class FeesReportedPaymentsScreen extends StatefulWidget {
   const FeesReportedPaymentsScreen({super.key});
@@ -149,11 +149,14 @@ class _FeesReportedPaymentsScreenState extends State<FeesReportedPaymentsScreen>
       final path = row['proof_path']?.toString();
       if (path == null || path.isEmpty) throw StateError('Sem comprovativo.');
       final url = await _repository.proofSignedUrl(path);
-      final launched = await launchUrl(
-        Uri.parse(url),
-        mode: LaunchMode.externalApplication,
+      if (!mounted) return;
+      await BobAttachmentViewer.open(
+        context,
+        url: url,
+        title: 'Comprovativo',
+        fileName: row['proof_name']?.toString(),
+        mimeType: row['proof_mime_type']?.toString(),
       );
-      if (!launched && mounted) _message('Não foi possível abrir o comprovativo.');
     } catch (error) {
       if (mounted) _message(_friendly(error));
     }
