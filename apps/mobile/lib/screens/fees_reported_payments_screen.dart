@@ -23,7 +23,9 @@ class _FeesReportedPaymentsScreenState extends State<FeesReportedPaymentsScreen>
   }
 
   Future<void> _reload() async {
-    setState(() => _future = _repository.listReportedPayments());
+    setState(() {
+      _future = _repository.listReportedPayments();
+    });
     await _future;
   }
 
