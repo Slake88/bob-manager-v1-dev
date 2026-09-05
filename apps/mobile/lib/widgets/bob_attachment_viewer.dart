@@ -66,6 +66,7 @@ class _BobAttachmentViewerState extends State<BobAttachmentViewer> {
 
   final TransformationController _imageController = TransformationController();
   final GlobalKey<PdfPreviewState> _pdfKey = GlobalKey<PdfPreviewState>();
+  final ValueNotifier<double> _scaleNotifier = ValueNotifier<double>(1);
   TransformationController? _observedPdfController;
   Future<Uint8List>? _pdfBytes;
   double _scale = 1;
@@ -92,6 +93,7 @@ class _BobAttachmentViewerState extends State<BobAttachmentViewer> {
     _imageController.removeListener(_syncImageScale);
     _imageController.dispose();
     _observedPdfController?.removeListener(_syncPdfScale);
+    _scaleNotifier.dispose();
     super.dispose();
   }
 
@@ -103,6 +105,11 @@ class _BobAttachmentViewerState extends State<BobAttachmentViewer> {
       );
     }
     return response.bodyBytes;
+  }
+
+  Future<Uint8List> _pdfBytesCopy() async {
+    final bytes = await _pdfBytes!;
+    return Uint8List.fromList(bytes);
   }
 
   void _syncImageScale() {
@@ -117,8 +124,11 @@ class _BobAttachmentViewerState extends State<BobAttachmentViewer> {
   }
 
   void _updateScale(double value) {
-    if (!mounted || (value - _scale).abs() < 0.01) return;
-    setState(() => _scale = value.clamp(_minScale, _maxScale).toDouble());
+    if (!mounted) return;
+    final next = value.clamp(_minScale, _maxScale).toDouble();
+    if ((next - _scale).abs() < 0.01) return;
+    _scale = next;
+    _scaleNotifier.value = next;
   }
 
   TransformationController? get _pdfController =>
@@ -219,7 +229,7 @@ class _BobAttachmentViewerState extends State<BobAttachmentViewer> {
     if (_isPdf) {
       return PdfPreview(
         key: _pdfKey,
-        build: (_) => _pdfBytes!,
+        build: (_) => _pdfBytesCopy(),
         allowPrinting: false,
         allowSharing: false,
         canChangeOrientation: false,
@@ -276,39 +286,42 @@ class _BobAttachmentViewerState extends State<BobAttachmentViewer> {
         elevation: 2,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              IconButton(
-                tooltip: 'Diminuir',
-                onPressed: _scale <= _minScale + 0.01 ? null : _zoomOut,
-                icon: const Icon(Icons.remove),
-              ),
-              SizedBox(
-                width: 72,
-                child: Text(
-                  '${(_scale * 100).round()}%',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+          child: ValueListenableBuilder<double>(
+            valueListenable: _scaleNotifier,
+            builder: (context, scale, _) => Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  tooltip: 'Diminuir',
+                  onPressed: scale <= _minScale + 0.01 ? null : _zoomOut,
+                  icon: const Icon(Icons.remove),
                 ),
-              ),
-              IconButton(
-                tooltip: 'Aumentar',
-                onPressed: _scale >= _maxScale - 0.01 ? null : _zoomIn,
-                icon: const Icon(Icons.add),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                tooltip: 'Ajustar ao ecrã',
-                onPressed: _fit,
-                icon: const Icon(Icons.fit_screen_outlined),
-              ),
-              const SizedBox(width: 8),
-              const Tooltip(
-                message: 'Usa dois dedos para ampliar e arrasta para navegar. Duplo toque alterna o zoom.',
-                child: Icon(Icons.touch_app_outlined),
-              ),
-            ],
+                SizedBox(
+                  width: 72,
+                  child: Text(
+                    '${(scale * 100).round()}%',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Aumentar',
+                  onPressed: scale >= _maxScale - 0.01 ? null : _zoomIn,
+                  icon: const Icon(Icons.add),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'Ajustar ao ecrã',
+                  onPressed: _fit,
+                  icon: const Icon(Icons.fit_screen_outlined),
+                ),
+                const SizedBox(width: 8),
+                const Tooltip(
+                  message: 'Usa dois dedos para ampliar e arrasta para navegar.',
+                  child: Icon(Icons.touch_app_outlined),
+                ),
+              ],
+            ),
           ),
         ),
       ),
