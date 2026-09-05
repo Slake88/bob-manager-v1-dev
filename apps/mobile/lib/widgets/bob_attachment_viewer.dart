@@ -65,9 +65,8 @@ class _BobAttachmentViewerState extends State<BobAttachmentViewer> {
   static const double _maxScale = 5;
 
   final TransformationController _imageController = TransformationController();
-  final GlobalKey<PdfPreviewState> _pdfKey = GlobalKey<PdfPreviewState>();
+  final TransformationController _pdfController = TransformationController();
   final ValueNotifier<double> _scaleNotifier = ValueNotifier<double>(1);
-  TransformationController? _observedPdfController;
   Future<Uint8List>? _pdfBytes;
   double _scale = 1;
 
@@ -85,14 +84,16 @@ class _BobAttachmentViewerState extends State<BobAttachmentViewer> {
   void initState() {
     super.initState();
     _imageController.addListener(_syncImageScale);
+    _pdfController.addListener(_syncPdfScale);
     if (_isPdf) _pdfBytes = _loadBytes(widget.url);
   }
 
   @override
   void dispose() {
     _imageController.removeListener(_syncImageScale);
+    _pdfController.removeListener(_syncPdfScale);
     _imageController.dispose();
-    _observedPdfController?.removeListener(_syncPdfScale);
+    _pdfController.dispose();
     _scaleNotifier.dispose();
     super.dispose();
   }
@@ -113,14 +114,11 @@ class _BobAttachmentViewerState extends State<BobAttachmentViewer> {
   }
 
   void _syncImageScale() {
-    final value = _imageController.value.getMaxScaleOnAxis();
-    _updateScale(value);
+    _updateScale(_imageController.value.getMaxScaleOnAxis());
   }
 
   void _syncPdfScale() {
-    final controller = _observedPdfController;
-    if (controller == null) return;
-    _updateScale(controller.value.getMaxScaleOnAxis());
+    _updateScale(_pdfController.value.getMaxScaleOnAxis());
   }
 
   void _updateScale(double value) {
@@ -131,44 +129,39 @@ class _BobAttachmentViewerState extends State<BobAttachmentViewer> {
     _scaleNotifier.value = next;
   }
 
-  TransformationController? get _pdfController =>
-      _pdfKey.currentState?.previewWidget.currentState?.transformationController;
-
-  void _bindPdfController() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final controller = _pdfController;
-      if (controller == null || identical(controller, _observedPdfController)) {
-        return;
-      }
-      _observedPdfController?.removeListener(_syncPdfScale);
-      _observedPdfController = controller;
-      controller.addListener(_syncPdfScale);
-      _syncPdfScale();
-    });
-  }
-
   void _setScale(double value) {
     final next = value.clamp(_minScale, _maxScale).toDouble();
-    final matrix = next == 1
-        ? Matrix4.identity()
-        : Matrix4.diagonal3Values(next, next, 1);
-    if (_isImage) {
-      _imageController.value = matrix;
-    } else if (_isPdf) {
-      final controller = _pdfController;
-      if (controller == null) return;
-      controller.value = matrix;
-    }
+    final controller = _isPdf ? _pdfController : _imageController;
+    final current = controller.value;
+    final currentScale = current.getMaxScaleOnAxis();
+    if (currentScale <= 0) return;
+
+    final factor = next / currentScale;
+    final focalX = MediaQuery.sizeOf(context).width / 2;
+    final focalY = MediaQuery.sizeOf(context).height / 2;
+    final zoom = Matrix4.identity()
+      ..translate(focalX, focalY)
+      ..scale(factor)
+      ..translate(-focalX, -focalY);
+    controller.value = zoom * current;
     _updateScale(next);
   }
 
   void _zoomIn() => _setScale(_scale + 0.5);
   void _zoomOut() => _setScale(_scale - 0.5);
-  void _fit() => _setScale(1);
+
+  void _fit() {
+    final controller = _isPdf ? _pdfController : _imageController;
+    controller.value = Matrix4.identity();
+    _updateScale(1);
+  }
 
   void _doubleTap() {
-    _setScale(_scale > 1.05 ? 1 : 2.5);
+    if (_scale > 1.05) {
+      _fit();
+    } else {
+      _setScale(2.5);
+    }
   }
 
   Future<void> _openExternal() async {
@@ -185,7 +178,6 @@ class _BobAttachmentViewerState extends State<BobAttachmentViewer> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isPdf) _bindPdfController();
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title, overflow: TextOverflow.ellipsis),
@@ -227,20 +219,34 @@ class _BobAttachmentViewerState extends State<BobAttachmentViewer> {
     }
 
     if (_isPdf) {
-      return PdfPreview(
-        key: _pdfKey,
-        build: (_) => _pdfBytesCopy(),
-        allowPrinting: false,
-        allowSharing: false,
-        canChangeOrientation: false,
-        canChangePageFormat: false,
-        canDebug: false,
-        dynamicLayout: false,
-        enableScrollToPage: true,
-        pdfFileName: widget.fileName,
-        maxPageWidth: 1100,
-        dpi: 144,
-        onError: (_, error) => _errorView(error),
+      return GestureDetector(
+        onDoubleTap: _doubleTap,
+        child: ColoredBox(
+          color: Theme.of(context).colorScheme.surfaceContainerLowest,
+          child: InteractiveViewer(
+            transformationController: _pdfController,
+            minScale: _minScale,
+            maxScale: _maxScale,
+            panEnabled: true,
+            scaleEnabled: true,
+            child: SizedBox.expand(
+              child: PdfPreview(
+                build: (_) => _pdfBytesCopy(),
+                allowPrinting: false,
+                allowSharing: false,
+                canChangeOrientation: false,
+                canChangePageFormat: false,
+                canDebug: false,
+                dynamicLayout: false,
+                enableScrollToPage: true,
+                pdfFileName: widget.fileName,
+                maxPageWidth: 1100,
+                dpi: 144,
+                onError: (_, error) => _errorView(error),
+              ),
+            ),
+          ),
+        ),
       );
     }
 
@@ -317,7 +323,7 @@ class _BobAttachmentViewerState extends State<BobAttachmentViewer> {
                 ),
                 const SizedBox(width: 8),
                 const Tooltip(
-                  message: 'Usa dois dedos para ampliar e arrasta para navegar.',
+                  message: 'Usa dois dedos para ampliar e arrasta para navegar. Duplo toque alterna o zoom.',
                   child: Icon(Icons.touch_app_outlined),
                 ),
               ],
