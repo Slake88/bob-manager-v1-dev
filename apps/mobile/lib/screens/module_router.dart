@@ -1,11 +1,23 @@
 import 'package:flutter/material.dart';
 
-import '../core/entity_definition.dart';
 import '../core/module_definition.dart';
+import 'activity_screen.dart';
+import 'agenda_screen.dart';
+import 'bar_screen_v4.dart';
+import 'communication_module_screen.dart';
 import 'dashboard_screen.dart';
+import 'documents_module_screen.dart';
 import 'emergency_screen.dart';
-import 'entity_crud_screen.dart';
+import 'events_module_screen.dart';
+import 'fees_screen.dart';
+import 'financial_requests_screen.dart';
+import 'inventory_module_screen.dart';
+import 'lottery_screen.dart';
 import 'members_screen.dart';
+import 'reports_hub_screen.dart';
+import 'settings_screen.dart';
+import 'treasury_module_screen.dart';
+import 'weekly_officer_screen.dart';
 
 class ModuleRouter extends StatelessWidget {
   const ModuleRouter({super.key, required this.module});
@@ -16,94 +28,23 @@ class ModuleRouter extends StatelessWidget {
   Widget build(BuildContext context) {
     return switch (module.code) {
       'dashboard' => const DashboardScreen(),
+      'activity' => const ActivityScreen(),
       'members' => const MembersScreen(),
-      'treasury' => const EntityCrudScreen(definition: treasuryDefinition),
-      'fees' => const EntityCrudScreen(definition: feesDefinition),
-      'lottery' => const EntityCrudScreen(definition: lotteryDefinition),
-      'events' => const EntityCrudScreen(definition: eventsDefinition),
-      'inventory' => const EntityCrudScreen(definition: inventoryDefinition),
-      'documents' => const EntityCrudScreen(definition: documentsDefinition),
-      'communication' =>
-        const EntityCrudScreen(definition: communicationDefinition),
-      'reports' => const _ReportsScreen(),
-      'settings' => const _SettingsScreen(),
+      'treasury' => const TreasuryModuleScreen(),
+      'fees' => const FeesScreen(),
+      'financial' => const FinancialRequestsScreen(),
+      'lottery' => const LotteryScreen(),
+      'events' => const EventsModuleScreen(),
+      'weekly_officer' => const WeeklyOfficerScreen(),
+      'agenda' => const AgendaScreen(),
+      'bar' => const BarScreenV4(),
+      'inventory' => const InventoryModuleScreen(),
+      'documents' => const DocumentsModuleScreen(),
+      'communication' => const CommunicationModuleScreen(),
+      'reports' => const ReportsHubScreen(),
+      'settings' => const SettingsScreen(),
       'emergency' => const EmergencyScreen(),
       _ => const SizedBox.shrink(),
     };
-  }
-}
-
-class _ReportsScreen extends StatelessWidget {
-  const _ReportsScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    const reports = [
-      ('Membros', 'Listas, cargos, motas, patches e participação.'),
-      ('Quotas', 'Mapa mensal, anual, dívida, créditos e comprovativos.'),
-      ('Tesouraria', 'Contas, fundos, centros de custo e resultados.'),
-      ('Euromilhões', 'Participantes, chaves, sorteios, acertos e saldo.'),
-      ('Eventos', 'Participantes, orçamento, stock e relatório final.'),
-      ('Inventário', 'Stock, vendas, reservas, validades e margens.'),
-      ('Livro Anual', 'Cápsula do Tempo do Blue On Black.'),
-      ('Importar Excel', 'Pré-visualizar, corrigir e validar antes de importar.'),
-    ];
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text('Relatórios e importação', style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 12),
-        ...reports.map(
-          (report) => Card(
-            child: ListTile(
-              leading: const Icon(Icons.assessment_outlined),
-              title: Text(report.$1),
-              subtitle: Text(report.$2),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${report.$1}: gerador preparado na arquitetura da Fase 2.')),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SettingsScreen extends StatelessWidget {
-  const _SettingsScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    const settings = [
-      ('Identidade do clube', 'Blue On Black, logótipo, cores e Club House.'),
-      ('Cargos', 'Cargo principal, cargos adicionais e hierarquia.'),
-      ('Perfis e permissões', 'Alteráveis apenas pela direção autorizada.'),
-      ('Contas e fundos', 'Caixa, Banco CGD, Quotas, Reserva, Representação, Marketing e Euromilhões.'),
-      ('Centros de custo', 'Club House, Representação, Eventos e restantes centros.'),
-      ('Quotas', '25 € mensais e inscrição manual de Prospect.'),
-      ('Armazenamento', '500 MB pessoais e arquivo geral do clube.'),
-      ('Auditoria e backups', 'Histórico, exportação integral e recuperação.'),
-    ];
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text('Configurações', style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 12),
-        ...settings.map(
-          (setting) => Card(
-            child: ListTile(
-              leading: const Icon(Icons.settings_outlined),
-              title: Text(setting.$1),
-              subtitle: Text(setting.$2),
-              trailing: const Icon(Icons.chevron_right),
-            ),
-          ),
-        ),
-      ],
-    );
   }
 }
