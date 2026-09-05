@@ -51,7 +51,9 @@ class _FeesMemberDetailScreenState extends State<FeesMemberDetailScreen> {
   Future<void> _reload() async {
     final member = _memberId;
     if (member == null) return;
-    setState(() => _dataFuture = _load(member));
+    setState(() {
+      _dataFuture = _load(member);
+    });
     await _dataFuture;
   }
 
@@ -274,7 +276,11 @@ class _FeesMemberDetailScreenState extends State<FeesMemberDetailScreen> {
       if (member != null) {
         final refreshed = _loadWithRetry(member);
         await refreshed;
-        if (mounted) setState(() => _dataFuture = refreshed);
+        if (mounted) {
+          setState(() {
+            _dataFuture = refreshed;
+          });
+        }
       }
       if (mounted) _message('Pagamento revertido com sucesso.');
     } catch (_) {
