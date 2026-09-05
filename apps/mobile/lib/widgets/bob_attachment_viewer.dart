@@ -1,5 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -94,8 +96,13 @@ class _BobAttachmentViewerState extends State<BobAttachmentViewer> {
   }
 
   Future<Uint8List> _loadBytes(String url) async {
-    final data = await NetworkAssetBundle(Uri.parse(url)).load('');
-    return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw StateError(
+        'Não foi possível carregar o ficheiro (HTTP ${response.statusCode}).',
+      );
+    }
+    return response.bodyBytes;
   }
 
   void _syncImageScale() {
