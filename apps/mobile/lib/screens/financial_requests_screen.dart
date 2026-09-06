@@ -1,10 +1,10 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../core/app_session.dart';
 import '../repositories/financial_requests_repository.dart';
+import '../widgets/bob_attachment_viewer.dart';
 
 class FinancialRequestsScreen extends StatefulWidget {
   const FinancialRequestsScreen({super.key});
@@ -313,10 +313,14 @@ class _FinancialRequestsScreenState extends State<FinancialRequestsScreen> {
   Future<void> _openAttachment(Map<String, dynamic> attachment) async {
     try {
       final url = await _repository.signedAttachmentUrl(attachment);
-      final uri = Uri.parse(url);
-      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-        throw StateError('Não foi possível abrir o ficheiro.');
-      }
+      if (!mounted) return;
+      await BobAttachmentViewer.open(
+        context,
+        url: url,
+        title: _attachmentKindLabel(attachment['kind']?.toString()),
+        fileName: attachment['original_file_name']?.toString(),
+        mimeType: attachment['mime_type']?.toString(),
+      );
     } catch (error) {
       if (mounted) _message(_errorText(error), error: true);
     }
