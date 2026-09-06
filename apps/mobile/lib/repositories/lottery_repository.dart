@@ -213,7 +213,7 @@ class LotteryRepository {
       );
     }
     if (drawAmount <= 0 || finePerMiss < 0) {
-      throw ArgumentError('Valores de configuração inválidos.');
+      throw const _LotteryValidationException('Valores de configuração inválidos.');
     }
     if (AppConfig.demoMode) return;
     for (final entry in {
@@ -540,6 +540,15 @@ class LotteryRepository {
       throw StateError('Sem permissão para executar esta operação.');
     }
   }
+}
+
+class _LotteryValidationException implements Exception {
+  const _LotteryValidationException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
 }
 
 List<int> _intList(Object? value) {
