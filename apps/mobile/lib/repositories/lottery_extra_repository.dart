@@ -42,10 +42,7 @@ class LotteryExtraRepository {
     required String prizeId,
     required String reason,
   }) async {
-    final cleanReason = reason.trim();
-    if (cleanReason.length < 3) {
-      throw ArgumentError('Indica o motivo da reversão.');
-    }
+    final cleanReason = _validatedReason(reason);
     if (AppConfig.demoMode) return;
 
     await _supabase.rpc(
@@ -56,5 +53,88 @@ class LotteryExtraRepository {
         'p_reason': cleanReason,
       },
     );
+  }
+
+  Future<void> payMonthFines({
+    required String playerId,
+    required int year,
+    required int month,
+    required String paymentMethod,
+  }) async {
+    if (AppConfig.demoMode) return;
+
+    await _supabase.rpc(
+      'register_euromillions_month_fine_payment_v1',
+      params: {
+        'target_club': AppSession.instance.clubId,
+        'p_player': playerId,
+        'p_year': year,
+        'p_month': month,
+        'p_payment_method': paymentMethod,
+      },
+    );
+  }
+
+  Future<void> reverseDrawPayment({
+    required String chargeId,
+    required String reason,
+  }) async {
+    final cleanReason = _validatedReason(reason);
+    if (AppConfig.demoMode) return;
+
+    await _supabase.rpc(
+      'reverse_euromillions_draw_payment_v1',
+      params: {
+        'target_club': AppSession.instance.clubId,
+        'p_charge': chargeId,
+        'p_reason': cleanReason,
+      },
+    );
+  }
+
+  Future<void> reverseMonthPayments({
+    required String playerId,
+    required int year,
+    required int month,
+    required String reason,
+  }) async {
+    final cleanReason = _validatedReason(reason);
+    if (AppConfig.demoMode) return;
+
+    await _supabase.rpc(
+      'reverse_euromillions_month_payment_v1',
+      params: {
+        'target_club': AppSession.instance.clubId,
+        'p_player': playerId,
+        'p_year': year,
+        'p_month': month,
+        'p_reason': cleanReason,
+      },
+    );
+  }
+
+  Future<void> reverseFinePayment({
+    required String transactionId,
+    required String reason,
+  }) async {
+    final cleanReason = _validatedReason(reason);
+    if (AppConfig.demoMode) return;
+
+    await _supabase.rpc(
+      'reverse_euromillions_fine_payment_v1',
+      params: {
+        'target_club': AppSession.instance.clubId,
+        'p_transaction': transactionId,
+        'p_reason': cleanReason,
+      },
+    );
+  }
+
+  String _validatedReason(String reason) {
+    final cleanReason = reason.trim();
+    if (cleanReason.length < 3) {
+      throw ArgumentError('Indica o motivo da reversão.');
+    }
+    return cleanReason;
   }
 }
