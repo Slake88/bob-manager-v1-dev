@@ -68,6 +68,43 @@ class _LotteryScreenState extends State<LotteryScreen> {
     );
   }
 
+  Future<String?> _reversalReason({
+    required String title,
+    required String hint,
+  }) async {
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 3,
+          decoration: InputDecoration(
+            labelText: 'Motivo da reversão',
+            hintText: hint,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              if (value.length >= 3) Navigator.pop(dialogContext, value);
+            },
+            child: const Text('Reverter'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return reason;
+  }
+
   Future<void> _payDraw(Map<String, dynamic> charge) async {
     final method = await _paymentMethod();
     if (method == null) return;
@@ -108,7 +145,7 @@ class _LotteryScreenState extends State<LotteryScreen> {
         title: const Text('Receber multas'),
         content: Text(
           'Registar o pagamento de ${_money(debt)} de multas de '
-          '${player['member_name'] ?? 'este jogador'}?',
+          '${player['member_name'] ?? 'este jogador'} neste mês?',
         ),
         actions: [
           TextButton(
@@ -124,11 +161,85 @@ class _LotteryScreenState extends State<LotteryScreen> {
     );
     if (confirmed != true) return;
     try {
-      await _repository.payFines(
+      await _extra.payMonthFines(
         playerId: player['player_id'].toString(),
+        year: _month.year,
+        month: _month.month,
         paymentMethod: method,
       );
       if (mounted) setState(_reload);
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
+  Future<void> _reverseDraw(Map<String, dynamic> charge) async {
+    final reason = await _reversalReason(
+      title: 'Reverter pagamento do sorteio',
+      hint: 'Ex.: pagamento registado por engano',
+    );
+    if (reason == null) return;
+    try {
+      await _extra.reverseDrawPayment(
+        chargeId: charge['id'].toString(),
+        reason: reason,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pagamento do sorteio revertido.')),
+      );
+      setState(_reload);
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
+  Future<void> _reverseMonth(Map<String, dynamic> player) async {
+    final reason = await _reversalReason(
+      title: 'Reverter pagamentos do mês',
+      hint: 'Ex.: mês liquidado por engano',
+    );
+    if (reason == null) return;
+    try {
+      await _extra.reverseMonthPayments(
+        playerId: player['player_id'].toString(),
+        year: _month.year,
+        month: _month.month,
+        reason: reason,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pagamentos do mês revertidos.')),
+      );
+      setState(_reload);
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
+  Future<void> _reverseFines(
+    Map<String, dynamic> player,
+    String transactionId,
+  ) async {
+    final reason = await _reversalReason(
+      title: 'Reverter pagamento das multas',
+      hint: 'Ex.: recebimento de multas registado por engano',
+    );
+    if (reason == null) return;
+    try {
+      await _extra.reverseFinePayment(
+        transactionId: transactionId,
+        reason: reason,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Pagamento das multas de ${player['member_name'] ?? 'jogador'} revertido.',
+          ),
+        ),
+      );
+      setState(_reload);
     } catch (error) {
       _showError(error);
     }
@@ -153,37 +264,11 @@ class _LotteryScreenState extends State<LotteryScreen> {
   }
 
   Future<void> _reversePrize(Map<String, dynamic> prize) async {
-    final controller = TextEditingController();
-    final reason = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Reverter recebimento do prémio'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLines: 3,
-          decoration: const InputDecoration(
-            labelText: 'Motivo da reversão',
-            hintText: 'Ex.: prémio registado com resultado incorreto',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final value = controller.text.trim();
-              if (value.length >= 3) Navigator.pop(dialogContext, value);
-            },
-            child: const Text('Reverter'),
-          ),
-        ],
-      ),
+    final reason = await _reversalReason(
+      title: 'Reverter recebimento do prémio',
+      hint: 'Ex.: prémio registado com resultado incorreto',
     );
-    controller.dispose();
-    if (reason == null || reason.trim().length < 3) return;
+    if (reason == null) return;
 
     try {
       await _extra.reversePrizeReceipt(
@@ -400,6 +485,10 @@ class _LotteryScreenState extends State<LotteryScreen> {
                               dates: drawDates,
                               onPayDraw: _repository.canOperateMoney ? _payDraw : null,
                               onPayMonth: _repository.canOperateMoney ? _payMonth : null,
+                              onReverseDraw:
+                                  _repository.canOperateMoney ? _reverseDraw : null,
+                              onReverseMonth:
+                                  _repository.canOperateMoney ? _reverseMonth : null,
                             ),
                             _PlayersView(
                               players: players,
@@ -415,6 +504,7 @@ class _LotteryScreenState extends State<LotteryScreen> {
                               canOperate: _repository.canOperateMoney,
                               onProcess: _processResult,
                               onReceiveFines: _payFines,
+                              onReverseFines: _reverseFines,
                               onReceivePrize: _receivePrize,
                               onReversePrize: _reversePrize,
                               onManualPrize: () => _manualPrize(active, results),
@@ -443,6 +533,8 @@ class _MonthlyBoard extends StatelessWidget {
     required this.dates,
     required this.onPayDraw,
     required this.onPayMonth,
+    required this.onReverseDraw,
+    required this.onReverseMonth,
   });
 
   final LotteryRepository repository;
@@ -451,6 +543,8 @@ class _MonthlyBoard extends StatelessWidget {
   final List<DateTime> dates;
   final Future<void> Function(Map<String, dynamic>)? onPayDraw;
   final Future<void> Function(Map<String, dynamic>)? onPayMonth;
+  final Future<void> Function(Map<String, dynamic>)? onReverseDraw;
+  final Future<void> Function(Map<String, dynamic>)? onReverseMonth;
 
   @override
   Widget build(BuildContext context) {
@@ -472,6 +566,13 @@ class _MonthlyBoard extends StatelessWidget {
           ],
           rows: players.map((player) {
             final playerId = player['player_id']?.toString();
+            final playerCharges = charges
+                .where((row) => row['player_id']?.toString() == playerId)
+                .toList();
+            final allPaid = playerCharges.isNotEmpty &&
+                playerCharges.every(
+                  (row) => _asDouble(row['paid_amount']) >= _asDouble(row['amount']),
+                );
             return DataRow(cells: [
               DataCell(
                 SizedBox(
@@ -487,11 +588,17 @@ class _MonthlyBoard extends StatelessWidget {
               DataCell(
                 onPayMonth == null
                     ? const Icon(Icons.calendar_month_outlined)
-                    : IconButton(
-                        tooltip: 'Liquidar mês completo',
-                        onPressed: () => onPayMonth!(player),
-                        icon: const Icon(Icons.payments_outlined),
-                      ),
+                    : allPaid && onReverseMonth != null
+                        ? IconButton(
+                            tooltip: 'Reverter pagamentos do mês',
+                            onPressed: () => onReverseMonth!(player),
+                            icon: const Icon(Icons.undo_outlined),
+                          )
+                        : IconButton(
+                            tooltip: 'Liquidar mês completo',
+                            onPressed: () => onPayMonth!(player),
+                            icon: const Icon(Icons.payments_outlined),
+                          ),
               ),
             ]);
           }).toList(),
@@ -513,9 +620,26 @@ class _MonthlyBoard extends StatelessWidget {
     if (charge == null) return const Text('—');
     final paid = _asDouble(charge['paid_amount']) >= _asDouble(charge['amount']);
     if (paid) {
-      return const Tooltip(
-        message: 'Sorteio liquidado',
-        child: Icon(Icons.check_circle, color: Colors.green),
+      if (onReverseDraw == null) {
+        return const Tooltip(
+          message: 'Sorteio liquidado',
+          child: Icon(Icons.check_circle, color: Colors.green),
+        );
+      }
+      final current = charge;
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Tooltip(
+            message: 'Sorteio liquidado',
+            child: Icon(Icons.check_circle, color: Colors.green),
+          ),
+          IconButton(
+            tooltip: 'Reverter pagamento deste sorteio',
+            onPressed: () => onReverseDraw!(current),
+            icon: const Icon(Icons.undo_outlined, size: 19),
+          ),
+        ],
       );
     }
     if (onPayDraw == null) return const Icon(Icons.cancel, color: Colors.red);
@@ -580,6 +704,7 @@ class _ResultsAndFinesView extends StatelessWidget {
     required this.canOperate,
     required this.onProcess,
     required this.onReceiveFines,
+    required this.onReverseFines,
     required this.onReceivePrize,
     required this.onReversePrize,
     required this.onManualPrize,
@@ -593,6 +718,7 @@ class _ResultsAndFinesView extends StatelessWidget {
   final bool canOperate;
   final Future<void> Function(DateTime) onProcess;
   final Future<void> Function(Map<String, dynamic>, double) onReceiveFines;
+  final Future<void> Function(Map<String, dynamic>, String) onReverseFines;
   final Future<void> Function(Map<String, dynamic>) onReceivePrize;
   final Future<void> Function(Map<String, dynamic>) onReversePrize;
   final VoidCallback onManualPrize;
@@ -602,12 +728,25 @@ class _ResultsAndFinesView extends StatelessWidget {
     final debtRows = <Map<String, dynamic>>[];
     for (final player in players) {
       final playerId = player['player_id']?.toString();
-      final playerFines = fines.where((f) => f['player_id']?.toString() == playerId);
+      final playerFines = fines
+          .where((f) => f['player_id']?.toString() == playerId)
+          .toList();
       final total = playerFines.fold<double>(0, (s, f) => s + _asDouble(f['fine_amount']));
       final paid = playerFines.fold<double>(0, (s, f) => s + _asDouble(f['paid_amount']));
       final debt = (total - paid).clamp(0, double.infinity);
+      final transactionIds = playerFines
+          .where((f) => _asDouble(f['paid_amount']) > 0)
+          .map((f) => f['transaction_id']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toSet();
       if (total > 0) {
-        debtRows.add({'player': player, 'total': total, 'paid': paid, 'debt': debt});
+        debtRows.add({
+          'player': player,
+          'total': total,
+          'paid': paid,
+          'debt': debt,
+          'transaction_id': transactionIds.length == 1 ? transactionIds.first : null,
+        });
       }
     }
 
@@ -638,17 +777,35 @@ class _ResultsAndFinesView extends StatelessWidget {
                 subtitle: Text(
                   'Apurado ${_money(row['total'])} • Pago ${_money(row['paid'])}',
                 ),
-                trailing: (row['debt'] as double) > 0
-                    ? canOperate
-                        ? FilledButton.tonal(
-                            onPressed: () => onReceiveFines(
-                              Map<String, dynamic>.from(row['player'] as Map),
-                              row['debt'] as double,
-                            ),
-                            child: Text('Receber ${_money(row['debt'])}'),
-                          )
-                        : Text('Dívida ${_money(row['debt'])}')
-                    : const Chip(label: Text('Liquidado')),
+                trailing: Wrap(
+                  spacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    if ((row['debt'] as double) > 0)
+                      canOperate
+                          ? FilledButton.tonal(
+                              onPressed: () => onReceiveFines(
+                                Map<String, dynamic>.from(row['player'] as Map),
+                                row['debt'] as double,
+                              ),
+                              child: Text('Receber ${_money(row['debt'])}'),
+                            )
+                          : Text('Dívida ${_money(row['debt'])}')
+                    else
+                      const Chip(label: Text('Liquidado')),
+                    if (canOperate &&
+                        _asDouble(row['paid']) > 0 &&
+                        row['transaction_id'] != null)
+                      IconButton(
+                        tooltip: 'Reverter pagamento das multas',
+                        onPressed: () => onReverseFines(
+                          Map<String, dynamic>.from(row['player'] as Map),
+                          row['transaction_id'].toString(),
+                        ),
+                        icon: const Icon(Icons.undo_outlined),
+                      ),
+                  ],
+                ),
               ),
             ),
           const Divider(height: 24),
