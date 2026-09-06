@@ -15,10 +15,9 @@ const requestHeaders = {
 
 const catalogSources = [
   "https://www.jogossantacasa.pt/web/SCCartazResult/euroMilhoes",
-  "https://diadamae.jogossantacasa.pt/web/SCCartazResult/euroMilhoes",
+  "https://www.jogossantacasa.pt/web/SCCartazResult/",
   "https://www.jogossantacasa.pt/web/ResultsBoard/euromilhoes",
-  "https://diadamae.jogossantacasa.pt/web/ResultsBoard/euromilhoes",
-  "https://diadamae.jogossantacasa.pt/web/SCCartazResult/",
+  "https://www.jogossantacasa.pt/web/ResultsBoard/",
 ];
 
 const combos: Array<[number, number, number]> = [
@@ -37,7 +36,7 @@ type Result = {
 
 type ContestCandidate = {
   baseUrl: string;
-  contestId: string;
+  query: string;
 };
 
 type ExpectedDraw = {
@@ -163,6 +162,23 @@ function expectedDraws(year: number, month: number): ExpectedDraw[] {
   return draws;
 }
 
+function candidateQuery(rawValue: string): string | null {
+  const value = rawValue
+    .replace(/&amp;/gi, "&")
+    .replace(/&#38;/gi, "&")
+    .trim();
+
+  const tMatch = value.match(/(?:^|[?&])t=([A-Fa-f0-9]{16,128})(?:[&#]|$)/);
+  if (tMatch) return `t=${tMatch[1]}`;
+
+  const contestMatch = value.match(/(?:^|[?&])selectContest=(\d+)(?:[&#]|$)/i);
+  if (contestMatch) return `selectContest=${contestMatch[1]}`;
+
+  if (/^[A-Fa-f0-9]{16,128}$/.test(value)) return `t=${value}`;
+  if (/^\d+$/.test(value)) return `selectContest=${value}`;
+  return null;
+}
+
 function extractContestCandidates(
   html: string,
   baseUrl: string,
@@ -173,15 +189,13 @@ function extractContestCandidates(
   const add = (label: string, rawValue: string) => {
     const drawMatch = htmlToText(label).match(/(\d{1,3})\s*\/\s*(\d{4})/);
     if (!drawMatch) return;
+    const query = candidateQuery(rawValue);
+    if (!query) return;
     const drawNumber = normalizeDrawNumber(`${drawMatch[1]}/${drawMatch[2]}`);
-    const value = rawValue.replace(/&amp;/gi, "&").trim();
-    const idMatch = value.match(/selectContest=(\d+)/i);
-    const contestId = idMatch?.[1] ?? (/^\d+$/.test(value) ? value : null);
-    if (!contestId) return;
-    const key = `${drawNumber}|${baseUrl}|${contestId}`;
+    const key = `${drawNumber}|${baseUrl}|${query}`;
     if (seen.has(key)) return;
     seen.add(key);
-    found.push({ drawNumber, candidate: { baseUrl, contestId } });
+    found.push({ drawNumber, candidate: { baseUrl, query } });
   };
 
   const optionRe = /<option\b([^>]*)>([\s\S]*?)<\/option>/gi;
@@ -197,7 +211,19 @@ function extractContestCandidates(
   let link: RegExpExecArray | null;
   while ((link = linkRe.exec(html)) != null) {
     const href = link[1] ?? link[2] ?? "";
-    if (/selectContest=/i.test(href)) add(link[3], href);
+    if (candidateQuery(href)) add(link[3], href);
+  }
+
+  const tokenRe = /(?:[?&]|&amp;)t=([A-Fa-f0-9]{16,128})/gi;
+  let token: RegExpExecArray | null;
+  while ((token = tokenRe.exec(html)) != null) {
+    const start = Math.max(0, token.index - 500);
+    const end = Math.min(html.length, token.index + token[0].length + 500);
+    const context = html.slice(start, end);
+    const drawMatches = [...htmlToText(context).matchAll(/(\d{1,3})\s*\/\s*(\d{4})/g)];
+    if (drawMatches.length === 0) continue;
+    const nearest = drawMatches[drawMatches.length - 1];
+    add(nearest[0], `t=${token[1]}`);
   }
 
   return found;
@@ -211,23 +237,25 @@ async function fetchHtml(url: string): Promise<string> {
 
 async function loadContestCatalog(): Promise<Map<string, ContestCandidate[]>> {
   const catalog = new Map<string, ContestCandidate[]>();
+  let lastError: unknown;
 
   for (const baseUrl of catalogSources) {
     try {
       const html = await fetchHtml(baseUrl);
       for (const item of extractContestCandidates(html, baseUrl)) {
         const list = catalog.get(item.drawNumber) ?? [];
-        if (!list.some((row) => row.baseUrl === item.candidate.baseUrl && row.contestId === item.candidate.contestId)) {
+        if (!list.some((row) => row.baseUrl === item.candidate.baseUrl && row.query === item.candidate.query)) {
           list.push(item.candidate);
           catalog.set(item.drawNumber, list);
         }
       }
-    } catch (_) {
-      // Uma fonte alternativa pode estar temporariamente indisponível.
+    } catch (error) {
+      lastError = error;
     }
   }
 
   if (catalog.size === 0) {
+    if (lastError instanceof Error) throw lastError;
     throw new Error("Não foi possível ler a lista oficial de sorteios do Euromilhões.");
   }
   return catalog;
@@ -243,7 +271,7 @@ async function fetchOfficialDraw(
   for (const candidate of candidates) {
     try {
       const separator = candidate.baseUrl.includes("?") ? "&" : "?";
-      const url = `${candidate.baseUrl}${separator}selectContest=${encodeURIComponent(candidate.contestId)}`;
+      const url = `${candidate.baseUrl}${separator}${candidate.query}`;
       const parsed = parseResult(htmlToText(await fetchHtml(url)));
       if (parsed.drawNumber !== expected.drawNumber || parsed.drawDate !== expected.drawDate) continue;
       if (best == null || Object.keys(parsed.prizes).length > Object.keys(best.prizes).length) {
@@ -339,7 +367,10 @@ Deno.serve(async (req: Request) => {
       return number !== draw.drawNumber || prizeCount(row.prize_table) < 12;
     });
 
-    const catalog = needsFetch.length > 0 ? await loadContestCatalog() : new Map<string, ContestCandidate[]>();
+    const catalog = needsFetch.length > 0
+      ? await loadContestCatalog()
+      : new Map<string, ContestCandidate[]>();
+
     let importedCount = 0;
     let updatedCount = 0;
     let skippedCount = 0;
@@ -388,7 +419,9 @@ Deno.serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }), {
+    return new Response(JSON.stringify({
+      error: error instanceof Error ? error.message : String(error),
+    }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
