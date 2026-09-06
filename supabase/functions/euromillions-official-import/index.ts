@@ -6,6 +6,22 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const prizeCombos: Array<[number, number, number]> = [
+  [1, 5, 2],
+  [2, 5, 1],
+  [3, 5, 0],
+  [4, 4, 2],
+  [5, 4, 1],
+  [6, 3, 2],
+  [7, 4, 0],
+  [8, 2, 2],
+  [9, 3, 1],
+  [10, 3, 0],
+  [11, 1, 2],
+  [12, 2, 1],
+  [13, 2, 0],
+];
+
 const htmlEntities: Record<string, string> = {
   nbsp: " ", amp: "&", quot: '"', apos: "'", lt: "<", gt: ">",
   ordm: "º", euro: "€", aacute: "á", eacute: "é", iacute: "í",
@@ -47,32 +63,46 @@ function euroToNumber(raw: string): number {
   return Number(raw.replace(/\./g, "").replace(",", "."));
 }
 
-function ordinalHeader(category: number): RegExp {
-  return new RegExp(`\\b${category}\\s*\\.?\\s*(?:Â?º|o)`, "i");
+function comboRegex(numbers: number, stars: number): RegExp {
+  // Procura apenas a estrutura numérica da categoria (ex.: 5 ... + 1 ...),
+  // evitando depender de "Números", "Estrelas", "Prémio", º ou do símbolo €.
+  // Isto torna a leitura resistente ao mojibake que o portal por vezes devolve.
+  return new RegExp(
+    `\\b${numbers}\\b[^0-9+]{1,80}\\+[^0-9]{0,40}\\b${stars}\\b`,
+    "i",
+  );
 }
 
 function parsePrizeTable(text: string): Record<string, number> {
   const prizes: Record<string, number> = {};
+  const anchors: Array<{ category: number; start: number; end: number }> = [];
 
-  for (let category = 1; category <= 13; category++) {
-    const current = ordinalHeader(category).exec(text);
-    if (!current || current.index == null) continue;
+  let searchFrom = 0;
+  for (const [category, numbers, stars] of prizeCombos) {
+    const slice = text.slice(searchFrom);
+    const match = comboRegex(numbers, stars).exec(slice);
+    if (!match || match.index == null) continue;
 
-    const start = current.index + current[0].length;
-    let end = Math.min(text.length, start + 360);
+    const absoluteStart = searchFrom + match.index;
+    const absoluteEnd = absoluteStart + match[0].length;
+    anchors.push({ category, start: absoluteStart, end: absoluteEnd });
+    searchFrom = absoluteEnd;
+  }
 
-    if (category < 13) {
-      const next = ordinalHeader(category + 1).exec(text.slice(start));
-      if (next?.index != null) end = start + next.index;
-    }
+  for (let i = 0; i < anchors.length; i++) {
+    const current = anchors[i];
+    const next = anchors[i + 1];
+    const end = next?.start ?? Math.min(text.length, current.end + 700);
+    const chunk = text.slice(current.end, end);
 
-    const chunk = text.slice(start, end);
+    // Os contadores de vencedores são inteiros. O primeiro número no formato
+    // europeu com duas casas decimais dentro da categoria é o valor do prémio.
     const amount = chunk.match(/([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/);
     if (!amount) continue;
 
     const value = euroToNumber(amount[1]);
     if (Number.isFinite(value) && value > 0) {
-      prizes[String(category)] = value;
+      prizes[String(current.category)] = value;
     }
   }
 
@@ -134,21 +164,28 @@ function isBetterCandidate(candidate: OfficialResult, best: OfficialResult | nul
 async function fetchOfficialResult(): Promise<OfficialResult> {
   const urls = [
     "https://www.jogossantacasa.pt/web/ResultsBoard/",
-    "https://www.jogossantacasa.pt/web/SCCartazResult/",
     "https://www.jogossantacasa.pt/web/ResultsBoard/euromilhoes",
     "https://www.jogossantacasa.pt/web/SCCartazResult/euroMilhoes",
+    "https://www.jogossantacasa.pt/web/SCCartazResult/",
+    // Mirrors oficiais do próprio domínio Santa Casa que por vezes servem
+    // o HTML completo quando o host principal entrega uma versão reduzida.
+    "https://diadopai.jogossantacasa.pt/web/ResultsBoard/euromilhoes",
+    "https://diadopai.jogossantacasa.pt/web/SCCartazResult/euroMilhoes",
+    "https://diadamae.jogossantacasa.pt/web/SCCartazResult/",
   ];
 
   let best: OfficialResult | null = null;
   let lastError: unknown;
+  let parsedSources = 0;
 
   for (const url of urls) {
     try {
       const response = await fetch(url, {
         headers: {
-          "User-Agent": "BOB-Manager/1.0 (+official-results-import)",
+          "User-Agent": "Mozilla/5.0 (compatible; BOB-Manager/1.0; +official-results-import)",
           "Accept": "text/html,application/xhtml+xml",
           "Accept-Language": "pt-PT,pt;q=0.9,en;q=0.5",
+          "Cache-Control": "no-cache",
         },
       });
       if (!response.ok) {
@@ -157,7 +194,11 @@ async function fetchOfficialResult(): Promise<OfficialResult> {
       }
 
       const candidate = parseOfficial(cleanHtml(await response.text()));
+      parsedSources += 1;
       if (isBetterCandidate(candidate, best)) best = candidate;
+
+      // Num sorteio sem vencedor de 1.ª categoria são esperados 12 valores.
+      if (Object.keys(candidate.prizes).length >= 12) return candidate;
     } catch (error) {
       lastError = error;
     }
@@ -166,7 +207,7 @@ async function fetchOfficialResult(): Promise<OfficialResult> {
   if (best && Object.keys(best.prizes).length >= 10) return best;
   if (best) {
     throw new Error(
-      "O resultado oficial foi encontrado, mas a tabela de prémios não pôde ser lida com segurança.",
+      `O resultado oficial foi encontrado, mas a tabela de prémios não pôde ser lida com segurança (${Object.keys(best.prizes).length}/13 categorias; ${parsedSources} fontes válidas).`,
     );
   }
   if (lastError instanceof Error) throw lastError;
