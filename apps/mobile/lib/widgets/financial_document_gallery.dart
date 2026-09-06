@@ -1,8 +1,8 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../repositories/financial_documents_repository.dart';
+import 'bob_attachment_viewer.dart';
 
 class FinancialDocumentGallery extends StatefulWidget {
   const FinancialDocumentGallery({
@@ -123,45 +123,15 @@ class _FinancialDocumentGalleryState extends State<FinancialDocumentGallery> {
     try {
       final url = await widget.repository.signedUrl(document);
       if (!mounted) return;
-
-      if (FinancialDocumentsRepository.isImage(document)) {
-        await showDialog<void>(
-          context: context,
-          builder: (context) => Dialog(
-            insetPadding: const EdgeInsets.all(16),
-            child: Stack(
-              children: [
-                ConstrainedBox(
-                  constraints:
-                      const BoxConstraints(maxWidth: 1100, maxHeight: 820),
-                  child: InteractiveViewer(
-                    minScale: 0.8,
-                    maxScale: 5,
-                    child: Image.network(url, fit: BoxFit.contain),
-                  ),
-                ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: IconButton.filledTonal(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-        return;
-      }
-
-      final launched = await launchUrl(
-        Uri.parse(url),
-        mode: LaunchMode.externalApplication,
+      await BobAttachmentViewer.open(
+        context,
+        url: url,
+        title: FinancialDocumentsRepository.documentTypeLabel(
+          document['document_type']?.toString(),
+        ),
+        fileName: document['original_file_name']?.toString(),
+        mimeType: document['mime_type']?.toString(),
       );
-      if (!launched) {
-        throw StateError('Não foi possível abrir o documento.');
-      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
