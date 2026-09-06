@@ -152,6 +152,54 @@ class _LotteryScreenState extends State<LotteryScreen> {
     }
   }
 
+  Future<void> _reversePrize(Map<String, dynamic> prize) async {
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Reverter recebimento do prémio'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'Motivo da reversão',
+            hintText: 'Ex.: prémio registado com resultado incorreto',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = controller.text.trim();
+              if (value.length >= 3) Navigator.pop(dialogContext, value);
+            },
+            child: const Text('Reverter'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (reason == null || reason.trim().length < 3) return;
+
+    try {
+      await _extra.reversePrizeReceipt(
+        prizeId: prize['id'].toString(),
+        reason: reason,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Recebimento do prémio revertido.')),
+      );
+      setState(_reload);
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
   Future<void> _manualPrize(
     List<Map<String, dynamic>> players,
     List<Map<String, dynamic>> results,
@@ -368,6 +416,7 @@ class _LotteryScreenState extends State<LotteryScreen> {
                               onProcess: _processResult,
                               onReceiveFines: _payFines,
                               onReceivePrize: _receivePrize,
+                              onReversePrize: _reversePrize,
                               onManualPrize: () => _manualPrize(active, results),
                             ),
                             _RankingView(players: active, fines: fines),
@@ -532,6 +581,7 @@ class _ResultsAndFinesView extends StatelessWidget {
     required this.onProcess,
     required this.onReceiveFines,
     required this.onReceivePrize,
+    required this.onReversePrize,
     required this.onManualPrize,
   });
 
@@ -544,6 +594,7 @@ class _ResultsAndFinesView extends StatelessWidget {
   final Future<void> Function(DateTime) onProcess;
   final Future<void> Function(Map<String, dynamic>, double) onReceiveFines;
   final Future<void> Function(Map<String, dynamic>) onReceivePrize;
+  final Future<void> Function(Map<String, dynamic>) onReversePrize;
   final VoidCallback onManualPrize;
 
   @override
@@ -627,7 +678,7 @@ class _ResultsAndFinesView extends StatelessWidget {
               subtitle: localResult == null
                   ? const Text('Resultado ainda não registado')
                   : Text(
-                      '${localResult['source'] == 'jogossantacasa.pt' ? 'Oficial' : 'Manual'}'
+                      '${localResult['source']?.toString() == 'manual' ? 'Manual' : 'Automático'}'
                       '${_notEmpty(localResult['official_draw_number']) == '—' ? '' : ' • Sorteio ${localResult['official_draw_number']}'}\n'
                       'Números: ${_listText(localResult['numbers'])} • Estrelas: ${_listText(localResult['stars'])}',
                     ),
@@ -666,6 +717,8 @@ class _ResultsAndFinesView extends StatelessWidget {
                           : (_asDouble(prize['prize_amount']) -
                                   _asDouble(prize['received_amount']))
                               .clamp(0, double.infinity);
+                      final prizeReceived =
+                          prize == null ? 0.0 : _asDouble(prize['received_amount']);
                       return Padding(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                         child: Column(
@@ -714,6 +767,12 @@ class _ResultsAndFinesView extends StatelessWidget {
                                   ),
                                 if (prize != null && prizePending == 0)
                                   const Chip(label: Text('Prémio recebido')),
+                                if (prize != null && prizeReceived > 0 && canOperate)
+                                  OutlinedButton.icon(
+                                    onPressed: () => onReversePrize(prize!),
+                                    icon: const Icon(Icons.undo_outlined),
+                                    label: const Text('Reverter recebimento'),
+                                  ),
                               ],
                             ),
                             const Divider(height: 20),
