@@ -6,6 +6,22 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const prizeLabels: Array<[number, string]> = [
+  [1, "5 Números + 2 Estrelas"],
+  [2, "5 Números + 1 Estrela"],
+  [3, "5 Números + 0 Estrelas"],
+  [4, "4 Números + 2 Estrelas"],
+  [5, "4 Números + 1 Estrela"],
+  [6, "3 Números + 2 Estrelas"],
+  [7, "4 Números + 0 Estrelas"],
+  [8, "2 Números + 2 Estrelas"],
+  [9, "3 Números + 1 Estrela"],
+  [10, "3 Números + 0 Estrelas"],
+  [11, "1 Número + 2 Estrelas"],
+  [12, "2 Números + 1 Estrela"],
+  [13, "2 Números + 0 Estrelas"],
+];
+
 const htmlEntities: Record<string, string> = {
   nbsp: " ", amp: "&", quot: '"', apos: "'", lt: "<", gt: ">",
   ordm: "º", euro: "€", aacute: "á", eacute: "é", iacute: "í",
@@ -43,33 +59,43 @@ function cleanHtml(html: string): string {
     .normalize("NFC");
 }
 
+function normalizeForMatch(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
 function euroToNumber(raw: string): number {
   return Number(raw.replace(/\./g, "").replace(",", "."));
 }
 
-function prizeHeader(category: number): RegExp {
-  return new RegExp(`\\b${category}\\s*\\.?\\s*º\\s*Pr[eé]mio\\b`, "i");
-}
-
 function parsePrizeTable(text: string): Record<string, number> {
   const prizes: Record<string, number> = {};
+  const normalized = normalizeForMatch(text);
 
-  for (let category = 1; category <= 13; category++) {
-    const current = prizeHeader(category).exec(text);
-    if (!current || current.index == null) continue;
+  for (let i = 0; i < prizeLabels.length; i++) {
+    const [category, label] = prizeLabels[i];
+    const normalizedLabel = normalizeForMatch(label);
+    const labelStart = normalized.indexOf(normalizedLabel);
+    if (labelStart < 0) continue;
 
-    const start = current.index + current[0].length;
-    let end = Math.min(text.length, start + 420);
-    if (category < 13) {
-      const nextSlice = text.slice(start);
-      const next = prizeHeader(category + 1).exec(nextSlice);
-      if (next?.index != null) end = start + next.index;
+    const start = labelStart + normalizedLabel.length;
+    let end = Math.min(normalized.length, start + 500);
+
+    if (i + 1 < prizeLabels.length) {
+      const nextLabel = normalizeForMatch(prizeLabels[i + 1][1]);
+      const next = normalized.indexOf(nextLabel, start);
+      if (next > start) end = next;
     } else {
-      const marker = text.indexOf("Os prémios atribuídos", start);
+      const marker = normalized.indexOf(
+        normalizeForMatch("Os prémios atribuídos"),
+        start,
+      );
       if (marker > start) end = marker;
     }
 
-    const chunk = text.slice(start, end);
+    const chunk = normalized.slice(start, end);
     const amount = chunk.match(/€\s*([0-9.]+,[0-9]{2})/);
     if (!amount) continue;
 
@@ -130,10 +156,10 @@ type OfficialResult = ReturnType<typeof parseOfficial>;
 
 async function fetchOfficialResult(): Promise<OfficialResult> {
   const urls = [
-    "https://www.jogossantacasa.pt/web/ResultsBoard/euromilhoes",
-    "https://www.jogossantacasa.pt/web/ResultsBoard/",
     "https://www.jogossantacasa.pt/web/SCCartazResult/euroMilhoes",
     "https://www.jogossantacasa.pt/web/SCCartazResult/",
+    "https://www.jogossantacasa.pt/web/ResultsBoard/euromilhoes",
+    "https://www.jogossantacasa.pt/web/ResultsBoard/",
   ];
 
   let best: OfficialResult | null = null;
@@ -161,16 +187,18 @@ async function fetchOfficialResult(): Promise<OfficialResult> {
         best = candidate;
       }
 
-      // Normalmente o 1.º prémio não tem valor publicado quando não há vencedor.
-      // As restantes 12 categorias com valor são suficientes para considerar
-      // a tabela oficial completa para o sorteio.
-      if (Object.keys(candidate.prizes).length >= 12) return candidate;
+      if (Object.keys(candidate.prizes).length >= 8) return candidate;
     } catch (error) {
       lastError = error;
     }
   }
 
-  if (best) return best;
+  if (best && Object.keys(best.prizes).length >= 8) return best;
+  if (best) {
+    throw new Error(
+      "O resultado oficial foi encontrado, mas a tabela de prémios não pôde ser lida com segurança.",
+    );
+  }
   if (lastError instanceof Error) throw lastError;
   throw new Error("Não foi possível obter o resultado oficial do Euromilhões.");
 }
