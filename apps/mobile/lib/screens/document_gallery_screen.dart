@@ -1,8 +1,8 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../repositories/documents_advanced_repository.dart';
+import '../widgets/bob_attachment_viewer.dart';
 import 'documents_ui_helpers.dart';
 
 class DocumentGalleryScreen extends StatefulWidget {
@@ -59,9 +59,13 @@ class _DocumentGalleryScreenState extends State<DocumentGalleryScreen> {
     try {
       final url = await widget.repository.signedUrl(row, action: 'download');
       if (!mounted) return;
-      await launchUrl(
-        Uri.parse(url),
-        mode: LaunchMode.externalApplication,
+      await BobAttachmentViewer.open(
+        context,
+        url: url,
+        title: row['name']?.toString() ?? 'Fotografia',
+        fileName: row['original_file_name']?.toString() ??
+            row['name']?.toString(),
+        mimeType: row['mime_type']?.toString(),
       );
     } catch (error) {
       if (!mounted) return;
@@ -158,7 +162,7 @@ class _DocumentGalleryScreenState extends State<DocumentGalleryScreen> {
                                       0,
                                 ),
                               ),
-                              trailing: const Icon(Icons.download_outlined),
+                              trailing: const Icon(Icons.visibility_outlined),
                               onTap: () => _open(row),
                             ),
                           ),

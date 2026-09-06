@@ -1,8 +1,8 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../repositories/documents_advanced_repository.dart';
+import '../widgets/bob_attachment_viewer.dart';
 import 'documents_ui_helpers.dart';
 
 class DocumentAdvancedDetailScreen extends StatefulWidget {
@@ -55,13 +55,14 @@ class _DocumentAdvancedDetailScreenState
         action: 'download',
       );
       if (!mounted) return;
-      final opened = await launchUrl(
-        Uri.parse(url),
-        mode: LaunchMode.externalApplication,
+      await BobAttachmentViewer.open(
+        context,
+        url: url,
+        title: _document['name']?.toString() ?? 'Documento',
+        fileName: _document['original_file_name']?.toString() ??
+            _document['name']?.toString(),
+        mimeType: _document['mime_type']?.toString(),
       );
-      if (!opened && mounted) {
-        documentSnack(context, 'Não foi possível abrir o ficheiro.');
-      }
     } catch (error) {
       if (!mounted) return;
       documentSnack(context, documentFriendlyError(error));
@@ -337,7 +338,7 @@ class _DocumentAdvancedDetailScreenState
               if (_document['storage_path']?.toString().isNotEmpty == true)
                 FilledButton.icon(
                   onPressed: _openFile,
-                  icon: const Icon(Icons.open_in_new),
+                  icon: const Icon(Icons.visibility_outlined),
                   label: const Text('Abrir ficheiro atual'),
                 ),
               const SizedBox(height: 8),

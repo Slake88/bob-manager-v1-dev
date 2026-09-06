@@ -1,8 +1,8 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../repositories/documents_advanced_repository.dart';
+import '../widgets/bob_attachment_viewer.dart';
 import 'documents_ui_helpers.dart';
 
 class DocumentPersonalArchiveScreen extends StatefulWidget {
@@ -56,9 +56,13 @@ class _DocumentPersonalArchiveScreenState
         action: 'download',
       );
       if (!mounted) return;
-      await launchUrl(
-        Uri.parse(url),
-        mode: LaunchMode.externalApplication,
+      await BobAttachmentViewer.open(
+        context,
+        url: url,
+        title: row['name']?.toString() ?? 'Documento pessoal',
+        fileName: row['original_file_name']?.toString() ??
+            row['name']?.toString(),
+        mimeType: row['mime_type']?.toString(),
       );
     } catch (error) {
       if (!mounted) return;
@@ -135,7 +139,7 @@ class _DocumentPersonalArchiveScreenState
                     subtitle: Text(
                       '${DocumentsAdvancedRepository.formatBytes(num.tryParse(row['file_size']?.toString() ?? '') ?? 0)} • privado',
                     ),
-                    trailing: const Icon(Icons.open_in_new),
+                    trailing: const Icon(Icons.visibility_outlined),
                     onTap: () => _open(row),
                   ),
                 ),

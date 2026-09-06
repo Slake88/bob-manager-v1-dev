@@ -1,12 +1,12 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../core/app_role.dart';
 import '../core/app_session.dart';
 import '../core/entity_definition.dart';
 import '../core/permissions.dart';
 import '../repositories/document_repository.dart';
+import '../widgets/bob_attachment_viewer.dart';
 import 'entity_form_screen.dart';
 
 class DocumentsScreen extends StatefulWidget {
@@ -58,11 +58,15 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   Future<void> _open(Map<String, dynamic> row) async {
     try {
       final url = await _repository.signedUrl(row);
-      final launched = await launchUrl(
-        Uri.parse(url),
-        mode: LaunchMode.externalApplication,
+      if (!mounted) return;
+      await BobAttachmentViewer.open(
+        context,
+        url: url,
+        title: row['name']?.toString() ?? 'Documento',
+        fileName: row['original_file_name']?.toString() ??
+            row['name']?.toString(),
+        mimeType: row['mime_type']?.toString(),
       );
-      if (!launched) throw StateError('Não foi possível abrir o ficheiro.');
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -168,7 +172,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                               IconButton(
                                 tooltip: 'Abrir ficheiro',
                                 onPressed: () => _open(row),
-                                icon: const Icon(Icons.open_in_new),
+                                icon: const Icon(Icons.visibility_outlined),
                               ),
                             if (_canManage)
                               PopupMenuButton<String>(
