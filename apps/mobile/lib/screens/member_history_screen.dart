@@ -1,8 +1,8 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../repositories/member_lifecycle_repository.dart';
+import '../widgets/bob_attachment_viewer.dart';
 
 class MemberHistoryScreen extends StatelessWidget {
   const MemberHistoryScreen({
@@ -395,8 +395,14 @@ class _MaintenanceTabState extends State<_MaintenanceTab> {
   Future<void> _openAttachment(Map<String, dynamic> attachment) async {
     try {
       final url = await _repository.signedMaintenanceUrl(attachment['storage_path'].toString());
-      final opened = await launchUrl(Uri.parse(url), mode: LaunchMode.platformDefault);
-      if (!opened && mounted) _message(context, 'Não foi possível abrir o documento.');
+      if (!mounted) return;
+      await BobAttachmentViewer.open(
+        context,
+        url: url,
+        title: 'Documento de manutenção',
+        fileName: attachment['original_file_name']?.toString(),
+        mimeType: attachment['mime_type']?.toString(),
+      );
     } catch (error) {
       if (mounted) _message(context, error.toString());
     }
