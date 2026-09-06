@@ -139,10 +139,9 @@ class _BobAttachmentViewerState extends State<BobAttachmentViewer> {
     final factor = next / currentScale;
     final focalX = MediaQuery.sizeOf(context).width / 2;
     final focalY = MediaQuery.sizeOf(context).height / 2;
-    final zoom = Matrix4.identity()
-      ..translate(focalX, focalY)
-      ..scale(factor)
-      ..translate(-focalX, -focalY);
+    final zoom = Matrix4.translationValues(focalX, focalY, 0) *
+        Matrix4.diagonal3Values(factor, factor, 1) *
+        Matrix4.translationValues(-focalX, -focalY, 0);
     controller.value = zoom * current;
     _updateScale(next);
   }
