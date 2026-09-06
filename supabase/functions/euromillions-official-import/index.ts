@@ -22,6 +22,11 @@ const santaCasaSources = [
   "https://diadamae.jogossantacasa.pt/web/SCCartazResult/",
 ];
 
+const spanishMonths = [
+  "enero", "febrero", "marzo", "abril", "mayo", "junio",
+  "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+];
+
 const combos: Array<[number, number, number]> = [
   [1, 5, 2], [2, 5, 1], [3, 5, 0], [4, 4, 2], [5, 4, 1],
   [6, 3, 2], [7, 4, 0], [8, 2, 2], [9, 3, 1], [10, 3, 0],
@@ -43,7 +48,6 @@ type ExpectedDraw = {
 };
 
 type KeyOnly = {
-  drawDate: string;
   numbers: number[];
   stars: number[];
 };
@@ -72,10 +76,6 @@ function normalizeDrawNumber(raw: string): string {
   return `${match[1].padStart(3, "0")}/${match[2]}`;
 }
 
-function sameKey(a: { numbers: number[]; stars: number[] }, b: { numbers: number[]; stars: number[] }): boolean {
-  return a.numbers.join(",") === b.numbers.join(",") && a.stars.join(",") === b.stars.join(",");
-}
-
 function validateKey(numbers: number[], stars: number[]): void {
   if (
     numbers.length !== 5 || new Set(numbers).size !== 5 || numbers.some((n) => n < 1 || n > 50) ||
@@ -83,6 +83,11 @@ function validateKey(numbers: number[], stars: number[]): void {
   ) {
     throw new Error("A chave recebida não é válida.");
   }
+}
+
+function sameKey(a: KeyOnly, b: KeyOnly): boolean {
+  return a.numbers.join(",") === b.numbers.join(",") &&
+    a.stars.join(",") === b.stars.join(",");
 }
 
 function comboRegex(numbers: number, stars: number): RegExp {
@@ -146,54 +151,111 @@ function parseSantaCasa(text: string): Result {
   };
 }
 
+function parsePortuguesePrizeTable(text: string, drawNumber: string): Record<string, number> {
+  const anchors = [...text.matchAll(/\b(\d{1,2})\s*\.?\s*º\s*Pr[eé]mio/gi)]
+    .filter((match) => Number(match[1]) >= 1 && Number(match[1]) <= 13 && match.index != null)
+    .map((match) => ({ category: Number(match[1]), start: match.index! }));
+
+  const unique = new Map<number, number>();
+  for (const anchor of anchors) {
+    if (!unique.has(anchor.category)) unique.set(anchor.category, anchor.start);
+  }
+  const ordered = [...unique.entries()]
+    .map(([category, start]) => ({ category, start }))
+    .sort((a, b) => a.start - b.start);
+
+  if (ordered.length !== 13) {
+    throw new Error(`A tabela de prémios do concurso ${drawNumber} está incompleta (${ordered.length}/13 escalões).`);
+  }
+
+  const prizes: Record<string, number> = {};
+  let accounted = 0;
+  for (let i = 0; i < ordered.length; i++) {
+    const current = ordered[i];
+    const end = ordered[i + 1]?.start ?? Math.min(text.length, current.start + 700);
+    const section = text.slice(current.start, end);
+    const amount = section.match(/€\s*([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/);
+    if (amount) {
+      const value = euroPt(amount[1]);
+      if (!Number.isFinite(value) || value <= 0) {
+        throw new Error(`Valor inválido no ${current.category}.º prémio do concurso ${drawNumber}.`);
+      }
+      prizes[String(current.category)] = value;
+      accounted++;
+      continue;
+    }
+    if (/n[aã]o\s+atribu[ií]do/i.test(section)) {
+      accounted++;
+      continue;
+    }
+    throw new Error(`Não foi possível validar o ${current.category}.º prémio do concurso ${drawNumber}.`);
+  }
+
+  if (accounted !== 13) {
+    throw new Error(`A tabela de prémios do concurso ${drawNumber} não pôde ser validada integralmente.`);
+  }
+  return prizes;
+}
+
 function parseSaiuAgora(text: string, expected: ExpectedDraw): Result {
   const contest = text.match(/Concurso\s+([0-9]{1,3}\/[0-9]{4})/i);
   if (!contest) throw new Error(`Não foi possível interpretar o concurso ${expected.drawNumber}.`);
-
-  const keyAreaStart = text.search(/Chave\s+sorteada/i);
-  const prizeAreaStart = text.search(/Pr[eé]mios\s+por\s+escal[aã]o/i);
-  if (keyAreaStart < 0 || prizeAreaStart < 0 || prizeAreaStart <= keyAreaStart) {
-    throw new Error(`A página do concurso ${expected.drawNumber} está incompleta.`);
-  }
-
-  const keyArea = text.slice(keyAreaStart, prizeAreaStart);
-  const numericTokens = [...keyArea.matchAll(/\b(\d{1,2})\b/g)].map((m) => Number(m[1]));
-  if (numericTokens.length < 7) throw new Error(`Não foi possível ler a chave do concurso ${expected.drawNumber}.`);
-
-  const numbers = numericTokens.slice(0, 5).sort((a, b) => a - b);
-  const stars = numericTokens.slice(5, 7).sort((a, b) => a - b);
-  validateKey(numbers, stars);
-
-  const prizes: Record<string, number> = {};
-  const prizeText = text.slice(prizeAreaStart);
-  for (let category = 1; category <= 13; category++) {
-    const re = new RegExp(
-      `${category}\\.?º?\\s*Pr[eé]mio[\\s\\S]{0,220}?([0-9]{1,3}(?:\\.[0-9]{3})*,[0-9]{2})`,
-      "i",
-    );
-    const match = prizeText.match(re);
-    if (!match) continue;
-    const value = euroPt(match[1]);
-    if (Number.isFinite(value) && value > 0) prizes[String(category)] = value;
-  }
-
-  if (Object.keys(prizes).length < 12) {
-    throw new Error(`A tabela de prémios do concurso ${expected.drawNumber} está incompleta (${Object.keys(prizes).length}/13).`);
-  }
 
   const drawNumber = normalizeDrawNumber(contest[1]);
   if (drawNumber !== expected.drawNumber) {
     throw new Error(`O histórico devolveu ${drawNumber} quando era esperado ${expected.drawNumber}.`);
   }
 
+  const keyStart = text.search(/Chave\s+sorteada/i);
+  const orderStart = text.search(/Ordem\s+de\s+extra[cç][aã]o/i);
+  const prizeStart = text.search(/Pr[eé]mios\s+por\s+escal[aã]o/i);
+  const keyEnd = orderStart > keyStart ? orderStart : prizeStart;
+  if (keyStart < 0 || keyEnd <= keyStart) {
+    throw new Error(`A página do concurso ${expected.drawNumber} não contém uma chave válida.`);
+  }
+
+  const numericTokens = [...text.slice(keyStart, keyEnd).matchAll(/\b(\d{1,2})\b/g)]
+    .map((match) => Number(match[1]));
+  if (numericTokens.length < 7) {
+    throw new Error(`Não foi possível ler a chave do concurso ${expected.drawNumber}.`);
+  }
+
+  const numbers = numericTokens.slice(0, 5).sort((a, b) => a - b);
+  const stars = numericTokens.slice(5, 7).sort((a, b) => a - b);
+  validateKey(numbers, stars);
+
   return {
     drawNumber,
     drawDate: expected.drawDate,
     numbers,
     stars,
-    prizes,
-    source: "jogossantacasa.pt (histórico validado)",
+    prizes: parsePortuguesePrizeTable(text, expected.drawNumber),
+    source: "saiuagora.pt + loteriasyapuestas.es",
   };
+}
+
+function parseSpanishOfficial(text: string, expected: ExpectedDraw): KeyOnly {
+  const [yearText, monthText, dayText] = expected.drawDate.split("-");
+  const monthName = spanishMonths[Number(monthText) - 1];
+  const dateLabel = new RegExp(
+    `\\b0?${Number(dayText)}\\s+de\\s+${monthName}\\s+de\\s+${yearText}\\b`,
+    "i",
+  );
+  if (!dateLabel.test(text)) {
+    throw new Error(`A fonte oficial espanhola não confirmou a data do concurso ${expected.drawNumber}.`);
+  }
+
+  const key = text.match(
+    /(\d{1,2})\s*-\s*(\d{1,2})\s*-\s*(\d{1,2})\s*-\s*(\d{1,2})\s*-\s*(\d{1,2})\s+Estrellas:\s*(\d{1,2})\s*-\s*(\d{1,2})/i,
+  );
+  if (!key) {
+    throw new Error(`Não foi possível ler a chave oficial do concurso ${expected.drawNumber}.`);
+  }
+
+  const numbers = key.slice(1, 6).map(Number).sort((a, b) => a - b);
+  const stars = key.slice(6, 8).map(Number).sort((a, b) => a - b);
+  validateKey(numbers, stars);
+  return { numbers, stars };
 }
 
 function dateOnly(date: Date): string {
@@ -240,58 +302,33 @@ async function fetchSantaCasaSnapshots(): Promise<Map<string, Result>> {
         byDate.set(result.drawDate, result);
       }
     } catch (_) {
-      // Uma fonte espelho pode estar temporariamente indisponível.
+      // Uma fonte oficial pode estar temporariamente indisponível.
     }
   }
   return byDate;
 }
 
-function parseIrishHistory(text: string): Map<string, KeyOnly> {
-  const result = new Map<string, KeyOnly>();
-  const dateRe = /(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(\d{2})\/(\d{2})\/(\d{2})/g;
-  const matches = [...text.matchAll(dateRe)];
-
-  for (let i = 0; i < matches.length; i++) {
-    const match = matches[i];
-    if (match.index == null) continue;
-    const end = matches[i + 1]?.index ?? text.length;
-    const chunk = text.slice(match.index, end);
-    const key = chunk.match(
-      /Winning\s+numbers\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+Lucky\s+Stars\s+(\d{1,2})\s+(\d{1,2})/i,
-    );
-    if (!key) continue;
-    const numbers = key.slice(1, 6).map(Number).sort((a, b) => a - b);
-    const stars = key.slice(6, 8).map(Number).sort((a, b) => a - b);
-    try {
-      validateKey(numbers, stars);
-    } catch (_) {
-      continue;
-    }
-    const year = 2000 + Number(match[3]);
-    const drawDate = `${year}-${match[2]}-${match[1]}`;
-    result.set(drawDate, { drawDate, numbers, stars });
-  }
-  return result;
-}
-
-async function fetchIrishHistory(): Promise<Map<string, KeyOnly>> {
-  const html = await fetchHtml("https://www.lottery.ie/results/euromillions/history");
-  return parseIrishHistory(htmlToText(html));
-}
-
-async function fetchHistoricalDraw(expected: ExpectedDraw, irish: Map<string, KeyOnly>): Promise<Result> {
+function spanishOfficialUrl(expected: ExpectedDraw): string {
   const [year, month, day] = expected.drawDate.split("-");
-  const url = `https://saiuagora.pt/euromilhoes/resultado-${day}-${month}-${year}`;
-  const mirror = parseSaiuAgora(htmlToText(await fetchHtml(url)), expected);
+  const monthName = spanishMonths[Number(month) - 1];
+  return `https://www.loteriasyapuestas.es/es/euromillones/resultados/euromillones-resultados-del-${day}-de-${monthName}-de-${year}`;
+}
 
-  const officialCrossCheck = irish.get(expected.drawDate);
-  if (!officialCrossCheck) {
-    throw new Error(`Não foi possível validar o concurso ${expected.drawNumber} numa segunda fonte oficial.`);
-  }
-  if (!sameKey(mirror, officialCrossCheck)) {
+async function fetchHistoricalDraw(expected: ExpectedDraw): Promise<Result> {
+  const [year, month, day] = expected.drawDate.split("-");
+  const portugueseUrl = `https://saiuagora.pt/euromilhoes/resultado-${day}-${month}-${year}`;
+
+  const [portugueseHtml, spanishHtml] = await Promise.all([
+    fetchHtml(portugueseUrl),
+    fetchHtml(spanishOfficialUrl(expected)),
+  ]);
+
+  const portuguese = parseSaiuAgora(htmlToText(portugueseHtml), expected);
+  const officialKey = parseSpanishOfficial(htmlToText(spanishHtml), expected);
+  if (!sameKey(portuguese, officialKey)) {
     throw new Error(`As fontes consultadas não coincidem na chave do concurso ${expected.drawNumber}.`);
   }
-  return mirror;
+  return portuguese;
 }
 
 function prizeCount(value: unknown): number {
@@ -299,6 +336,15 @@ function prizeCount(value: unknown): number {
     return Object.keys(value as Record<string, unknown>).length;
   }
   return 0;
+}
+
+function rowIsComplete(row: Record<string, unknown> | undefined, expected: ExpectedDraw): boolean {
+  if (!row) return false;
+  const drawNumber = normalizeDrawNumber(String(row.official_draw_number ?? ""));
+  const source = String(row.source ?? "");
+  if (drawNumber !== expected.drawNumber) return false;
+  if (source === "manual" || source === "jogossantacasa.pt (histórico validado)") return false;
+  return prizeCount(row.prize_table) >= 10;
 }
 
 Deno.serve(async (req: Request) => {
@@ -340,6 +386,7 @@ Deno.serve(async (req: Request) => {
         imported_count: 0,
         updated_count: 0,
         skipped_count: 0,
+        processed_count: 0,
         official_count: 0,
         reason: "no_completed_draws",
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -352,7 +399,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: existingRows, error: existingError } = await client
       .from("euromillions_results")
-      .select("draw_date,official_draw_number,prize_table")
+      .select("draw_date,official_draw_number,prize_table,source")
       .eq("club_id", clubId)
       .gte("draw_date", first)
       .lt("draw_date", nextMonth);
@@ -363,12 +410,7 @@ Deno.serve(async (req: Request) => {
       existingByDate.set(String(row.draw_date), row);
     }
 
-    const needsFetch = expected.filter((draw) => {
-      const row = existingByDate.get(draw.drawDate);
-      if (!row) return true;
-      return normalizeDrawNumber(String(row.official_draw_number ?? "")) !== draw.drawNumber || prizeCount(row.prize_table) < 12;
-    });
-
+    const needsFetch = expected.filter((draw) => !rowIsComplete(existingByDate.get(draw.drawDate), draw));
     if (needsFetch.length === 0) {
       return new Response(JSON.stringify({
         imported: false,
@@ -382,26 +424,31 @@ Deno.serve(async (req: Request) => {
     }
 
     const snapshots = await fetchSantaCasaSnapshots();
-    let irishHistory: Map<string, KeyOnly> | null = null;
+    const prepared: Array<{ draw: ExpectedDraw; result: Result; existed: boolean }> = [];
+
+    // Primeiro validamos todos os sorteios em falta. Só depois gravamos, evitando
+    // deixar um mês parcialmente sincronizado se uma fonte falhar a meio.
+    for (const draw of needsFetch) {
+      let parsed = snapshots.get(draw.drawDate);
+      if (
+        !parsed || parsed.drawNumber !== draw.drawNumber ||
+        Object.keys(parsed.prizes).length < 10
+      ) {
+        parsed = await fetchHistoricalDraw(draw);
+      }
+      prepared.push({
+        draw,
+        result: parsed,
+        existed: existingByDate.has(draw.drawDate),
+      });
+    }
+
     let importedCount = 0;
     let updatedCount = 0;
-    let skippedCount = 0;
     const processed: Result[] = [];
 
-    for (const draw of expected) {
-      const existing = existingByDate.get(draw.drawDate);
-      const existingNumber = normalizeDrawNumber(String(existing?.official_draw_number ?? ""));
-      if (existing && existingNumber === draw.drawNumber && prizeCount(existing.prize_table) >= 12) {
-        skippedCount++;
-        continue;
-      }
-
-      let parsed = snapshots.get(draw.drawDate);
-      if (!parsed || parsed.drawNumber !== draw.drawNumber || Object.keys(parsed.prizes).length < 12) {
-        if (irishHistory == null) irishHistory = await fetchIrishHistory();
-        parsed = await fetchHistoricalDraw(draw, irishHistory);
-      }
-
+    for (const item of prepared) {
+      const parsed = item.result;
       const { error } = await client.rpc("process_euromillions_official_result_v1", {
         target_club: clubId,
         p_draw_date: parsed.drawDate,
@@ -413,7 +460,7 @@ Deno.serve(async (req: Request) => {
       });
       if (error) throw error;
 
-      if (existing) updatedCount++;
+      if (item.existed) updatedCount++;
       else importedCount++;
       processed.push(parsed);
     }
@@ -423,7 +470,7 @@ Deno.serve(async (req: Request) => {
       imported: processedCount > 0,
       imported_count: importedCount,
       updated_count: updatedCount,
-      skipped_count: skippedCount,
+      skipped_count: expected.length - processedCount,
       processed_count: processedCount,
       official_count: expected.length,
       draws: processed,
