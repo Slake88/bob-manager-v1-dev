@@ -37,4 +37,24 @@ class LotteryExtraRepository {
       },
     );
   }
+
+  Future<void> reversePrizeReceipt({
+    required String prizeId,
+    required String reason,
+  }) async {
+    final cleanReason = reason.trim();
+    if (cleanReason.length < 3) {
+      throw ArgumentError('Indica o motivo da reversão.');
+    }
+    if (AppConfig.demoMode) return;
+
+    await _supabase.rpc(
+      'reverse_euromillions_prize_receipt_v1',
+      params: {
+        'target_club': AppSession.instance.clubId,
+        'p_prize': prizeId,
+        'p_reason': cleanReason,
+      },
+    );
+  }
 }
