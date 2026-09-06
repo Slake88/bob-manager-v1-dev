@@ -6,198 +6,131 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const prizeCombos: Array<[number, number, number]> = [
-  [1, 5, 2],
-  [2, 5, 1],
-  [3, 5, 0],
-  [4, 4, 2],
-  [5, 4, 1],
-  [6, 3, 2],
-  [7, 4, 0],
-  [8, 2, 2],
-  [9, 3, 1],
-  [10, 3, 0],
-  [11, 1, 2],
-  [12, 2, 1],
-  [13, 2, 0],
+const combos: Array<[number, number, number]> = [
+  [1, 5, 2], [2, 5, 1], [3, 5, 0], [4, 4, 2], [5, 4, 1],
+  [6, 3, 2], [7, 4, 0], [8, 2, 2], [9, 3, 1], [10, 3, 0],
+  [11, 1, 2], [12, 2, 1], [13, 2, 0],
 ];
 
-const htmlEntities: Record<string, string> = {
-  nbsp: " ", amp: "&", quot: '"', apos: "'", lt: "<", gt: ">",
-  ordm: "º", euro: "€", aacute: "á", eacute: "é", iacute: "í",
-  oacute: "ó", uacute: "ú", agrave: "à", atilde: "ã", otilde: "õ",
-  acirc: "â", ecirc: "ê", ocirc: "ô", ccedil: "ç",
-};
-
-function decodeHtmlEntities(value: string): string {
-  return value.replace(
-    /&(#x[0-9a-f]+|#\d+|[a-z][a-z0-9]+);?/gi,
-    (match, entity: string) => {
-      if (entity.startsWith("#x") || entity.startsWith("#X")) {
-        const code = Number.parseInt(entity.slice(2), 16);
-        return Number.isFinite(code) ? String.fromCodePoint(code) : match;
-      }
-      if (entity.startsWith("#")) {
-        const code = Number.parseInt(entity.slice(1), 10);
-        return Number.isFinite(code) ? String.fromCodePoint(code) : match;
-      }
-      return htmlEntities[entity.toLowerCase()] ?? match;
-    },
-  );
-}
-
-function cleanHtml(html: string): string {
-  const withoutMarkup = html
+function htmlToText(html: string): string {
+  return html
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ");
-
-  return decodeHtmlEntities(withoutMarkup)
-    .replace(/\u00a0/g, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ")
     .replace(/\s+/g, " ")
-    .trim()
-    .normalize("NFC");
+    .trim();
 }
 
-function euroToNumber(raw: string): number {
+function euro(raw: string): number {
   return Number(raw.replace(/\./g, "").replace(",", "."));
 }
 
 function comboRegex(numbers: number, stars: number): RegExp {
-  // Procura apenas a estrutura numérica da categoria (ex.: 5 ... + 1 ...),
-  // evitando depender de "Números", "Estrelas", "Prémio", º ou do símbolo €.
-  // Isto torna a leitura resistente ao mojibake que o portal por vezes devolve.
   return new RegExp(
-    `\\b${numbers}\\b[^0-9+]{1,80}\\+[^0-9]{0,40}\\b${stars}\\b`,
+    `\\b${numbers}\\b[^0-9+]{1,100}\\+[^0-9]{0,60}\\b${stars}\\b`,
     "i",
   );
 }
 
-function parsePrizeTable(text: string): Record<string, number> {
-  const prizes: Record<string, number> = {};
+function parsePrizes(text: string): Record<string, number> {
   const anchors: Array<{ category: number; start: number; end: number }> = [];
+  let from = 0;
 
-  let searchFrom = 0;
-  for (const [category, numbers, stars] of prizeCombos) {
-    const slice = text.slice(searchFrom);
-    const match = comboRegex(numbers, stars).exec(slice);
+  for (const [category, numbers, stars] of combos) {
+    const match = comboRegex(numbers, stars).exec(text.slice(from));
     if (!match || match.index == null) continue;
-
-    const absoluteStart = searchFrom + match.index;
-    const absoluteEnd = absoluteStart + match[0].length;
-    anchors.push({ category, start: absoluteStart, end: absoluteEnd });
-    searchFrom = absoluteEnd;
+    const start = from + match.index;
+    const end = start + match[0].length;
+    anchors.push({ category, start, end });
+    from = end;
   }
 
+  const prizes: Record<string, number> = {};
   for (let i = 0; i < anchors.length; i++) {
     const current = anchors[i];
     const next = anchors[i + 1];
     const end = next?.start ?? Math.min(text.length, current.end + 700);
     const chunk = text.slice(current.end, end);
-
-    // Os contadores de vencedores são inteiros. O primeiro número no formato
-    // europeu com duas casas decimais dentro da categoria é o valor do prémio.
     const amount = chunk.match(/([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2})/);
     if (!amount) continue;
-
-    const value = euroToNumber(amount[1]);
-    if (Number.isFinite(value) && value > 0) {
-      prizes[String(current.category)] = value;
-    }
+    const value = euro(amount[1]);
+    if (Number.isFinite(value) && value > 0) prizes[String(current.category)] = value;
   }
 
   return prizes;
 }
 
-function parseOfficial(text: string) {
+function parseResult(text: string) {
   const draw = text.match(/Sorteio:\s*([0-9]{3}\/[0-9]{4})/i);
   const date = text.match(/Data\s+do\s+Sorteio\s*-\s*([0-9]{2})\/([0-9]{2})\/([0-9]{4})/i);
-
-  let key: RegExpMatchArray | null = null;
-  if (date?.index != null) {
-    const start = date.index + date[0].length;
-    key = text.slice(start, start + 700).match(
-      /(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s*\+\s*(\d{1,2})\s+(\d{1,2})/,
-    );
-  }
-  if (!key) {
-    const keyStart = text.search(/\bChave\b/i);
-    if (keyStart >= 0) {
-      key = text.slice(keyStart, keyStart + 900).match(
-        /(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s*\+\s*(\d{1,2})\s+(\d{1,2})/,
-      );
-    }
+  if (!draw || !date || date.index == null) {
+    throw new Error("Não foi possível interpretar o sorteio oficial.");
   }
 
-  if (!draw || !date || !key) {
-    throw new Error("Não foi possível interpretar o resultado oficial do Euromilhões.");
-  }
+  const afterDate = text.slice(date.index + date[0].length, date.index + date[0].length + 900);
+  const key = afterDate.match(
+    /(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s*\+\s*(\d{1,2})\s+(\d{1,2})/,
+  );
+  if (!key) throw new Error("Não foi possível interpretar a chave oficial.");
 
-  const drawDate = `${date[3]}-${date[2]}-${date[1]}`;
   const numbers = key.slice(1, 6).map(Number).sort((a, b) => a - b);
   const stars = key.slice(6, 8).map(Number).sort((a, b) => a - b);
-
   if (
-    new Set(numbers).size !== 5 || numbers.some((value) => value < 1 || value > 50) ||
-    new Set(stars).size !== 2 || stars.some((value) => value < 1 || value > 12)
+    new Set(numbers).size !== 5 || numbers.some((n) => n < 1 || n > 50) ||
+    new Set(stars).size !== 2 || stars.some((s) => s < 1 || s > 12)
   ) {
     throw new Error("A chave oficial recebida não é válida.");
   }
 
   return {
     drawNumber: draw[1],
-    drawDate,
+    drawDate: `${date[3]}-${date[2]}-${date[1]}`,
     numbers,
     stars,
-    prizes: parsePrizeTable(text),
+    prizes: parsePrizes(text),
   };
 }
 
-type OfficialResult = ReturnType<typeof parseOfficial>;
+type Result = ReturnType<typeof parseResult>;
 
-function isBetterCandidate(candidate: OfficialResult, best: OfficialResult | null): boolean {
-  if (best == null) return true;
-  if (candidate.drawDate !== best.drawDate) return candidate.drawDate > best.drawDate;
-  return Object.keys(candidate.prizes).length > Object.keys(best.prizes).length;
-}
-
-async function fetchOfficialResult(): Promise<OfficialResult> {
+async function fetchOfficial(): Promise<Result> {
   const urls = [
     "https://www.jogossantacasa.pt/web/ResultsBoard/",
     "https://www.jogossantacasa.pt/web/ResultsBoard/euromilhoes",
     "https://www.jogossantacasa.pt/web/SCCartazResult/euroMilhoes",
     "https://www.jogossantacasa.pt/web/SCCartazResult/",
-    // Mirrors oficiais do próprio domínio Santa Casa que por vezes servem
-    // o HTML completo quando o host principal entrega uma versão reduzida.
     "https://diadopai.jogossantacasa.pt/web/ResultsBoard/euromilhoes",
     "https://diadopai.jogossantacasa.pt/web/SCCartazResult/euroMilhoes",
     "https://diadamae.jogossantacasa.pt/web/SCCartazResult/",
   ];
 
-  let best: OfficialResult | null = null;
+  let best: Result | null = null;
+  let validSources = 0;
   let lastError: unknown;
-  let parsedSources = 0;
 
   for (const url of urls) {
     try {
       const response = await fetch(url, {
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; BOB-Manager/1.0; +official-results-import)",
+          "User-Agent": "Mozilla/5.0 (compatible; BOB-Manager/1.0)",
           "Accept": "text/html,application/xhtml+xml",
-          "Accept-Language": "pt-PT,pt;q=0.9,en;q=0.5",
+          "Accept-Language": "pt-PT,pt;q=0.9",
           "Cache-Control": "no-cache",
         },
       });
-      if (!response.ok) {
-        lastError = new Error(`Portal oficial indisponível (${response.status}).`);
-        continue;
+      if (!response.ok) continue;
+
+      const candidate = parseResult(htmlToText(await response.text()));
+      validSources++;
+      if (
+        best == null ||
+        candidate.drawDate > best.drawDate ||
+        (candidate.drawDate === best.drawDate &&
+          Object.keys(candidate.prizes).length > Object.keys(best.prizes).length)
+      ) {
+        best = candidate;
       }
-
-      const candidate = parseOfficial(cleanHtml(await response.text()));
-      parsedSources += 1;
-      if (isBetterCandidate(candidate, best)) best = candidate;
-
-      // Num sorteio sem vencedor de 1.ª categoria são esperados 12 valores.
       if (Object.keys(candidate.prizes).length >= 12) return candidate;
     } catch (error) {
       lastError = error;
@@ -207,7 +140,7 @@ async function fetchOfficialResult(): Promise<OfficialResult> {
   if (best && Object.keys(best.prizes).length >= 10) return best;
   if (best) {
     throw new Error(
-      `O resultado oficial foi encontrado, mas a tabela de prémios não pôde ser lida com segurança (${Object.keys(best.prizes).length}/13 categorias; ${parsedSources} fontes válidas).`,
+      `Resultado encontrado, mas a tabela de prémios está incompleta (${Object.keys(best.prizes).length}/13; ${validSources} fontes válidas).`,
     );
   }
   if (lastError instanceof Error) throw lastError;
@@ -246,7 +179,7 @@ Deno.serve(async (req: Request) => {
     const { data: userData, error: userError } = await client.auth.getUser();
     if (userError || !userData.user) throw new Error("Sessão inválida.");
 
-    const parsed = await fetchOfficialResult();
+    const parsed = await fetchOfficial();
     const parsedDate = new Date(`${parsed.drawDate}T12:00:00Z`);
     if (parsedDate.getUTCFullYear() !== year || parsedDate.getUTCMonth() + 1 !== month) {
       return new Response(JSON.stringify({
