@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../repositories/lottery_extra_repository.dart';
+import '../repositories/lottery_ranking_repository.dart';
 import '../repositories/lottery_repository.dart';
 
 class LotteryScreen extends StatefulWidget {
@@ -509,7 +510,11 @@ class _LotteryScreenState extends State<LotteryScreen> {
                               onReversePrize: _reversePrize,
                               onManualPrize: () => _manualPrize(active, results),
                             ),
-                            _RankingView(players: active, fines: fines),
+                            _RankingView(
+                              players: players,
+                              fines: fines,
+                              prizes: prizes,
+                            ),
                           ],
                         ),
                       ),
@@ -945,59 +950,295 @@ class _ResultsAndFinesView extends StatelessWidget {
   }
 }
 
-class _RankingView extends StatelessWidget {
-  const _RankingView({required this.players, required this.fines});
+class _RankingView extends StatefulWidget {
+  const _RankingView({
+    required this.players,
+    required this.fines,
+    required this.prizes,
+  });
 
   final List<Map<String, dynamic>> players;
   final List<Map<String, dynamic>> fines;
+  final List<Map<String, dynamic>> prizes;
+
+  @override
+  State<_RankingView> createState() => _RankingViewState();
+}
+
+class _RankingViewState extends State<_RankingView> {
+  final LotteryRankingRepository _rankingRepository = LotteryRankingRepository();
+  late Future<List<Map<String, dynamic>>> _allTimeFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _allTimeFuture = _rankingRepository.loadAllTime();
+  }
+
+  @override
+  void didUpdateWidget(covariant _RankingView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.fines, widget.fines) ||
+        !identical(oldWidget.prizes, widget.prizes)) {
+      _allTimeFuture = _rankingRepository.loadAllTime();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final rows = players.map((player) {
-      final id = player['player_id']?.toString();
-      final pf = fines.where((f) => f['player_id']?.toString() == id);
-      final total = pf.fold<double>(0, (s, f) => s + _asDouble(f['fine_amount']));
-      final misses = pf.fold<int>(
-        0,
-        (s, f) =>
-            s +
-            (int.tryParse(f['missed_numbers']?.toString() ?? '') ?? 0) +
-            (int.tryParse(f['missed_stars']?.toString() ?? '') ?? 0),
-      );
-      return {'name': player['member_name'], 'fine': total, 'misses': misses};
-    }).toList()
-      ..sort((a, b) => (a['fine'] as double).compareTo(b['fine'] as double));
+    final monthly = _monthlyRows();
+    final monthlyLucky = _luckiest(monthly);
+    final monthlyUnlucky = _unluckiest(monthly);
 
-    if (rows.isEmpty) return const Center(child: Text('Sem jogadores ativos.'));
     return ListView(
-      padding: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.only(top: 8, bottom: 24),
       children: [
         const ListTile(
-          leading: Icon(Icons.emoji_events_outlined),
-          title: Text('Ranking de pontaria'),
-          subtitle: Text('Menor valor de multas = mais acertos.'),
+          leading: Icon(Icons.casino_outlined),
+          title: Text('Brincadeira do mês'),
+          subtitle: Text(
+            'Dados reais do Euromilhões, sem pontos nem competição a sério.',
+          ),
         ),
-        for (var i = 0; i < rows.length; i++)
-          Card(
+        if (monthlyLucky != null)
+          _highlightCard(
+            emoji: '🧲',
+            title: 'Íman de prémios do mês',
+            row: monthlyLucky,
+            details:
+                '${monthlyLucky['prize_draws']} ${_prizeLabel(monthlyLucky['prize_draws'] as int)} • ${_money(monthlyLucky['prize_total'])}',
+          )
+        else
+          const Card(
             child: ListTile(
-              leading: CircleAvatar(child: Text('${i + 1}º')),
-              title: Text(rows[i]['name']?.toString() ?? 'Membro'),
-              subtitle: Text('${rows[i]['misses']} elementos falhados'),
-              trailing: Text(_money(rows[i]['fine'])),
+              leading: Text('🧲', style: TextStyle(fontSize: 26)),
+              title: Text('Íman de prémios do mês'),
+              subtitle: Text('Ainda ninguém apanhou um prémio neste mês.'),
             ),
           ),
-        if (rows.length > 1)
-          Card(
-            child: ListTile(
-              leading: const Text('🤣', style: TextStyle(fontSize: 26)),
-              title: const Text('Mais azarado do mês'),
-              subtitle: Text(rows.last['name']?.toString() ?? 'Membro'),
-              trailing: Text(_money(rows.last['fine'])),
-            ),
+        if (monthlyUnlucky != null)
+          _highlightCard(
+            emoji: '💩',
+            title: 'Mais azarado do mês',
+            row: monthlyUnlucky,
+            details:
+                '${monthlyUnlucky['misses']} elementos falhados • média ${_averageText(monthlyUnlucky['average_misses'])} / sorteio',
           ),
+        const SizedBox(height: 6),
+        const ListTile(
+          leading: Icon(Icons.track_changes_outlined),
+          title: Text('Pontaria do mês'),
+          subtitle: Text('Ordenado pela média de elementos falhados por sorteio.'),
+        ),
+        if (monthly.isEmpty)
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('Ainda não existem sorteios processados neste mês.'),
+          )
+        else
+          for (var i = 0; i < monthly.length; i++)
+            Card(
+              child: ListTile(
+                leading: CircleAvatar(child: Text('${i + 1}º')),
+                title: Text(monthly[i]['name']?.toString() ?? 'Membro'),
+                subtitle: Text(
+                  '${monthly[i]['draws']} sorteios • ${monthly[i]['misses']} falhados • '
+                  'média ${_averageText(monthly[i]['average_misses'])}\n'
+                  '${monthly[i]['prize_draws']} ${_prizeLabel(monthly[i]['prize_draws'] as int)} • '
+                  '${_money(monthly[i]['prize_total'])} em prémios',
+                ),
+                isThreeLine: true,
+                trailing: Text(_money(monthly[i]['fine_total'])),
+              ),
+            ),
+        const Divider(height: 30),
+        const ListTile(
+          leading: Text('🏁', style: TextStyle(fontSize: 26)),
+          title: Text('ALL TIME — a estatística que ninguém pediu 😄'),
+          subtitle: Text('Desde o primeiro sorteio processado no BOB Manager.'),
+        ),
+        FutureBuilder<List<Map<String, dynamic>>>(
+          future: _allTimeFuture,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text('Não foi possível carregar o histórico: ${snapshot.error}'),
+              );
+            }
+            if (!snapshot.hasData) {
+              return const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            final allTime = snapshot.data!;
+            if (allTime.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('Ainda não existe histórico suficiente para o All Time.'),
+              );
+            }
+
+            final lucky = _luckiest(allTime);
+            final unlucky = _unluckiest(allTime);
+            return Column(
+              children: [
+                if (lucky != null)
+                  _highlightCard(
+                    emoji: '🧲',
+                    title: 'Íman de prémios — All Time',
+                    row: lucky,
+                    details:
+                        '${lucky['prize_draws']} ${_prizeLabel(lucky['prize_draws'] as int)} • ${_money(lucky['prize_total'])}',
+                  ),
+                if (unlucky != null)
+                  _highlightCard(
+                    emoji: '💩',
+                    title: 'Mais azarado — All Time',
+                    row: unlucky,
+                    details:
+                        '${unlucky['misses']} elementos falhados em ${unlucky['draws']} sorteios • média ${_averageText(unlucky['average_misses'])}',
+                  ),
+                const ListTile(
+                  leading: Icon(Icons.history_outlined),
+                  title: Text('Histórico por jogador'),
+                  subtitle: Text(
+                    'A média torna a comparação justa mesmo para quem começou a jogar mais tarde.',
+                  ),
+                ),
+                for (final row in allTime)
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.person_outline),
+                      title: Text(row['name']?.toString() ?? 'Membro'),
+                      subtitle: Text(
+                        '${row['draws']} sorteios • ${row['misses']} falhados • '
+                        'média ${_averageText(row['average_misses'])}\n'
+                        '${row['prize_draws']} ${_prizeLabel(row['prize_draws'] as int)} • '
+                        '${_money(row['prize_total'])} em prémios',
+                      ),
+                      isThreeLine: true,
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
       ],
     );
   }
+
+  List<Map<String, dynamic>> _monthlyRows() {
+    final rows = <Map<String, dynamic>>[];
+    for (final player in widget.players) {
+      final id = player['player_id']?.toString();
+      if (id == null || id.isEmpty) continue;
+      final playerFines = widget.fines
+          .where((row) => row['player_id']?.toString() == id)
+          .toList();
+      final playerPrizes = widget.prizes
+          .where((row) => row['player_id']?.toString() == id)
+          .toList();
+
+      final drawIds = playerFines
+          .map((row) => row['result_id']?.toString() ?? '')
+          .where((value) => value.isNotEmpty)
+          .toSet();
+      final prizeDrawIds = playerPrizes
+          .map((row) => row['result_id']?.toString() ?? '')
+          .where((value) => value.isNotEmpty)
+          .toSet();
+      if (drawIds.isEmpty && prizeDrawIds.isEmpty) continue;
+
+      final misses = playerFines.fold<int>(
+        0,
+        (sum, row) =>
+            sum +
+            _asInt(row['missed_numbers']) +
+            _asInt(row['missed_stars']),
+      );
+      final fineTotal = playerFines.fold<double>(
+        0,
+        (sum, row) => sum + _asDouble(row['fine_amount']),
+      );
+      final prizeTotal = playerPrizes.fold<double>(
+        0,
+        (sum, row) => sum + _asDouble(row['prize_amount']),
+      );
+      final draws = drawIds.length;
+      rows.add({
+        'player_id': id,
+        'name': player['member_name'],
+        'draws': draws,
+        'misses': misses,
+        'average_misses': draws == 0 ? 0.0 : misses / draws,
+        'fine_total': fineTotal,
+        'prize_draws': prizeDrawIds.length,
+        'prize_total': prizeTotal,
+      });
+    }
+
+    rows.sort((a, b) {
+      final byAverage = _asDouble(a['average_misses'])
+          .compareTo(_asDouble(b['average_misses']));
+      if (byAverage != 0) return byAverage;
+      final byMisses = _asInt(a['misses']).compareTo(_asInt(b['misses']));
+      if (byMisses != 0) return byMisses;
+      return (a['name']?.toString() ?? '').compareTo(b['name']?.toString() ?? '');
+    });
+    return rows;
+  }
+
+  Map<String, dynamic>? _luckiest(List<Map<String, dynamic>> rows) {
+    final candidates = rows.where((row) => _asInt(row['prize_draws']) > 0).toList();
+    if (candidates.isEmpty) return null;
+    candidates.sort((a, b) {
+      final byCount = _asInt(b['prize_draws']).compareTo(_asInt(a['prize_draws']));
+      if (byCount != 0) return byCount;
+      final byValue = _asDouble(b['prize_total']).compareTo(_asDouble(a['prize_total']));
+      if (byValue != 0) return byValue;
+      return _asDouble(a['average_misses'])
+          .compareTo(_asDouble(b['average_misses']));
+    });
+    return candidates.first;
+  }
+
+  Map<String, dynamic>? _unluckiest(List<Map<String, dynamic>> rows) {
+    final candidates = rows.where((row) => _asInt(row['draws']) > 0).toList();
+    if (candidates.isEmpty) return null;
+    candidates.sort((a, b) {
+      final byAverage = _asDouble(b['average_misses'])
+          .compareTo(_asDouble(a['average_misses']));
+      if (byAverage != 0) return byAverage;
+      final byMisses = _asInt(b['misses']).compareTo(_asInt(a['misses']));
+      if (byMisses != 0) return byMisses;
+      return (a['name']?.toString() ?? '').compareTo(b['name']?.toString() ?? '');
+    });
+    return candidates.first;
+  }
+
+  Widget _highlightCard({
+    required String emoji,
+    required String title,
+    required Map<String, dynamic> row,
+    required String details,
+  }) {
+    return Card(
+      child: ListTile(
+        leading: Text(emoji, style: const TextStyle(fontSize: 28)),
+        title: Text(title),
+        subtitle: Text('${row['name'] ?? 'Membro'}\n$details'),
+        isThreeLine: true,
+      ),
+    );
+  }
+
+  String _averageText(Object? value) =>
+      _asDouble(value).toStringAsFixed(2).replaceAll('.', ',');
+
+  String _prizeLabel(int count) => count == 1 ? 'prémio' : 'prémios';
 }
 
 class _ManualPrizeDialog extends StatefulWidget {
@@ -1481,6 +1722,12 @@ String _listText(Object? value) => _intList(value).join(', ');
 String _notEmpty(Object? value) {
   final text = value?.toString().trim() ?? '';
   return text.isEmpty ? '—' : text;
+}
+
+int _asInt(Object? value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '') ?? 0;
 }
 
 double _asDouble(Object? value) {
