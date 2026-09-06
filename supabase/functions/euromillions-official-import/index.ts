@@ -15,9 +15,10 @@ const requestHeaders = {
 
 const catalogSources = [
   "https://www.jogossantacasa.pt/web/SCCartazResult/euroMilhoes",
-  "https://diadopai.jogossantacasa.pt/web/SCCartazResult/euroMilhoes",
+  "https://diadamae.jogossantacasa.pt/web/SCCartazResult/euroMilhoes",
   "https://www.jogossantacasa.pt/web/ResultsBoard/euromilhoes",
-  "https://diadopai.jogossantacasa.pt/web/ResultsBoard/euromilhoes",
+  "https://diadamae.jogossantacasa.pt/web/ResultsBoard/euromilhoes",
+  "https://diadamae.jogossantacasa.pt/web/SCCartazResult/",
 ];
 
 const combos: Array<[number, number, number]> = [
@@ -138,8 +139,7 @@ function dateOnly(date: Date): string {
 }
 
 function expectedDraws(year: number, month: number): ExpectedDraw[] {
-  const now = new Date();
-  const today = dateOnly(now);
+  const today = dateOnly(new Date());
   const draws: ExpectedDraw[] = [];
   let ordinal = 0;
 
@@ -211,7 +211,6 @@ async function fetchHtml(url: string): Promise<string> {
 
 async function loadContestCatalog(): Promise<Map<string, ContestCandidate[]>> {
   const catalog = new Map<string, ContestCandidate[]>();
-  let lastError: unknown;
 
   for (const baseUrl of catalogSources) {
     try {
@@ -223,13 +222,12 @@ async function loadContestCatalog(): Promise<Map<string, ContestCandidate[]>> {
           catalog.set(item.drawNumber, list);
         }
       }
-    } catch (error) {
-      lastError = error;
+    } catch (_) {
+      // Uma fonte alternativa pode estar temporariamente indisponível.
     }
   }
 
   if (catalog.size === 0) {
-    if (lastError instanceof Error) throw lastError;
     throw new Error("Não foi possível ler a lista oficial de sorteios do Euromilhões.");
   }
   return catalog;
