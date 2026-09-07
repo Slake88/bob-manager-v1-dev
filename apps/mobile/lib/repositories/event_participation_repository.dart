@@ -44,11 +44,10 @@ class EventParticipationRepository {
     _requireView();
 
     if (AppConfig.demoMode) {
-      final rows = await _dataService.listWhere(
-        'event_participants',
-        field: 'event_id',
-        value: eventId,
-      );
+      final allRows = await _dataService.list('event_participants');
+      final rows = allRows
+          .where((row) => row['event_id']?.toString() == eventId)
+          .toList();
       return rows.map((row) {
         final companion = row['companion_name']?.toString().trim() ?? '';
         return <String, dynamic>{
@@ -80,17 +79,27 @@ class EventParticipationRepository {
       final rawGuests = row['event_registration_guests'];
       final companions = rawGuests is List
           ? List<Map<String, dynamic>>.from(rawGuests)
-            ..sort((a, b) => (a['created_at']?.toString() ?? '')
-                .compareTo(b['created_at']?.toString() ?? ''))
           : <Map<String, dynamic>>[];
+      companions.sort(
+        (a, b) => (a['created_at']?.toString() ?? '')
+            .compareTo(b['created_at']?.toString() ?? ''),
+      );
+
+      String? memberName;
+      String? memberProfileId;
+      if (member is Map) {
+        final nickname = member['nickname']?.toString().trim() ?? '';
+        final fullName = member['full_name']?.toString().trim() ?? '';
+        memberName = nickname.isNotEmpty
+            ? nickname
+            : (fullName.isEmpty ? null : fullName);
+        memberProfileId = member['profile_id']?.toString();
+      }
+
       return <String, dynamic>{
         ...row,
-        'member_name': member is Map
-            ? ((member['nickname']?.toString().trim().isNotEmpty == true)
-                ? member['nickname'].toString().trim()
-                : member['full_name']?.toString())
-            : null,
-        'member_profile_id': member is Map ? member['profile_id'] : null,
+        'member_name': memberName,
+        'member_profile_id': memberProfileId,
         'companions': companions,
       };
     }).toList();
@@ -132,11 +141,10 @@ class EventParticipationRepository {
     required String memberName,
   }) async {
     if (AppConfig.demoMode) {
-      final existing = await _dataService.listWhere(
-        'event_participants',
-        field: 'event_id',
-        value: eventId,
-      );
+      final allRows = await _dataService.list('event_participants');
+      final existing = allRows
+          .where((row) => row['event_id']?.toString() == eventId)
+          .toList();
       if (existing.any((row) => row['member_id']?.toString() == memberId)) {
         throw StateError('Este membro já está inscrito neste evento.');
       }
@@ -221,7 +229,10 @@ class EventParticipationRepository {
       return;
     }
     try {
-      await _client.from('event_registrations').delete().eq('id', registrationId);
+      await _client
+          .from('event_registrations')
+          .delete()
+          .eq('id', registrationId);
     } on PostgrestException catch (error) {
       throw StateError(_friendly(error));
     }
