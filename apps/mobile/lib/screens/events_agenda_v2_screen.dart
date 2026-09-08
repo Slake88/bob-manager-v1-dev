@@ -901,6 +901,41 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
     if (saved == true && mounted) setState(_reload);
   }
 
+  Future<void> _removeVolunteer(Map<String, dynamic> volunteer) async {
+    final name = volunteer['member_name']?.toString() ?? 'este voluntário';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Remover voluntário'),
+        content: Text(
+          'Remover $name da equipa de voluntariado deste evento?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Voltar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Remover'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await widget.repository.removeVolunteer(volunteer['id'].toString());
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Voluntário removido do evento.')),
+      );
+      setState(_reload);
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
   void _showError(Object error) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1010,8 +1045,25 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
                           title: Text(
                             row['member_name']?.toString() ?? 'Membro',
                           ),
-                          subtitle: Text(
-                            row['function_name']?.toString() ?? 'Apoio geral',
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                row['function_name']?.toString() ?? 'Apoio geral',
+                              ),
+                              if (_canManage)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: TextButton.icon(
+                                    onPressed: () => _removeVolunteer(row),
+                                    icon: const Icon(
+                                      Icons.person_remove_outlined,
+                                      size: 18,
+                                    ),
+                                    label: const Text('Remover voluntário'),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                       )
