@@ -328,34 +328,55 @@ class EventsRepository {
     required String functionName,
   }) async {
     _require(AppPermission.manageEventParticipants);
-    if (functionName.trim().isEmpty) {
+    final normalizedFunction = functionName.trim();
+    if (normalizedFunction.isEmpty) {
       throw ArgumentError('Indica a função do voluntário.');
     }
     if (AppConfig.demoMode) {
+      final existing = await _dataService.listWhere(
+        'event_volunteers',
+        field: 'event_id',
+        value: eventId,
+      );
+      if (existing.any((row) => row['member_id']?.toString() == memberId)) {
+        throw StateError(
+          'Este membro já está registado como voluntário neste evento.',
+        );
+      }
       return _dataService.insert('event_volunteers', {
         'event_id': eventId,
         'member_id': memberId,
         'member_name': memberName,
-        'function_name': functionName,
+        'function_name': normalizedFunction,
         'status': 'confirmed',
       });
     }
 
-    final response = await _client
-        .from('event_volunteers')
-        .insert({
-          'club_id': AppSession.instance.clubId,
-          'event_id': eventId,
-          'member_id': memberId,
-          'function_name': functionName.trim(),
-          'status': 'confirmed',
-        })
-        .select()
-        .single();
-    return <String, dynamic>{
-      ...Map<String, dynamic>.from(response),
-      'member_name': memberName,
-    };
+    try {
+      final response = await _client
+          .from('event_volunteers')
+          .insert({
+            'club_id': AppSession.instance.clubId,
+            'event_id': eventId,
+            'member_id': memberId,
+            'function_name': normalizedFunction,
+            'status': 'confirmed',
+          })
+          .select()
+          .single();
+      return <String, dynamic>{
+        ...Map<String, dynamic>.from(response),
+        'member_name': memberName,
+      };
+    } on PostgrestException catch (error) {
+      if (error.code == '23505' ||
+          error.message.contains('event_volunteers_event_member_unique')) {
+        throw StateError(
+          'Este membro já está registado como voluntário neste evento.',
+        );
+      }
+      rethrow;
+    }
   }
 
   Future<Map<String, dynamic>> financialSummary(String eventId) async {
