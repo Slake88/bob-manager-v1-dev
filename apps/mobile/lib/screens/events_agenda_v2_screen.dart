@@ -1165,9 +1165,13 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 6),
-          child: companions.isEmpty
-              ? const Text('Sem acompanhantes')
-              : Wrap(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (companions.isEmpty)
+                const Text('Sem acompanhantes')
+              else
+                Wrap(
                   spacing: 6,
                   runSpacing: 6,
                   children: companions
@@ -1185,26 +1189,35 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
                       )
                       .toList(),
                 ),
-        ),
-        trailing: canEdit
-            ? Wrap(
-                spacing: 2,
-                children: [
-                  IconButton(
-                    tooltip: 'Adicionar acompanhante',
-                    onPressed: () => _addCompanion(registration),
-                    icon: const Icon(Icons.person_add_alt_outlined),
-                  ),
-                  if (_canManage)
-                    IconButton(
-                      tooltip: 'Remover participante',
+              if (_canManage) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => _addCompanion(registration),
+                      icon: const Icon(
+                        Icons.person_add_alt_outlined,
+                        size: 18,
+                      ),
+                      label: const Text('Adicionar acompanhante'),
+                    ),
+                    TextButton.icon(
                       onPressed: () =>
                           _cancelRegistration(registration, self: false),
-                      icon: const Icon(Icons.delete_outline),
+                      icon: const Icon(
+                        Icons.person_remove_outlined,
+                        size: 18,
+                      ),
+                      label: const Text('Remover participante'),
                     ),
-                ],
-              )
-            : null,
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
