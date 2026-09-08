@@ -379,6 +379,19 @@ class EventsRepository {
     }
   }
 
+  Future<void> removeVolunteer(String volunteerId) async {
+    _require(AppPermission.manageEventParticipants);
+    if (AppConfig.demoMode) {
+      await _dataService.delete('event_volunteers', volunteerId);
+      return;
+    }
+    await _client
+        .from('event_volunteers')
+        .delete()
+        .eq('id', volunteerId)
+        .eq('club_id', AppSession.instance.clubId);
+  }
+
   Future<Map<String, dynamic>> financialSummary(String eventId) async {
     _require(AppPermission.viewEvents);
     final List<Map<String, dynamic>> movements;
