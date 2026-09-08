@@ -977,16 +977,32 @@ class _RouteStopsPageState extends State<_RouteStopsPage> {
     _reload();
   }
 
-  void _reload() =>
-      _future = widget.repository.listRouteStops(widget.route['id'].toString());
+  String get _routeId => widget.route['id'].toString();
 
-  Future<void> _add(List<Map<String, dynamic>> current) async {
-    final name = TextEditingController();
-    final location = TextEditingController();
+  void _reload() => _future = widget.repository.listRouteStops(_routeId);
+
+  Future<void> _refreshStops() async {
+    final next = widget.repository.listRouteStops(_routeId);
+    if (!mounted) return;
+    setState(() => _future = next);
+    await next;
+  }
+
+  Future<void> _editStop(
+    List<Map<String, dynamic>> current, {
+    Map<String, dynamic>? stop,
+  }) async {
+    final editing = stop != null;
+    final name = TextEditingController(
+      text: editing ? stop['name']?.toString() ?? '' : '',
+    );
+    final location = TextEditingController(
+      text: editing ? stop['location']?.toString() ?? '' : '',
+    );
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Nova paragem'),
+        title: Text(editing ? 'Editar paragem' : 'Nova paragem'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1012,9 +1028,12 @@ class _RouteStopsPageState extends State<_RouteStopsPage> {
               try {
                 await widget.repository.saveRouteStop(
                   eventId: widget.eventId,
-                  routeId: widget.route['id'].toString(),
+                  routeId: _routeId,
+                  id: editing ? stop['id']?.toString() : null,
                   values: {
-                    'sequence_no': current.length + 1,
+                    'sequence_no': editing
+                        ? stop['sequence_no'] ?? current.indexOf(stop) + 1
+                        : current.length + 1,
                     'name': name.text.trim(),
                     'location': _nullText(location.text),
                   },
@@ -1035,7 +1054,19 @@ class _RouteStopsPageState extends State<_RouteStopsPage> {
     );
     name.dispose();
     location.dispose();
-    if (saved == true && mounted) setState(_reload);
+    if (saved == true && mounted) {
+      try {
+        await _refreshStops();
+        if (mounted) {
+          _snack(
+            context,
+            editing ? 'Paragem atualizada.' : 'Paragem adicionada.',
+          );
+        }
+      } catch (error) {
+        if (mounted) _snack(context, _friendly(error));
+      }
+    }
   }
 
   @override
@@ -1069,6 +1100,13 @@ class _RouteStopsPageState extends State<_RouteStopsPage> {
                       title: Text(row['name']?.toString() ?? 'Paragem'),
                       subtitle:
                           Text(row['location']?.toString() ?? 'Local por definir'),
+                      trailing: widget.repository.canManageRoadbook
+                          ? IconButton(
+                              tooltip: 'Editar paragem',
+                              onPressed: () => _editStop(rows, stop: row),
+                              icon: const Icon(Icons.edit_outlined),
+                            )
+                          : null,
                     ),
                   ),
                 ),
@@ -1076,7 +1114,7 @@ class _RouteStopsPageState extends State<_RouteStopsPage> {
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: FilledButton.icon(
-                    onPressed: () => _add(rows),
+                    onPressed: () => _editStop(rows),
                     icon: const Icon(Icons.add_location_alt_outlined),
                     label: const Text('Adicionar paragem'),
                   ),
