@@ -170,7 +170,7 @@ class EventsRepository {
     final normalized = <String, dynamic>{
       ...values,
       'name': name,
-      'starts_at': startsAt.toIso8601String(),
+      'starts_at': startsAt.toUtc().toIso8601String(),
       'status': status,
       'budget': _asDouble(values['budget']),
     };
