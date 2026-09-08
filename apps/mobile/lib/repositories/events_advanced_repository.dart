@@ -145,17 +145,39 @@ class EventsAdvancedRepository {
           'id': 'demo-guest',
           'event_id': eventId,
           'host_member_id': 'm1',
+          'registration_id': 'demo-registration',
           'name': 'Acompanhante',
           'status': 'confirmed',
+          'host_member_name': 'Membro',
         },
       ];
     }
     final response = await _supabase
-        .from('event_guests')
-        .select()
-        .eq('event_id', eventId)
+        .from('event_registration_guests')
+        .select(
+          'id,registration_id,guest_name,created_at,'
+          'event_registrations!inner(event_id,member_id,status,members(full_name))',
+        )
+        .eq('event_registrations.event_id', eventId)
+        .neq('event_registrations.status', 'cancelled')
         .order('created_at');
-    return List<Map<String, dynamic>>.from(response);
+    return List<Map<String, dynamic>>.from(response).map((row) {
+      final registration = row['event_registrations'];
+      final member = registration is Map ? registration['members'] : null;
+      return <String, dynamic>{
+        'id': row['id'],
+        'event_id': registration is Map
+            ? registration['event_id']?.toString() ?? eventId
+            : eventId,
+        'host_member_id':
+            registration is Map ? registration['member_id'] : null,
+        'registration_id': row['registration_id'],
+        'name': row['guest_name'],
+        'status': 'confirmed',
+        'host_member_name': member is Map ? member['full_name'] : null,
+        'created_at': row['created_at'],
+      };
+    }).toList();
   }
 
   Future<Map<String, dynamic>> addGuest({
@@ -165,16 +187,48 @@ class EventsAdvancedRepository {
     String? registrationId,
   }) async {
     _require(AppPermission.manageEventParticipants);
-    return _saveEventRow(
-      'event_guests',
-      eventId,
-      {
+    final normalizedName = name.trim();
+    if (normalizedName.isEmpty) {
+      throw ArgumentError('Indica o nome do acompanhante.');
+    }
+    final normalizedRegistrationId = registrationId?.trim() ?? '';
+    if (normalizedRegistrationId.isEmpty) {
+      throw ArgumentError('Seleciona o membro anfitrião.');
+    }
+    if (isDemo) {
+      return <String, dynamic>{
+        'id': 'demo-${DateTime.now().microsecondsSinceEpoch}',
+        'event_id': eventId,
         'host_member_id': hostMemberId,
-        'registration_id': registrationId,
-        'name': name.trim(),
+        'registration_id': normalizedRegistrationId,
+        'name': normalizedName,
         'status': 'confirmed',
-      },
-    );
+      };
+    }
+    try {
+      final response = await _supabase
+          .from('event_registration_guests')
+          .insert({
+            'registration_id': normalizedRegistrationId,
+            'guest_name': normalizedName,
+          })
+          .select()
+          .single();
+      return <String, dynamic>{
+        ...Map<String, dynamic>.from(response),
+        'event_id': eventId,
+        'host_member_id': hostMemberId,
+        'name': normalizedName,
+        'status': 'confirmed',
+      };
+    } on PostgrestException catch (error) {
+      if (error.code == '23505') {
+        throw StateError(
+          'Este acompanhante já está registado para este membro neste evento.',
+        );
+      }
+      rethrow;
+    }
   }
 
   Future<List<Map<String, dynamic>>> listRoutes(String eventId) async {
