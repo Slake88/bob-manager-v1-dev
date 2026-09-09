@@ -984,7 +984,9 @@ class _RouteStopsPageState extends State<_RouteStopsPage> {
   Future<void> _refreshStops() async {
     final next = widget.repository.listRouteStops(_routeId);
     if (!mounted) return;
-    setState(() => _future = next);
+    setState(() {
+      _future = next;
+    });
     await next;
   }
 
