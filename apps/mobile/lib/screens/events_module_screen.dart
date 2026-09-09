@@ -810,15 +810,33 @@ class _RoadbookPageState extends State<_RoadbookPage> {
 
   void _reload() => _future = widget.repository.listRoutes(widget.eventId);
 
-  Future<void> _add() async {
-    final name = TextEditingController(text: 'Roadbook principal');
-    final start = TextEditingController();
-    final end = TextEditingController();
-    final distance = TextEditingController();
+  Future<void> _refreshRoadbooks() async {
+    final next = widget.repository.listRoutes(widget.eventId);
+    if (!mounted) return;
+    setState(() {
+      _future = next;
+    });
+    await next;
+  }
+
+  Future<void> _editRoadbook({Map<String, dynamic>? route}) async {
+    final editing = route != null;
+    final name = TextEditingController(
+      text: route?['name']?.toString() ?? 'Roadbook principal',
+    );
+    final start = TextEditingController(
+      text: route?['start_location']?.toString() ?? '',
+    );
+    final end = TextEditingController(
+      text: route?['end_location']?.toString() ?? '',
+    );
+    final distance = TextEditingController(
+      text: route?['distance_km']?.toString() ?? '',
+    );
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Novo roadbook'),
+        title: Text(editing ? 'Editar roadbook' : 'Novo roadbook'),
         content: SizedBox(
           width: 500,
           child: SingleChildScrollView(
@@ -860,13 +878,17 @@ class _RoadbookPageState extends State<_RoadbookPage> {
             onPressed: () async {
               if (name.text.trim().isEmpty) return;
               try {
-                await widget.repository.saveRoute(widget.eventId, {
-                  'name': name.text.trim(),
-                  'start_location': _nullText(start.text),
-                  'end_location': _nullText(end.text),
-                  'distance_km':
-                      double.tryParse(distance.text.replaceAll(',', '.')),
-                });
+                await widget.repository.saveRoute(
+                  widget.eventId,
+                  {
+                    'name': name.text.trim(),
+                    'start_location': _nullText(start.text),
+                    'end_location': _nullText(end.text),
+                    'distance_km':
+                        double.tryParse(distance.text.replaceAll(',', '.')),
+                  },
+                  id: route?['id']?.toString(),
+                );
                 if (dialogContext.mounted) {
                   Navigator.pop(dialogContext, true);
                 }
@@ -885,7 +907,19 @@ class _RoadbookPageState extends State<_RoadbookPage> {
     start.dispose();
     end.dispose();
     distance.dispose();
-    if (saved == true && mounted) setState(_reload);
+    if (saved == true && mounted) {
+      try {
+        await _refreshRoadbooks();
+        if (mounted) {
+          _snack(
+            context,
+            editing ? 'Roadbook atualizado.' : 'Roadbook adicionado.',
+          );
+        }
+      } catch (error) {
+        if (mounted) _snack(context, _friendly(error));
+      }
+    }
   }
 
   @override
@@ -922,7 +956,20 @@ class _RoadbookPageState extends State<_RoadbookPage> {
                           subtitle: Text(
                             '${row['start_location'] ?? 'Partida'} → ${row['end_location'] ?? 'Destino'}${row['distance_km'] == null ? '' : ' • ${row['distance_km']} km'}',
                           ),
-                          trailing: const Icon(Icons.chevron_right),
+                          trailing: widget.repository.canManageRoadbook
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Editar roadbook',
+                                      onPressed: () =>
+                                          _editRoadbook(route: row),
+                                      icon: const Icon(Icons.edit_outlined),
+                                    ),
+                                    const Icon(Icons.chevron_right),
+                                  ],
+                                )
+                              : const Icon(Icons.chevron_right),
                           onTap: () async {
                             await Navigator.of(context).push<void>(
                               MaterialPageRoute(
@@ -933,7 +980,9 @@ class _RoadbookPageState extends State<_RoadbookPage> {
                                 ),
                               ),
                             );
-                            if (mounted) setState(_reload);
+                            if (mounted) {
+                              await _refreshRoadbooks();
+                            }
                           },
                         ),
                       ),
@@ -944,7 +993,7 @@ class _RoadbookPageState extends State<_RoadbookPage> {
       ),
       floatingActionButton: widget.repository.canManageRoadbook
           ? FloatingActionButton.extended(
-              onPressed: _add,
+              onPressed: () => _editRoadbook(),
               icon: const Icon(Icons.add),
               label: const Text('Roadbook'),
             )
