@@ -266,6 +266,7 @@ class EventsAdvancedRepository {
     if (requestedName.isEmpty) {
       throw ArgumentError('Indica o nome do Roadbook.');
     }
+    normalizedValues['name'] = requestedName;
 
     if (id == null && requestedName == 'Roadbook principal' && !isDemo) {
       final existing = await listRoutes(eventId);
@@ -282,8 +283,6 @@ class EventsAdvancedRepository {
         }
         normalizedValues['name'] = candidate;
       }
-    } else {
-      normalizedValues['name'] = requestedName;
     }
 
     try {
