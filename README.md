@@ -16,3 +16,7 @@ Esquema Definitivo e Matriz de Rastreabilidade v1.0.
 ```
 
 A aplicação arranca em modo demonstração quando `config/dev.json` não existe.
+
+## RC1
+
+A gestão de eventos inclui CRUD base, confirmação segura de eliminação e filtragem por estado.
