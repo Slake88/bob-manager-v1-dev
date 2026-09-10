@@ -268,23 +268,6 @@ class EventsAdvancedRepository {
     }
     normalizedValues['name'] = requestedName;
 
-    if (id == null && requestedName == 'Roadbook principal' && !isDemo) {
-      final existing = await listRoutes(eventId);
-      final names = existing
-          .map((row) => row['name']?.toString())
-          .whereType<String>()
-          .toSet();
-      if (names.contains(requestedName)) {
-        var suffix = 2;
-        var candidate = 'Roadbook principal $suffix';
-        while (names.contains(candidate)) {
-          suffix += 1;
-          candidate = 'Roadbook principal $suffix';
-        }
-        normalizedValues['name'] = candidate;
-      }
-    }
-
     try {
       return await _saveEventRow(
         'event_routes',
