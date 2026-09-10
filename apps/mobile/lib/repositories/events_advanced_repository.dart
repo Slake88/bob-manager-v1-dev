@@ -325,7 +325,7 @@ class EventsAdvancedRepository {
         .from('event_route_stops')
         .select()
         .eq('route_id', routeId)
-        .order('sequence_no');
+        .order('sequence_no', ascending: true);
     return List<Map<String, dynamic>>.from(response);
   }
 
