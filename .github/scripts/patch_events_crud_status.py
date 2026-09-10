@@ -1,0 +1,185 @@
+from pathlib import Path
+
+module_path = Path('apps/mobile/lib/screens/events_module_screen.dart')
+whole = module_path.read_text(encoding='utf-8')
+start = whole.index('class _EventsAdvancedHomeScreenState')
+end = whole.index('class EventProposalsScreen', start)
+before, section, after = whole[:start], whole[start:end], whole[end:]
+
+anchor = "  late Future<List<dynamic>> _future;\n"
+if section.count(anchor) != 1:
+    raise SystemExit(f'module future anchor count={section.count(anchor)}')
+section = section.replace(anchor, anchor + "  String _statusFilter = 'all';\n", 1)
+
+anchor = "        final pending =\n            proposals.where((row) => row['status'] == 'submitted').length;\n"
+block = """        final visibleEvents = _statusFilter == 'all'
+            ? events
+            : events
+                .where(
+                  (row) => row['status']?.toString() == _statusFilter,
+                )
+                .toList();
+"""
+if section.count(anchor) != 1:
+    raise SystemExit(f'module pending anchor count={section.count(anchor)}')
+section = section.replace(anchor, anchor + block, 1)
+
+anchor = "              if (events.isEmpty)\n"
+chips = """              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ChoiceChip(label: const Text('Todos'), selected: _statusFilter == 'all', onSelected: (_) => setState(() => _statusFilter = 'all')),
+                  ChoiceChip(label: const Text('Rascunho'), selected: _statusFilter == 'draft', onSelected: (_) => setState(() => _statusFilter = 'draft')),
+                  ChoiceChip(label: const Text('Publicado'), selected: _statusFilter == 'published', onSelected: (_) => setState(() => _statusFilter = 'published')),
+                  ChoiceChip(label: const Text('Em curso'), selected: _statusFilter == 'active', onSelected: (_) => setState(() => _statusFilter = 'active')),
+                  ChoiceChip(label: const Text('Concluído'), selected: _statusFilter == 'completed', onSelected: (_) => setState(() => _statusFilter = 'completed')),
+                  ChoiceChip(label: const Text('Cancelado'), selected: _statusFilter == 'cancelled', onSelected: (_) => setState(() => _statusFilter = 'cancelled')),
+                ],
+              ),
+              const SizedBox(height: 8),
+"""
+if section.count(anchor) != 1:
+    raise SystemExit(f'module list anchor count={section.count(anchor)}')
+section = section.replace(anchor, chips + anchor, 1)
+
+anchor = "              else\n                ...events.map(\n"
+replacement = """              else if (visibleEvents.isEmpty)
+                const Card(
+                  child: ListTile(
+                    leading: Icon(Icons.filter_alt_off_outlined),
+                    title: Text('Sem eventos neste estado.'),
+                  ),
+                )
+              else
+                ...visibleEvents.map(
+"""
+if section.count(anchor) != 1:
+    raise SystemExit(f'module map anchor count={section.count(anchor)}')
+section = section.replace(anchor, replacement, 1)
+
+old = "${eventKindLabel(event['event_kind'])} • ${_date(event['starts_at'])}"
+new = "${eventKindLabel(event['event_kind'])} • ${_eventStatusLabel(event['status'])} • ${_date(event['starts_at'])}"
+if section.count(old) != 1:
+    raise SystemExit(f'module subtitle count={section.count(old)}')
+section = section.replace(old, new, 1)
+module_path.write_text(before + section + after, encoding='utf-8')
+
+module_whole = module_path.read_text(encoding='utf-8')
+helper_anchor = "DateTime? _parse(Object? value) {\n"
+helper = """String _eventStatusLabel(Object? status) => switch (status?.toString()) {
+      'published' => 'Publicado',
+      'active' => 'Em curso',
+      'completed' => 'Concluído',
+      'cancelled' => 'Cancelado',
+      _ => 'Rascunho',
+    };
+
+"""
+if module_whole.count(helper_anchor) != 1:
+    raise SystemExit(f'module helper count={module_whole.count(helper_anchor)}')
+module_whole = module_whole.replace(helper_anchor, helper + helper_anchor, 1)
+module_path.write_text(module_whole, encoding='utf-8')
+
+screen_path = Path('apps/mobile/lib/screens/events_screen.dart')
+whole = screen_path.read_text(encoding='utf-8')
+start = whole.index('  Future<void> _openEvent(')
+end = whole.index('  Future<void> _openAnniversary(', start)
+before, section, after = whole[:start], whole[start:end], whole[end:]
+
+anchor = "    bool saving = false;\n"
+if section.count(anchor) != 1:
+    raise SystemExit(f'event saving anchor count={section.count(anchor)}')
+section = section.replace(anchor, anchor + "    bool deleted = false;\n", 1)
+
+actions_anchor = """          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+"""
+delete_actions = """          actions: [
+            if (event != null && _canManage)
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(dialogContext).colorScheme.error,
+                ),
+                onPressed: saving
+                    ? null
+                    : () async {
+                        final eventName = name.text.trim().isEmpty
+                            ? 'este evento'
+                            : name.text.trim();
+                        final confirmed = await showDialog<bool>(
+                          context: dialogContext,
+                          builder: (confirmContext) => AlertDialog(
+                            title: const Text('Eliminar evento'),
+                            content: Text(
+                              'Queres eliminar o evento “$eventName”?\\n\\n'
+                              'Roadbooks, paragens, participantes, voluntários, turnos, tarefas e outros dados operacionais associados serão eliminados. '
+                              'Registos financeiros ou de inventário relacionados são preservados, mas deixam de ficar associados ao evento.\\n\\n'
+                              'Esta ação não pode ser anulada.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(confirmContext, false),
+                                child: const Text('Cancelar'),
+                              ),
+                              FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: Theme.of(confirmContext).colorScheme.error,
+                                  foregroundColor: Theme.of(confirmContext).colorScheme.onError,
+                                ),
+                                onPressed: () => Navigator.pop(confirmContext, true),
+                                child: const Text('Eliminar'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmed != true || !dialogContext.mounted) return;
+                        setDialogState(() => saving = true);
+                        try {
+                          final eventId = event['id']?.toString().trim() ?? '';
+                          if (eventId.isEmpty) {
+                            throw StateError('Não foi possível identificar o evento.');
+                          }
+                          await _events.deleteEvent(eventId);
+                          deleted = true;
+                          if (dialogContext.mounted) {
+                            Navigator.pop(dialogContext, true);
+                          }
+                        } catch (error) {
+                          if (dialogContext.mounted) {
+                            ScaffoldMessenger.of(dialogContext).showSnackBar(
+                              SnackBar(content: Text(_friendlyError(error))),
+                            );
+                            setDialogState(() => saving = false);
+                          }
+                        }
+                      },
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Eliminar'),
+              ),
+            TextButton(
+              onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+"""
+if section.count(actions_anchor) != 1:
+    raise SystemExit(f'event actions anchor count={section.count(actions_anchor)}')
+section = section.replace(actions_anchor, delete_actions, 1)
+
+anchor = "    if (saved == true && mounted) setState(_reload);\n"
+replacement = """    if (saved == true && mounted) {
+      setState(_reload);
+      if (deleted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(const SnackBar(content: Text('Evento eliminado.')));
+      }
+    }
+"""
+if section.count(anchor) != 1:
+    raise SystemExit(f'event result anchor count={section.count(anchor)}')
+section = section.replace(anchor, replacement, 1)
+screen_path.write_text(before + section + after, encoding='utf-8')
