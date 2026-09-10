@@ -448,11 +448,7 @@ class EventsAdvancedRepository {
   Future<List<Map<String, dynamic>>> listShiftMembers(String eventId) =>
       _listEventRows('event_shift_members', eventId);
   Future<List<Map<String, dynamic>>> listProgram(String eventId) =>
-      _listEventRows(
-        'event_program',
-        eventId,
-        orderBy: 'sequence_no',
-      );
+      _listEventRows('event_program', eventId, orderBy: 'sequence_no');
   Future<List<Map<String, dynamic>>> listIncidents(String eventId) =>
       _listEventRows(
         'event_incidents',
@@ -554,12 +550,7 @@ class EventsAdvancedRepository {
     final payload = <String, dynamic>{'event_id': eventId, ...values};
     final response = id == null
         ? await _supabase.from(table).insert(payload).select().single()
-        : await _supabase
-            .from(table)
-            .update(payload)
-            .eq('id', id)
-            .select()
-            .single();
+        : await _supabase.from(table).update(payload).eq('id', id).select().single();
     return Map<String, dynamic>.from(response);
   }
 
