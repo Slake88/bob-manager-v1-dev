@@ -1,0 +1,56 @@
+name: Wire enhanced Roadbook stop screen
+
+on:
+  push:
+    branches: [rc1-rebuild]
+    paths:
+      - '.github/workflows/roadbook-ui-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rc1-rebuild
+          fetch-depth: 0
+      - name: Patch events module
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('apps/mobile/lib/screens/events_module_screen.dart')
+          text = path.read_text(encoding='utf-8')
+
+          old_import = "import '../repositories/member_repository.dart';\nimport 'events_screen.dart';"
+          new_import = "import '../repositories/member_repository.dart';\nimport 'events_screen.dart';\nimport 'roadbook_stops_screen.dart';"
+          if text.count(old_import) != 1:
+              raise SystemExit('Expected imports anchor exactly once')
+          text = text.replace(old_import, new_import, 1)
+
+          old_builder = """builder: (_) => _RouteStopsPage(
+                                  eventId: widget.eventId,
+                                  route: row,
+                                  repository: widget.repository,
+                                ),"""
+          new_builder = """builder: (_) => RoadbookStopsScreen(
+                                  eventId: widget.eventId,
+                                  route: row,
+                                  repository: widget.repository,
+                                ),"""
+          if text.count(old_builder) != 1:
+              raise SystemExit('Expected Roadbook stops navigation anchor exactly once')
+          text = text.replace(old_builder, new_builder, 1)
+
+          path.write_text(text, encoding='utf-8')
+      - name: Commit patch
+        run: |
+          git config user.name "BOB Manager Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add apps/mobile/lib/screens/events_module_screen.dart
+          git rm .github/workflows/roadbook-ui-patch.yml
+          git commit -m "feat(events): use enhanced roadbook stop screen"
+          git push origin HEAD:rc1-rebuild
