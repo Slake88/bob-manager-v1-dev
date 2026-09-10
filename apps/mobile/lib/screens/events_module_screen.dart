@@ -5,6 +5,7 @@ import '../repositories/events_advanced_repository.dart';
 import '../repositories/events_repository.dart';
 import '../repositories/member_repository.dart';
 import 'events_screen.dart';
+import 'roadbook_stops_screen.dart';
 
 class EventsModuleScreen extends StatefulWidget {
   const EventsModuleScreen({super.key});
@@ -1024,7 +1025,7 @@ class _RoadbookPageState extends State<_RoadbookPage> {
                           onTap: () async {
                             await Navigator.of(context).push<void>(
                               MaterialPageRoute(
-                                builder: (_) => _RouteStopsPage(
+                                builder: (_) => RoadbookStopsScreen(
                                   eventId: widget.eventId,
                                   route: row,
                                   repository: widget.repository,
