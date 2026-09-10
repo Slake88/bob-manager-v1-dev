@@ -254,6 +254,22 @@ class EventsAdvancedRepository {
     return List<Map<String, dynamic>>.from(response);
   }
 
+  Future<String> nextDefaultRouteName(String eventId) async {
+    const baseName = 'Roadbook principal';
+    if (isDemo) return baseName;
+    final existing = await listRoutes(eventId);
+    final names = existing
+        .map((row) => row['name']?.toString())
+        .whereType<String>()
+        .toSet();
+    if (!names.contains(baseName)) return baseName;
+    var suffix = 2;
+    while (names.contains('$baseName $suffix')) {
+      suffix += 1;
+    }
+    return '$baseName $suffix';
+  }
+
   Future<Map<String, dynamic>> saveRoute(
     String eventId,
     Map<String, dynamic> values, {
@@ -267,23 +283,6 @@ class EventsAdvancedRepository {
       throw ArgumentError('Indica o nome do Roadbook.');
     }
     normalizedValues['name'] = requestedName;
-
-    if (id == null && requestedName == 'Roadbook principal' && !isDemo) {
-      final existing = await listRoutes(eventId);
-      final names = existing
-          .map((row) => row['name']?.toString())
-          .whereType<String>()
-          .toSet();
-      if (names.contains(requestedName)) {
-        var suffix = 2;
-        var candidate = 'Roadbook principal $suffix';
-        while (names.contains(candidate)) {
-          suffix += 1;
-          candidate = 'Roadbook principal $suffix';
-        }
-        normalizedValues['name'] = candidate;
-      }
-    }
 
     try {
       return await _saveEventRow(
