@@ -284,6 +284,10 @@ class EventsAdvancedRepository {
     }
     normalizedValues['name'] = requestedName;
 
+    if (id == null && requestedName == 'Roadbook principal') {
+      normalizedValues['name'] = await nextDefaultRouteName(eventId);
+    }
+
     try {
       return await _saveEventRow(
         'event_routes',
