@@ -922,6 +922,51 @@ class _RoadbookPageState extends State<_RoadbookPage> {
     }
   }
 
+  Future<void> _deleteRoadbook(Map<String, dynamic> route) async {
+    final routeId = route['id']?.toString().trim() ?? '';
+    if (routeId.isEmpty) {
+      _snack(context, 'Não foi possível identificar o Roadbook.');
+      return;
+    }
+    final routeName = route['name']?.toString().trim() ?? '';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Eliminar roadbook'),
+        content: Text(
+          routeName.isEmpty
+              ? 'Queres eliminar este Roadbook? Todas as paragens associadas serão também eliminadas. Esta ação não pode ser anulada.'
+              : 'Queres eliminar o Roadbook "$routeName"? Todas as paragens associadas serão também eliminadas. Esta ação não pode ser anulada.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await widget.repository.deleteRoute(
+        eventId: widget.eventId,
+        routeId: routeId,
+      );
+      await _refreshRoadbooks();
+      if (mounted) _snack(context, 'Roadbook eliminado.');
+    } catch (error) {
+      if (mounted) _snack(context, _friendly(error));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -965,6 +1010,12 @@ class _RoadbookPageState extends State<_RoadbookPage> {
                                       onPressed: () =>
                                           _editRoadbook(route: row),
                                       icon: const Icon(Icons.edit_outlined),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Eliminar roadbook',
+                                      color: Theme.of(context).colorScheme.error,
+                                      onPressed: () => _deleteRoadbook(row),
+                                      icon: const Icon(Icons.delete_outline),
                                     ),
                                     const Icon(Icons.chevron_right),
                                   ],
