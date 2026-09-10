@@ -360,6 +360,37 @@ class EventsAdvancedRepository {
         .eq('club_id', AppSession.instance.clubId);
   }
 
+  Future<void> reorderRouteStops({
+    required String eventId,
+    required String routeId,
+    required List<String> stopIds,
+  }) async {
+    _require(AppPermission.manageEventRoadbook);
+    final normalized = stopIds.map((id) => id.trim()).toList();
+    if (normalized.any((id) => id.isEmpty)) {
+      throw ArgumentError('Não foi possível identificar todas as paragens.');
+    }
+    if (normalized.toSet().length != normalized.length) {
+      throw ArgumentError('A ordem das paragens contém registos repetidos.');
+    }
+    if (isDemo || normalized.isEmpty) return;
+    try {
+      await _supabase.rpc(
+        'reorder_event_route_stops_v1',
+        params: {
+          'p_event': eventId,
+          'p_route': routeId,
+          'p_stop_ids': normalized,
+        },
+      );
+    } on PostgrestException catch (error) {
+      if (error.code == 'P0001' || error.code == '42501') {
+        throw StateError(error.message);
+      }
+      rethrow;
+    }
+  }
+
   Future<List<Map<String, dynamic>>> emergencyContacts(String eventId) async {
     if (isDemo) {
       return <Map<String, dynamic>>[
