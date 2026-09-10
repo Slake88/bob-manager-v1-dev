@@ -99,6 +99,13 @@ class _RoadbookStopsScreenState extends State<RoadbookStopsScreen> {
     double? latitude = _asDouble(stop?['latitude']);
     double? longitude = _asDouble(stop?['longitude']);
     bool saving = false;
+    Timer? locationDebounce;
+    var locationSearchVersion = 0;
+    var locationSearching = false;
+    var locationSelecting = false;
+    String? locationSearchError;
+    List<RoadbookPlaceSuggestion> locationSuggestions = const [];
+    var locationSessionToken = _places.newSessionToken();
 
     final saved = await showDialog<bool>(
       context: context,
@@ -122,10 +129,59 @@ class _RoadbookStopsScreenState extends State<RoadbookStopsScreen> {
                   const SizedBox(height: 10),
                   TextField(
                     controller: location,
-                    enabled: !saving,
-                    onChanged: (_) {
+                    enabled: !saving && !locationSelecting,
+                    onChanged: (value) {
                       latitude = null;
                       longitude = null;
+                      locationDebounce?.cancel();
+                      locationSearchVersion += 1;
+                      final version = locationSearchVersion;
+                      final normalized = value.trim();
+                      if (normalized.length < 3) {
+                        setDialogState(() {
+                          locationSearching = false;
+                          locationSearchError = null;
+                          locationSuggestions = const [];
+                        });
+                        return;
+                      }
+                      locationDebounce = Timer(
+                        const Duration(milliseconds: 450),
+                        () async {
+                          if (!dialogContext.mounted ||
+                              version != locationSearchVersion) {
+                            return;
+                          }
+                          setDialogState(() {
+                            locationSearching = true;
+                            locationSearchError = null;
+                          });
+                          try {
+                            final suggestions = await _places.autocomplete(
+                              normalized,
+                              sessionToken: locationSessionToken,
+                            );
+                            if (!dialogContext.mounted ||
+                                version != locationSearchVersion) {
+                              return;
+                            }
+                            setDialogState(() {
+                              locationSuggestions = suggestions;
+                              locationSearching = false;
+                            });
+                          } catch (error) {
+                            if (!dialogContext.mounted ||
+                                version != locationSearchVersion) {
+                              return;
+                            }
+                            setDialogState(() {
+                              locationSuggestions = const [];
+                              locationSearching = false;
+                              locationSearchError = _friendly(error);
+                            });
+                          }
+                        },
+                      );
                     },
                     decoration: InputDecoration(
                       labelText: 'Local',
@@ -133,9 +189,11 @@ class _RoadbookStopsScreenState extends State<RoadbookStopsScreen> {
                       prefixIcon: const Icon(Icons.location_on_outlined),
                       suffixIcon: IconButton(
                         tooltip: 'Pesquisar no Google Maps',
-                        onPressed: saving
+                        onPressed: saving || locationSelecting
                             ? null
                             : () async {
+                                locationDebounce?.cancel();
+                                locationSearchVersion += 1;
                                 final selected = await showDialog<_PlaceSelection>(
                                   context: dialogContext,
                                   builder: (_) => _RoadbookPlacePickerDialog(
@@ -148,15 +206,126 @@ class _RoadbookStopsScreenState extends State<RoadbookStopsScreen> {
                                   return;
                                 }
                                 setDialogState(() {
-                                  location.text = selected.label;
+                                  location.value = TextEditingValue(
+                                    text: selected.label,
+                                    selection: TextSelection.collapsed(
+                                      offset: selected.label.length,
+                                    ),
+                                  );
                                   latitude = selected.latitude;
                                   longitude = selected.longitude;
+                                  locationSuggestions = const [];
+                                  locationSearchError = null;
+                                  locationSearching = false;
+                                  locationSessionToken =
+                                      _places.newSessionToken();
                                 });
                               },
                         icon: const Icon(Icons.search),
                       ),
                     ),
                   ),
+                  if (locationSearching)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: LinearProgressIndicator(),
+                    ),
+                  if (locationSearchError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          locationSearchError!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (locationSuggestions.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 220),
+                      child: Card(
+                        margin: EdgeInsets.zero,
+                        clipBehavior: Clip.antiAlias,
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: locationSuggestions.length,
+                          separatorBuilder: (_, __) =>
+                              const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final suggestion = locationSuggestions[index];
+                            return ListTile(
+                              dense: true,
+                              leading:
+                                  const Icon(Icons.location_on_outlined),
+                              title: Text(suggestion.mainText),
+                              subtitle: suggestion.secondaryText.isEmpty
+                                  ? null
+                                  : Text(suggestion.secondaryText),
+                              enabled: !locationSelecting,
+                              onTap: locationSelecting
+                                  ? null
+                                  : () async {
+                                      locationDebounce?.cancel();
+                                      locationSearchVersion += 1;
+                                      setDialogState(() {
+                                        locationSelecting = true;
+                                        locationSearching = false;
+                                        locationSearchError = null;
+                                      });
+                                      try {
+                                        final details = await _places.details(
+                                          suggestion.placeId,
+                                          sessionToken: locationSessionToken,
+                                        );
+                                        if (!dialogContext.mounted) return;
+                                        final label = suggestion.text.isNotEmpty
+                                            ? suggestion.text
+                                            : details.formattedAddress;
+                                        setDialogState(() {
+                                          location.value = TextEditingValue(
+                                            text: label,
+                                            selection: TextSelection.collapsed(
+                                              offset: label.length,
+                                            ),
+                                          );
+                                          latitude = details.latitude;
+                                          longitude = details.longitude;
+                                          locationSuggestions = const [];
+                                          locationSelecting = false;
+                                          locationSearchError = null;
+                                          locationSessionToken =
+                                              _places.newSessionToken();
+                                        });
+                                      } catch (error) {
+                                        if (!dialogContext.mounted) return;
+                                        setDialogState(() {
+                                          locationSelecting = false;
+                                          locationSearchError =
+                                              _friendly(error);
+                                        });
+                                      }
+                                    },
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          'Resultados fornecidos pelo Google',
+                          style: TextStyle(fontSize: 11),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   DecoratedBox(
                     decoration: BoxDecoration(
@@ -272,6 +441,7 @@ class _RoadbookStopsScreenState extends State<RoadbookStopsScreen> {
         ),
       ),
     );
+    locationDebounce?.cancel();
     name.dispose();
     location.dispose();
     notes.dispose();
