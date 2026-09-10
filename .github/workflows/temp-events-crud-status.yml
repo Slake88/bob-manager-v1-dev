@@ -20,8 +20,6 @@ jobs:
           fetch-depth: 0
       - name: Apply patch
         run: python .github/scripts/patch_events_crud_status.py
-      - name: Format
-        run: dart format apps/mobile/lib/screens/events_module_screen.dart apps/mobile/lib/screens/events_screen.dart
       - name: Commit
         run: |
           rm .github/workflows/temp-events-crud-status.yml
