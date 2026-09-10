@@ -276,18 +276,15 @@ class EventsAdvancedRepository {
     String? id,
   }) async {
     _require(AppPermission.manageEventRoadbook);
-
     final normalizedValues = Map<String, dynamic>.from(values);
     final requestedName = normalizedValues['name']?.toString().trim() ?? '';
     if (requestedName.isEmpty) {
       throw ArgumentError('Indica o nome do Roadbook.');
     }
     normalizedValues['name'] = requestedName;
-
     if (id == null && requestedName == 'Roadbook principal') {
       normalizedValues['name'] = await nextDefaultRouteName(eventId);
     }
-
     try {
       return await _saveEventRow(
         'event_routes',
@@ -466,6 +463,30 @@ class EventsAdvancedRepository {
     return _saveEventRow('event_tasks', eventId, values, id: id);
   }
 
+  Future<Map<String, dynamic>> assignTask({
+    required String eventId,
+    required String taskId,
+    required String memberId,
+  }) async {
+    _require(AppPermission.manageEventOperations);
+    return _saveEventRow(
+      'event_task_assignees',
+      eventId,
+      {'task_id': taskId, 'member_id': memberId},
+    );
+  }
+
+  Future<void> acknowledgeTask(
+    String assignmentId, {
+    bool complete = false,
+  }) async {
+    if (isDemo) return;
+    await _supabase.rpc(
+      'acknowledge_event_task_v1',
+      params: {'p_assignment': assignmentId, 'p_complete': complete},
+    );
+  }
+
   Future<Map<String, dynamic>> saveShift(
     String eventId,
     Map<String, dynamic> values, {
@@ -473,6 +494,30 @@ class EventsAdvancedRepository {
   }) async {
     _require(AppPermission.manageEventOperations);
     return _saveEventRow('event_shifts', eventId, values, id: id);
+  }
+
+  Future<Map<String, dynamic>> assignShift({
+    required String eventId,
+    required String shiftId,
+    required String memberId,
+  }) async {
+    _require(AppPermission.manageEventOperations);
+    return _saveEventRow(
+      'event_shift_members',
+      eventId,
+      {'shift_id': shiftId, 'member_id': memberId, 'status': 'assigned'},
+    );
+  }
+
+  Future<void> setShiftMemberStatus(
+    String assignmentId,
+    String status,
+  ) async {
+    if (isDemo) return;
+    await _supabase.rpc(
+      'set_event_shift_member_status_v1',
+      params: {'p_assignment': assignmentId, 'p_status': status},
+    );
   }
 
   Future<Map<String, dynamic>> saveProgramItem(
@@ -489,34 +534,11 @@ class EventsAdvancedRepository {
     Map<String, dynamic> values, {
     String? id,
   }) async {
-    _require(AppPermission.manageEventOperations);
+    if (!canManageOperations &&
+        !AppSession.instance.can(AppPermission.viewEvents)) {
+      throw StateError('Sem permissão para registar incidentes.');
+    }
     return _saveEventRow('event_incidents', eventId, values, id: id);
-  }
-
-  Future<Map<String, dynamic>> assignTask({
-    required String eventId,
-    required String taskId,
-    required String memberId,
-  }) async {
-    _require(AppPermission.manageEventOperations);
-    return _saveEventRow(
-      'event_task_assignees',
-      eventId,
-      {'task_id': taskId, 'member_id': memberId},
-    );
-  }
-
-  Future<Map<String, dynamic>> assignShift({
-    required String eventId,
-    required String shiftId,
-    required String memberId,
-  }) async {
-    _require(AppPermission.manageEventOperations);
-    return _saveEventRow(
-      'event_shift_members',
-      eventId,
-      {'shift_id': shiftId, 'member_id': memberId},
-    );
   }
 
   Future<List<Map<String, dynamic>>> _listEventRows(
@@ -525,12 +547,22 @@ class EventsAdvancedRepository {
     String? orderBy,
     bool ascending = true,
   }) async {
-    if (isDemo) return <Map<String, dynamic>>[];
-    var query = _supabase.from(table).select().eq('event_id', eventId);
-    if (orderBy != null) {
-      query = query.order(orderBy, ascending: ascending);
+    final List<dynamic> response;
+    if (isDemo) return _demoRows(table, eventId);
+    if (orderBy == null) {
+      response = await _supabase
+          .from(table)
+          .select()
+          .eq('event_id', eventId)
+          .limit(500);
+    } else {
+      response = await _supabase
+          .from(table)
+          .select()
+          .eq('event_id', eventId)
+          .order(orderBy, ascending: ascending)
+          .limit(500);
     }
-    final response = await query;
     return List<Map<String, dynamic>>.from(response);
   }
 
@@ -540,34 +572,130 @@ class EventsAdvancedRepository {
     Map<String, dynamic> values, {
     String? id,
   }) async {
+    final payload = <String, dynamic>{
+      ...values,
+      'club_id': AppSession.instance.clubId,
+      'event_id': eventId,
+    };
     if (isDemo) {
       return <String, dynamic>{
         'id': id ?? 'demo-${DateTime.now().microsecondsSinceEpoch}',
-        'event_id': eventId,
-        ...values,
+        ...payload,
       };
     }
-    final payload = <String, dynamic>{'event_id': eventId, ...values};
-    final response = id == null
-        ? await _supabase.from(table).insert(payload).select().single()
-        : await _supabase.from(table).update(payload).eq('id', id).select().single();
+    if (id == null) {
+      final response =
+          await _supabase.from(table).insert(payload).select().single();
+      return Map<String, dynamic>.from(response);
+    }
+    final response = await _supabase
+        .from(table)
+        .update(values)
+        .eq('id', id)
+        .eq('club_id', AppSession.instance.clubId)
+        .select()
+        .single();
     return Map<String, dynamic>.from(response);
+  }
+
+  List<Map<String, dynamic>> _demoRows(String table, String eventId) {
+    return switch (table) {
+      'event_bands' => [
+          {
+            'id': 'demo-band',
+            'event_id': eventId,
+            'name': 'RAD — Rock All Day',
+            'status': 'confirmed',
+          },
+        ],
+      'event_exhibitors' => [
+          {
+            'id': 'demo-exhibitor',
+            'event_id': eventId,
+            'name': 'Man Cave Motorcycles',
+            'status': 'confirmed',
+          },
+        ],
+      'event_sponsors' => [
+          {
+            'id': 'demo-sponsor',
+            'event_id': eventId,
+            'name': 'Apoio local',
+            'status': 'confirmed',
+          },
+        ],
+      'event_tasks' => [
+          {
+            'id': 'demo-task',
+            'event_id': eventId,
+            'title': 'Preparar recinto',
+            'status': 'in_progress',
+            'priority': 'high',
+          },
+        ],
+      'event_task_assignees' => <Map<String, dynamic>>[],
+      'event_shifts' => [
+          {
+            'id': 'demo-shift',
+            'event_id': eventId,
+            'name': 'Bar — Turno 1',
+            'area': 'Bar',
+            'starts_at': DateTime.now().toIso8601String(),
+            'ends_at': DateTime.now()
+                .add(const Duration(hours: 2))
+                .toIso8601String(),
+            'status': 'planned',
+          },
+        ],
+      'event_shift_members' => <Map<String, dynamic>>[],
+      'event_program' => [
+          {
+            'id': 'demo-program',
+            'event_id': eventId,
+            'sequence_no': 1,
+            'title': 'Abertura de portas',
+            'item_type': 'activity',
+          },
+        ],
+      'event_incidents' => <Map<String, dynamic>>[],
+      _ => <Map<String, dynamic>>[],
+    };
   }
 
   void _require(AppPermission permission) {
     if (!AppSession.instance.can(permission)) {
-      throw StateError('Sem permissões para executar esta operação.');
+      throw StateError('Sem permissão para executar esta operação.');
     }
   }
 
   void _requireRockRideWrite() {
     if (!canManageRockRide && !canManageFinance) {
-      throw StateError('Sem permissões para gerir o Rock & Ride In.');
+      throw StateError('Sem permissão para gerir o Rock & Ride In.');
     }
   }
+}
 
-  String? _nullable(String value) {
-    final text = value.trim();
-    return text.isEmpty ? null : text;
-  }
+String eventKindLabel(Object? value) => switch (value?.toString()) {
+      'ride' => 'Passeio',
+      'rock_ride_in' => 'Rock & Ride In',
+      _ => 'Evento',
+    };
+
+String proposalStatusLabel(Object? value) => switch (value?.toString()) {
+      'submitted' => 'Em aprovação',
+      'approved' => 'Aprovada',
+      'rejected' => 'Rejeitada',
+      'withdrawn' => 'Retirada',
+      _ => value?.toString() ?? '—',
+    };
+
+int octaneCardTotalUnits(Map<String, dynamic> config) {
+  final base = int.tryParse(config['ten_card_units']?.toString() ?? '') ?? 0;
+  final bonus = int.tryParse(config['ten_card_bonus']?.toString() ?? '') ?? 0;
+  return base + bonus;
+}
+
+String? _nullable(Object? value) {
+  final text = value?.toString().trim() ?? '';
+  return text.isEmpty ? null : text;
 }
