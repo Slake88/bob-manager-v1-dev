@@ -28,279 +28,216 @@ jobs:
           module = Path('apps/mobile/lib/screens/events_module_screen.dart')
           text = module.read_text(encoding='utf-8')
 
-          old = """  final EventsAdvancedRepository _advanced = EventsAdvancedRepository();
-  final EventsRepository _events = EventsRepository();
-  late Future<List<dynamic>> _future;
-"""
-          new = """  final EventsAdvancedRepository _advanced = EventsAdvancedRepository();
-  final EventsRepository _events = EventsRepository();
-  late Future<List<dynamic>> _future;
-  String _statusFilter = 'all';
-"""
-          if text.count(old) != 1:
-              raise SystemExit(f'module state anchor count={text.count(old)}')
-          text = text.replace(old, new, 1)
+          state_anchor = "  late Future<List<dynamic>> _future;\n"
+          if text.count(state_anchor) != 1:
+              raise SystemExit(f'module state anchor count={text.count(state_anchor)}')
+          text = text.replace(
+              state_anchor,
+              state_anchor + "  String _statusFilter = 'all';\n",
+              1,
+          )
 
-          old = """        final pending =
-            proposals.where((row) => row['status'] == 'submitted').length;
+          pending_anchor = (
+              "        final pending =\n"
+              "            proposals.where((row) => row['status'] == 'submitted').length;\n"
+          )
+          visible_block = "\n".join([
+              "        final visibleEvents = _statusFilter == 'all'",
+              "            ? events",
+              "            : events",
+              "                .where(",
+              "                  (row) => row['status']?.toString() == _statusFilter,",
+              "                )",
+              "                .toList();",
+          ]) + "\n"
+          if text.count(pending_anchor) != 1:
+              raise SystemExit(f'module pending anchor count={text.count(pending_anchor)}')
+          text = text.replace(pending_anchor, pending_anchor + visible_block, 1)
 
-        return RefreshIndicator(
-"""
-          new = """        final pending =
-            proposals.where((row) => row['status'] == 'submitted').length;
-        final visibleEvents = _statusFilter == 'all'
-            ? events
-            : events
-                .where(
-                  (row) => row['status']?.toString() == _statusFilter,
-                )
-                .toList();
+          list_anchor = "              if (events.isEmpty)\n"
+          filter_block = "\n".join([
+              "              Wrap(",
+              "                spacing: 8,",
+              "                runSpacing: 8,",
+              "                children: [",
+              "                  ChoiceChip(",
+              "                    label: const Text('Todos'),",
+              "                    selected: _statusFilter == 'all',",
+              "                    onSelected: (_) => setState(() => _statusFilter = 'all'),",
+              "                  ),",
+              "                  ChoiceChip(",
+              "                    label: const Text('Rascunho'),",
+              "                    selected: _statusFilter == 'draft',",
+              "                    onSelected: (_) => setState(() => _statusFilter = 'draft'),",
+              "                  ),",
+              "                  ChoiceChip(",
+              "                    label: const Text('Publicado'),",
+              "                    selected: _statusFilter == 'published',",
+              "                    onSelected: (_) => setState(() => _statusFilter = 'published'),",
+              "                  ),",
+              "                  ChoiceChip(",
+              "                    label: const Text('Em curso'),",
+              "                    selected: _statusFilter == 'active',",
+              "                    onSelected: (_) => setState(() => _statusFilter = 'active'),",
+              "                  ),",
+              "                  ChoiceChip(",
+              "                    label: const Text('Concluído'),",
+              "                    selected: _statusFilter == 'completed',",
+              "                    onSelected: (_) => setState(() => _statusFilter = 'completed'),",
+              "                  ),",
+              "                  ChoiceChip(",
+              "                    label: const Text('Cancelado'),",
+              "                    selected: _statusFilter == 'cancelled',",
+              "                    onSelected: (_) => setState(() => _statusFilter = 'cancelled'),",
+              "                  ),",
+              "                ],",
+              "              ),",
+              "              const SizedBox(height: 8),",
+          ]) + "\n"
+          if text.count(list_anchor) != 1:
+              raise SystemExit(f'module list start anchor count={text.count(list_anchor)}')
+          text = text.replace(list_anchor, filter_block + list_anchor, 1)
 
-        return RefreshIndicator(
-"""
-          if text.count(old) != 1:
-              raise SystemExit(f'module visible anchor count={text.count(old)}')
-          text = text.replace(old, new, 1)
+          old_list = "              else\n                ...events.map(\n"
+          new_list = "\n".join([
+              "              else if (visibleEvents.isEmpty)",
+              "                const Card(",
+              "                  child: ListTile(",
+              "                    leading: Icon(Icons.filter_alt_off_outlined),",
+              "                    title: Text('Sem eventos neste estado.'),",
+              "                  ),",
+              "                )",
+              "              else",
+              "                ...visibleEvents.map(",
+          ]) + "\n"
+          if text.count(old_list) != 1:
+              raise SystemExit(f'module event map anchor count={text.count(old_list)}')
+          text = text.replace(old_list, new_list, 1)
 
-          old = """              Text(
-                'Operação dos eventos',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              if (events.isEmpty)
-"""
-          new = """              Text(
-                'Operação dos eventos',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ChoiceChip(
-                    label: const Text('Todos'),
-                    selected: _statusFilter == 'all',
-                    onSelected: (_) => setState(() => _statusFilter = 'all'),
-                  ),
-                  ChoiceChip(
-                    label: const Text('Rascunho'),
-                    selected: _statusFilter == 'draft',
-                    onSelected: (_) => setState(() => _statusFilter = 'draft'),
-                  ),
-                  ChoiceChip(
-                    label: const Text('Publicado'),
-                    selected: _statusFilter == 'published',
-                    onSelected: (_) =>
-                        setState(() => _statusFilter = 'published'),
-                  ),
-                  ChoiceChip(
-                    label: const Text('Em curso'),
-                    selected: _statusFilter == 'active',
-                    onSelected: (_) => setState(() => _statusFilter = 'active'),
-                  ),
-                  ChoiceChip(
-                    label: const Text('Concluído'),
-                    selected: _statusFilter == 'completed',
-                    onSelected: (_) =>
-                        setState(() => _statusFilter = 'completed'),
-                  ),
-                  ChoiceChip(
-                    label: const Text('Cancelado'),
-                    selected: _statusFilter == 'cancelled',
-                    onSelected: (_) =>
-                        setState(() => _statusFilter = 'cancelled'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              if (events.isEmpty)
-"""
-          if text.count(old) != 1:
-              raise SystemExit(f'module filter anchor count={text.count(old)}')
-          text = text.replace(old, new, 1)
+          old_subtitle = "${eventKindLabel(event['event_kind'])} • ${_date(event['starts_at'])}"
+          new_subtitle = "${eventKindLabel(event['event_kind'])} • ${_eventStatusLabel(event['status'])} • ${_date(event['starts_at'])}"
+          if text.count(old_subtitle) != 1:
+              raise SystemExit(f'module subtitle anchor count={text.count(old_subtitle)}')
+          text = text.replace(old_subtitle, new_subtitle, 1)
 
-          old = """              else
-                ...events.map(
-                  (event) => Card(
-"""
-          new = """              else if (visibleEvents.isEmpty)
-                const Card(
-                  child: ListTile(
-                    leading: Icon(Icons.filter_alt_off_outlined),
-                    title: Text('Sem eventos neste estado.'),
-                  ),
-                )
-              else
-                ...visibleEvents.map(
-                  (event) => Card(
-"""
-          if text.count(old) != 1:
-              raise SystemExit(f'module list anchor count={text.count(old)}')
-          text = text.replace(old, new, 1)
-
-          old = """                      subtitle: Text(
-                        '${eventKindLabel(event['event_kind'])} • ${_date(event['starts_at'])}\\n${event['location']?.toString().trim().isNotEmpty == true ? event['location'] : 'Local por definir'}',
-                      ),
-"""
-          new = """                      subtitle: Text(
-                        '${eventKindLabel(event['event_kind'])} • ${_eventStatusLabel(event['status'])} • ${_date(event['starts_at'])}\\n${event['location']?.toString().trim().isNotEmpty == true ? event['location'] : 'Local por definir'}',
-                      ),
-"""
-          if text.count(old) != 1:
-              raise SystemExit(f'module subtitle anchor count={text.count(old)}')
-          text = text.replace(old, new, 1)
-
-          old = """IconData _eventIcon(Object? kind) => switch (kind?.toString()) {
-      'ride' => Icons.two_wheeler_outlined,
-      'rock_ride_in' => Icons.music_note_outlined,
-      _ => Icons.event_outlined,
-    };
-
-DateTime? _parse(Object? value) {
-"""
-          new = """IconData _eventIcon(Object? kind) => switch (kind?.toString()) {
-      'ride' => Icons.two_wheeler_outlined,
-      'rock_ride_in' => Icons.music_note_outlined,
-      _ => Icons.event_outlined,
-    };
-
-String _eventStatusLabel(Object? status) => switch (status?.toString()) {
-      'published' => 'Publicado',
-      'active' => 'Em curso',
-      'completed' => 'Concluído',
-      'cancelled' => 'Cancelado',
-      _ => 'Rascunho',
-    };
-
-DateTime? _parse(Object? value) {
-"""
-          if text.count(old) != 1:
-              raise SystemExit(f'module helper anchor count={text.count(old)}')
-          text = text.replace(old, new, 1)
+          helper_anchor = "DateTime? _parse(Object? value) {\n"
+          helper_block = "\n".join([
+              "String _eventStatusLabel(Object? status) => switch (status?.toString()) {",
+              "      'published' => 'Publicado',",
+              "      'active' => 'Em curso',",
+              "      'completed' => 'Concluído',",
+              "      'cancelled' => 'Cancelado',",
+              "      _ => 'Rascunho',",
+              "    };",
+              "",
+          ])
+          if text.count(helper_anchor) != 1:
+              raise SystemExit(f'module helper anchor count={text.count(helper_anchor)}')
+          text = text.replace(helper_anchor, helper_block + helper_anchor, 1)
           module.write_text(text, encoding='utf-8')
 
           screen = Path('apps/mobile/lib/screens/events_screen.dart')
           text = screen.read_text(encoding='utf-8')
 
-          old = """    String status = _normalizeStatus(event?['status']?.toString());
-    bool saving = false;
+          saving_anchor = "    bool saving = false;\n"
+          if text.count(saving_anchor) < 1:
+              raise SystemExit('screen saving anchor missing')
+          text = text.replace(
+              saving_anchor,
+              saving_anchor + "    bool deleted = false;\n",
+              1,
+          )
 
-    final saved = await showDialog<bool>(
-"""
-          new = """    String status = _normalizeStatus(event?['status']?.toString());
-    bool saving = false;
-    bool deleted = false;
+          actions_anchor = "\n".join([
+              "          actions: [",
+              "            TextButton(",
+              "              onPressed: saving ? null : () => Navigator.pop(dialogContext, false),",
+              "              child: const Text('Cancelar'),",
+              "            ),",
+          ]) + "\n"
+          delete_block = "\n".join([
+              "          actions: [",
+              "            if (event != null && _canManage)",
+              "              TextButton.icon(",
+              "                style: TextButton.styleFrom(",
+              "                  foregroundColor: Theme.of(dialogContext).colorScheme.error,",
+              "                ),",
+              "                onPressed: saving",
+              "                    ? null",
+              "                    : () async {",
+              "                        final eventName = name.text.trim().isEmpty",
+              "                            ? 'este evento'",
+              "                            : name.text.trim();",
+              "                        final confirmed = await showDialog<bool>(",
+              "                          context: dialogContext,",
+              "                          builder: (confirmContext) => AlertDialog(",
+              "                            title: const Text('Eliminar evento'),",
+              "                            content: Text(",
+              "                              'Queres eliminar o evento “$eventName”? Roadbooks, paragens, participantes, voluntários, turnos, tarefas e outros dados operacionais associados serão eliminados. Registos financeiros ou de inventário relacionados são preservados, mas deixam de ficar associados ao evento. Esta ação não pode ser anulada.',",
+              "                            ),",
+              "                            actions: [",
+              "                              TextButton(",
+              "                                onPressed: () => Navigator.pop(confirmContext, false),",
+              "                                child: const Text('Cancelar'),",
+              "                              ),",
+              "                              FilledButton(",
+              "                                style: FilledButton.styleFrom(",
+              "                                  backgroundColor: Theme.of(confirmContext).colorScheme.error,",
+              "                                  foregroundColor: Theme.of(confirmContext).colorScheme.onError,",
+              "                                ),",
+              "                                onPressed: () => Navigator.pop(confirmContext, true),",
+              "                                child: const Text('Eliminar'),",
+              "                              ),",
+              "                            ],",
+              "                          ),",
+              "                        );",
+              "                        if (confirmed != true || !dialogContext.mounted) return;",
+              "                        setDialogState(() => saving = true);",
+              "                        try {",
+              "                          final eventId = event['id']?.toString().trim() ?? '';",
+              "                          if (eventId.isEmpty) {",
+              "                            throw StateError('Não foi possível identificar o evento.');",
+              "                          }",
+              "                          await _events.deleteEvent(eventId);",
+              "                          deleted = true;",
+              "                          if (dialogContext.mounted) {",
+              "                            Navigator.pop(dialogContext, true);",
+              "                          }",
+              "                        } catch (error) {",
+              "                          if (dialogContext.mounted) {",
+              "                            ScaffoldMessenger.of(dialogContext).showSnackBar(",
+              "                              SnackBar(content: Text(_friendlyError(error))),",
+              "                            );",
+              "                            setDialogState(() => saving = false);",
+              "                          }",
+              "                        }",
+              "                      },",
+              "                icon: const Icon(Icons.delete_outline),",
+              "                label: const Text('Eliminar'),",
+              "              ),",
+              "            TextButton(",
+              "              onPressed: saving ? null : () => Navigator.pop(dialogContext, false),",
+              "              child: const Text('Cancelar'),",
+              "            ),",
+          ]) + "\n"
+          if text.count(actions_anchor) != 1:
+              raise SystemExit(f'screen actions anchor count={text.count(actions_anchor)}')
+          text = text.replace(actions_anchor, delete_block, 1)
 
-    final saved = await showDialog<bool>(
-"""
-          if text.count(old) != 1:
-              raise SystemExit(f'screen state anchor count={text.count(old)}')
-          text = text.replace(old, new, 1)
-
-          old = """          actions: [
-            TextButton(
-              onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancelar'),
-            ),
-"""
-          new = """          actions: [
-            if (event != null && _canManage)
-              TextButton.icon(
-                style: TextButton.styleFrom(
-                  foregroundColor: Theme.of(dialogContext).colorScheme.error,
-                ),
-                onPressed: saving
-                    ? null
-                    : () async {
-                        final eventName = name.text.trim().isEmpty
-                            ? 'este evento'
-                            : name.text.trim();
-                        final confirmed = await showDialog<bool>(
-                          context: dialogContext,
-                          builder: (confirmContext) => AlertDialog(
-                            title: const Text('Eliminar evento'),
-                            content: Text(
-                              'Queres eliminar o evento "$eventName"?\\n\\n'
-                              'Roadbooks, paragens, participantes, voluntários, turnos, tarefas e outros dados operacionais associados serão eliminados. '
-                              'Registos financeiros ou de inventário relacionados são preservados, mas deixam de ficar associados ao evento.\\n\\n'
-                              'Esta ação não pode ser anulada.',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () =>
-                                    Navigator.pop(confirmContext, false),
-                                child: const Text('Cancelar'),
-                              ),
-                              FilledButton(
-                                style: FilledButton.styleFrom(
-                                  backgroundColor:
-                                      Theme.of(confirmContext).colorScheme.error,
-                                  foregroundColor:
-                                      Theme.of(confirmContext).colorScheme.onError,
-                                ),
-                                onPressed: () =>
-                                    Navigator.pop(confirmContext, true),
-                                child: const Text('Eliminar'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (confirmed != true || !dialogContext.mounted) {
-                          return;
-                        }
-                        setDialogState(() => saving = true);
-                        try {
-                          final eventId = event['id']?.toString().trim() ?? '';
-                          if (eventId.isEmpty) {
-                            throw StateError(
-                              'Não foi possível identificar o evento.',
-                            );
-                          }
-                          await _events.deleteEvent(eventId);
-                          deleted = true;
-                          if (dialogContext.mounted) {
-                            Navigator.pop(dialogContext, true);
-                          }
-                        } catch (error) {
-                          if (dialogContext.mounted) {
-                            ScaffoldMessenger.of(dialogContext).showSnackBar(
-                              SnackBar(content: Text(_friendlyError(error))),
-                            );
-                            setDialogState(() => saving = false);
-                          }
-                        }
-                      },
-                icon: const Icon(Icons.delete_outline),
-                label: const Text('Eliminar'),
-              ),
-            TextButton(
-              onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
-              child: const Text('Cancelar'),
-            ),
-"""
-          if text.count(old) < 1:
-              raise SystemExit('screen actions anchor missing')
-          text = text.replace(old, new, 1)
-
-          old = """    budget.dispose();
-    if (saved == true && mounted) setState(_reload);
-  }
-"""
-          new = """    budget.dispose();
-    if (saved == true && mounted) {
-      setState(_reload);
-      if (deleted) {
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(const SnackBar(content: Text('Evento eliminado.')));
-      }
-    }
-  }
-"""
-          if text.count(old) != 1:
-              raise SystemExit(f'screen result anchor count={text.count(old)}')
-          text = text.replace(old, new, 1)
+          result_anchor = "    if (saved == true && mounted) setState(_reload);\n"
+          result_block = "\n".join([
+              "    if (saved == true && mounted) {",
+              "      setState(_reload);",
+              "      if (deleted) {",
+              "        ScaffoldMessenger.of(context)",
+              "          ..hideCurrentSnackBar()",
+              "          ..showSnackBar(const SnackBar(content: Text('Evento eliminado.')));",
+              "      }",
+              "    }",
+          ]) + "\n"
+          if text.count(result_anchor) != 1:
+              raise SystemExit(f'screen result anchor count={text.count(result_anchor)}')
+          text = text.replace(result_anchor, result_block, 1)
           screen.write_text(text, encoding='utf-8')
           PY
 
