@@ -1039,6 +1039,16 @@ class _RouteStopsPageState extends State<_RouteStopsPage> {
     await next;
   }
 
+  int _nextStopSequence(List<Map<String, dynamic>> current) {
+    var highest = 0;
+    for (final row in current) {
+      final sequence =
+          int.tryParse(row['sequence_no']?.toString() ?? '') ?? 0;
+      if (sequence > highest) highest = sequence;
+    }
+    return highest + 1;
+  }
+
   Future<void> _editStop(
     List<Map<String, dynamic>> current, {
     Map<String, dynamic>? stop,
@@ -1084,7 +1094,7 @@ class _RouteStopsPageState extends State<_RouteStopsPage> {
                   values: {
                     'sequence_no': editing
                         ? stop['sequence_no'] ?? current.indexOf(stop) + 1
-                        : current.length + 1,
+                        : _nextStopSequence(current),
                     'name': name.text.trim(),
                     'location': _nullText(location.text),
                   },
@@ -1120,6 +1130,52 @@ class _RouteStopsPageState extends State<_RouteStopsPage> {
     }
   }
 
+  Future<void> _deleteStop(Map<String, dynamic> stop) async {
+    final stopId = stop['id']?.toString().trim() ?? '';
+    if (stopId.isEmpty) {
+      _snack(context, 'Não foi possível identificar a paragem.');
+      return;
+    }
+    final stopName = stop['name']?.toString().trim() ?? '';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Eliminar paragem'),
+        content: Text(
+          stopName.isEmpty
+              ? 'Queres eliminar esta paragem? Esta ação não pode ser anulada.'
+              : 'Queres eliminar a paragem "$stopName"? Esta ação não pode ser anulada.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialogContext).colorScheme.error,
+              foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await widget.repository.deleteRouteStop(
+        eventId: widget.eventId,
+        routeId: _routeId,
+        stopId: stopId,
+      );
+      await _refreshStops();
+      if (mounted) _snack(context, 'Paragem eliminada.');
+    } catch (error) {
+      if (mounted) _snack(context, _friendly(error));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1152,10 +1208,21 @@ class _RouteStopsPageState extends State<_RouteStopsPage> {
                       subtitle:
                           Text(row['location']?.toString() ?? 'Local por definir'),
                       trailing: widget.repository.canManageRoadbook
-                          ? IconButton(
-                              tooltip: 'Editar paragem',
-                              onPressed: () => _editStop(rows, stop: row),
-                              icon: const Icon(Icons.edit_outlined),
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  tooltip: 'Editar paragem',
+                                  onPressed: () => _editStop(rows, stop: row),
+                                  icon: const Icon(Icons.edit_outlined),
+                                ),
+                                IconButton(
+                                  tooltip: 'Eliminar paragem',
+                                  color: Theme.of(context).colorScheme.error,
+                                  onPressed: () => _deleteStop(row),
+                                  icon: const Icon(Icons.delete_outline),
+                                ),
+                              ],
                             )
                           : null,
                     ),
