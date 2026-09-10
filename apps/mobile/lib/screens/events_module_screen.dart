@@ -1019,6 +1019,7 @@ class _RouteStopsPage extends StatefulWidget {
 
 class _RouteStopsPageState extends State<_RouteStopsPage> {
   late Future<List<Map<String, dynamic>>> _future;
+  bool _reordering = false;
 
   @override
   void initState() {
@@ -1176,6 +1177,53 @@ class _RouteStopsPageState extends State<_RouteStopsPage> {
     }
   }
 
+  Future<void> _reorderStops(
+    List<Map<String, dynamic>> current,
+    int oldIndex,
+    int newIndex,
+  ) async {
+    if (_reordering) return;
+    if (oldIndex < newIndex) newIndex -= 1;
+    if (oldIndex == newIndex) return;
+
+    final reordered = List<Map<String, dynamic>>.from(current);
+    final moved = reordered.removeAt(oldIndex);
+    reordered.insert(newIndex, moved);
+    for (var index = 0; index < reordered.length; index++) {
+      reordered[index]['sequence_no'] = index + 1;
+    }
+
+    setState(() {
+      _reordering = true;
+      current
+        ..clear()
+        ..addAll(reordered);
+    });
+
+    try {
+      await widget.repository.reorderRouteStops(
+        eventId: widget.eventId,
+        routeId: _routeId,
+        stopIds: reordered.map((row) => row['id'].toString()).toList(),
+      );
+      await _refreshStops();
+      if (mounted) _snack(context, 'Ordem das paragens atualizada.');
+    } catch (error) {
+      try {
+        await _refreshStops();
+      } catch (_) {
+        // Mantém a mensagem do erro original de reordenação.
+      }
+      if (mounted) _snack(context, _friendly(error));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _reordering = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1192,49 +1240,105 @@ class _RouteStopsPageState extends State<_RouteStopsPage> {
             return const Center(child: CircularProgressIndicator());
           }
           final rows = snapshot.data!;
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+          final canManage = widget.repository.canManageRoadbook;
+          return Column(
             children: [
-              if (rows.isEmpty)
-                const Card(child: ListTile(title: Text('Sem paragens.')))
-              else
-                ...rows.map(
-                  (row) => Card(
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        child: Text('${row['sequence_no'] ?? ''}'),
+              Expanded(
+                child: rows.isEmpty
+                    ? ListView(
+                        padding: const EdgeInsets.all(12),
+                        children: const [
+                          Card(child: ListTile(title: Text('Sem paragens.'))),
+                        ],
+                      )
+                    : ReorderableListView.builder(
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                        buildDefaultDragHandles: false,
+                        itemCount: rows.length,
+                        onReorder: canManage
+                            ? (oldIndex, newIndex) async {
+                                await _reorderStops(
+                                  rows,
+                                  oldIndex,
+                                  newIndex,
+                                );
+                              }
+                            : (_, __) {},
+                        itemBuilder: (context, index) {
+                          final row = rows[index];
+                          return Card(
+                            key: ValueKey(
+                              'route-stop-${row['id']?.toString() ?? index}',
+                            ),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                child: Text('${row['sequence_no'] ?? ''}'),
+                              ),
+                              title: Text(
+                                row['name']?.toString() ?? 'Paragem',
+                              ),
+                              subtitle: Text(
+                                row['location']?.toString() ??
+                                    'Local por definir',
+                              ),
+                              trailing: canManage
+                                  ? Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          tooltip: 'Editar paragem',
+                                          onPressed: _reordering
+                                              ? null
+                                              : () => _editStop(
+                                                    rows,
+                                                    stop: row,
+                                                  ),
+                                          icon: const Icon(
+                                            Icons.edit_outlined,
+                                          ),
+                                        ),
+                                        IconButton(
+                                          tooltip: 'Eliminar paragem',
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .error,
+                                          onPressed: _reordering
+                                              ? null
+                                              : () => _deleteStop(row),
+                                          icon: const Icon(
+                                            Icons.delete_outline,
+                                          ),
+                                        ),
+                                        Tooltip(
+                                          message: 'Arrastar para reordenar',
+                                          child: ReorderableDragStartListener(
+                                            index: index,
+                                            enabled: !_reordering,
+                                            child: const Padding(
+                                              padding: EdgeInsets.all(12),
+                                              child: Icon(Icons.drag_handle),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : null,
+                            ),
+                          );
+                        },
                       ),
-                      title: Text(row['name']?.toString() ?? 'Paragem'),
-                      subtitle:
-                          Text(row['location']?.toString() ?? 'Local por definir'),
-                      trailing: widget.repository.canManageRoadbook
-                          ? Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  tooltip: 'Editar paragem',
-                                  onPressed: () => _editStop(rows, stop: row),
-                                  icon: const Icon(Icons.edit_outlined),
-                                ),
-                                IconButton(
-                                  tooltip: 'Eliminar paragem',
-                                  color: Theme.of(context).colorScheme.error,
-                                  onPressed: () => _deleteStop(row),
-                                  icon: const Icon(Icons.delete_outline),
-                                ),
-                              ],
-                            )
-                          : null,
+              ),
+              if (canManage)
+                SafeArea(
+                  top: false,
+                  minimum: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _reordering ? null : () => _editStop(rows),
+                      icon: const Icon(Icons.add_location_alt_outlined),
+                      label: const Text('Adicionar paragem'),
                     ),
-                  ),
-                ),
-              if (widget.repository.canManageRoadbook)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: FilledButton.icon(
-                    onPressed: () => _editStop(rows),
-                    icon: const Icon(Icons.add_location_alt_outlined),
-                    label: const Text('Adicionar paragem'),
                   ),
                 ),
             ],
