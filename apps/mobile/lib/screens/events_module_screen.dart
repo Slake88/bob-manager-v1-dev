@@ -1183,7 +1183,6 @@ class _RouteStopsPageState extends State<_RouteStopsPage> {
     int newIndex,
   ) async {
     if (_reordering) return;
-    if (oldIndex < newIndex) newIndex -= 1;
     if (oldIndex == newIndex) return;
 
     final reordered = List<Map<String, dynamic>>.from(current);
@@ -1255,7 +1254,7 @@ class _RouteStopsPageState extends State<_RouteStopsPage> {
                         padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
                         buildDefaultDragHandles: false,
                         itemCount: rows.length,
-                        onReorder: canManage
+                        onReorderItem: canManage
                             ? (oldIndex, newIndex) async {
                                 await _reorderStops(
                                   rows,
