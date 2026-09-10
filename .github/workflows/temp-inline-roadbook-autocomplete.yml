@@ -1,0 +1,312 @@
+name: Temporary inline roadbook autocomplete
+
+on:
+  push:
+    branches:
+      - rc1-rebuild
+    paths:
+      - .github/workflows/temp-inline-roadbook-autocomplete.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rc1-rebuild
+          fetch-depth: 0
+
+      - name: Add inline Google Places autocomplete
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/mobile/lib/screens/roadbook_stops_screen.dart')
+          text = path.read_text(encoding='utf-8')
+
+          old = """    bool saving = false;\n\n    final saved = await showDialog<bool>("""
+          new = """    bool saving = false;
+    Timer? locationDebounce;
+    var locationSearchVersion = 0;
+    var locationSearching = false;
+    var locationSelecting = false;
+    String? locationSearchError;
+    List<RoadbookPlaceSuggestion> locationSuggestions = const [];
+    var locationSessionToken = _places.newSessionToken();
+
+    final saved = await showDialog<bool>("""
+          if text.count(old) != 1:
+              raise SystemExit(f'variable anchor count={text.count(old)}')
+          text = text.replace(old, new, 1)
+
+          old = """                  TextField(
+                    controller: location,
+                    enabled: !saving,
+                    onChanged: (_) {
+                      latitude = null;
+                      longitude = null;
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Local',
+                      hintText: 'Escreve ou pesquisa um local',
+                      prefixIcon: const Icon(Icons.location_on_outlined),
+                      suffixIcon: IconButton(
+                        tooltip: 'Pesquisar no Google Maps',
+                        onPressed: saving
+                            ? null
+                            : () async {
+                                final selected = await showDialog<_PlaceSelection>(
+                                  context: dialogContext,
+                                  builder: (_) => _RoadbookPlacePickerDialog(
+                                    service: _places,
+                                    initialQuery: location.text,
+                                  ),
+                                );
+                                if (selected == null ||
+                                    !dialogContext.mounted) {
+                                  return;
+                                }
+                                setDialogState(() {
+                                  location.text = selected.label;
+                                  latitude = selected.latitude;
+                                  longitude = selected.longitude;
+                                });
+                              },
+                        icon: const Icon(Icons.search),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),"""
+          new = """                  TextField(
+                    controller: location,
+                    enabled: !saving && !locationSelecting,
+                    onChanged: (value) {
+                      latitude = null;
+                      longitude = null;
+                      locationDebounce?.cancel();
+                      locationSearchVersion += 1;
+                      final version = locationSearchVersion;
+                      final normalized = value.trim();
+                      if (normalized.length < 3) {
+                        setDialogState(() {
+                          locationSearching = false;
+                          locationSearchError = null;
+                          locationSuggestions = const [];
+                        });
+                        return;
+                      }
+                      locationDebounce = Timer(
+                        const Duration(milliseconds: 450),
+                        () async {
+                          if (!dialogContext.mounted ||
+                              version != locationSearchVersion) {
+                            return;
+                          }
+                          setDialogState(() {
+                            locationSearching = true;
+                            locationSearchError = null;
+                          });
+                          try {
+                            final suggestions = await _places.autocomplete(
+                              normalized,
+                              sessionToken: locationSessionToken,
+                            );
+                            if (!dialogContext.mounted ||
+                                version != locationSearchVersion) {
+                              return;
+                            }
+                            setDialogState(() {
+                              locationSuggestions = suggestions;
+                              locationSearching = false;
+                            });
+                          } catch (error) {
+                            if (!dialogContext.mounted ||
+                                version != locationSearchVersion) {
+                              return;
+                            }
+                            setDialogState(() {
+                              locationSuggestions = const [];
+                              locationSearching = false;
+                              locationSearchError = _friendly(error);
+                            });
+                          }
+                        },
+                      );
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Local',
+                      hintText: 'Escreve ou pesquisa um local',
+                      prefixIcon: const Icon(Icons.location_on_outlined),
+                      suffixIcon: IconButton(
+                        tooltip: 'Pesquisar no Google Maps',
+                        onPressed: saving || locationSelecting
+                            ? null
+                            : () async {
+                                locationDebounce?.cancel();
+                                locationSearchVersion += 1;
+                                final selected = await showDialog<_PlaceSelection>(
+                                  context: dialogContext,
+                                  builder: (_) => _RoadbookPlacePickerDialog(
+                                    service: _places,
+                                    initialQuery: location.text,
+                                  ),
+                                );
+                                if (selected == null ||
+                                    !dialogContext.mounted) {
+                                  return;
+                                }
+                                setDialogState(() {
+                                  location.value = TextEditingValue(
+                                    text: selected.label,
+                                    selection: TextSelection.collapsed(
+                                      offset: selected.label.length,
+                                    ),
+                                  );
+                                  latitude = selected.latitude;
+                                  longitude = selected.longitude;
+                                  locationSuggestions = const [];
+                                  locationSearchError = null;
+                                  locationSearching = false;
+                                  locationSessionToken =
+                                      _places.newSessionToken();
+                                });
+                              },
+                        icon: const Icon(Icons.search),
+                      ),
+                    ),
+                  ),
+                  if (locationSearching)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: LinearProgressIndicator(),
+                    ),
+                  if (locationSearchError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          locationSearchError!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (locationSuggestions.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 220),
+                      child: Card(
+                        margin: EdgeInsets.zero,
+                        clipBehavior: Clip.antiAlias,
+                        child: ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: locationSuggestions.length,
+                          separatorBuilder: (_, __) =>
+                              const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final suggestion = locationSuggestions[index];
+                            return ListTile(
+                              dense: true,
+                              leading:
+                                  const Icon(Icons.location_on_outlined),
+                              title: Text(suggestion.mainText),
+                              subtitle: suggestion.secondaryText.isEmpty
+                                  ? null
+                                  : Text(suggestion.secondaryText),
+                              enabled: !locationSelecting,
+                              onTap: locationSelecting
+                                  ? null
+                                  : () async {
+                                      locationDebounce?.cancel();
+                                      locationSearchVersion += 1;
+                                      setDialogState(() {
+                                        locationSelecting = true;
+                                        locationSearching = false;
+                                        locationSearchError = null;
+                                      });
+                                      try {
+                                        final details = await _places.details(
+                                          suggestion.placeId,
+                                          sessionToken: locationSessionToken,
+                                        );
+                                        if (!dialogContext.mounted) return;
+                                        final label = suggestion.text.isNotEmpty
+                                            ? suggestion.text
+                                            : details.formattedAddress;
+                                        setDialogState(() {
+                                          location.value = TextEditingValue(
+                                            text: label,
+                                            selection: TextSelection.collapsed(
+                                              offset: label.length,
+                                            ),
+                                          );
+                                          latitude = details.latitude;
+                                          longitude = details.longitude;
+                                          locationSuggestions = const [];
+                                          locationSelecting = false;
+                                          locationSearchError = null;
+                                          locationSessionToken =
+                                              _places.newSessionToken();
+                                        });
+                                      } catch (error) {
+                                        if (!dialogContext.mounted) return;
+                                        setDialogState(() {
+                                          locationSelecting = false;
+                                          locationSearchError =
+                                              _friendly(error);
+                                        });
+                                      }
+                                    },
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          'Resultados fornecidos pelo Google',
+                          style: TextStyle(fontSize: 11),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 10),"""
+          if text.count(old) != 1:
+              raise SystemExit(f'location field anchor count={text.count(old)}')
+          text = text.replace(old, new, 1)
+
+          old = """    );
+    name.dispose();
+    location.dispose();
+    notes.dispose();"""
+          new = """    );
+    locationDebounce?.cancel();
+    name.dispose();
+    location.dispose();
+    notes.dispose();"""
+          if text.count(old) != 1:
+              raise SystemExit(f'dispose anchor count={text.count(old)}')
+          text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit patch and remove temporary workflow
+        shell: bash
+        run: |
+          rm .github/workflows/temp-inline-roadbook-autocomplete.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/mobile/lib/screens/roadbook_stops_screen.dart .github/workflows/temp-inline-roadbook-autocomplete.yml
+          git commit -m "fix(events): autocomplete roadbook locations inline"
+          git push origin HEAD:rc1-rebuild
