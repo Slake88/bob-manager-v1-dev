@@ -59,6 +59,7 @@ class _EventsScreenState extends State<EventsScreen> {
     DateTime? startsAt = _parseDate(event?['starts_at']);
     String status = _normalizeStatus(event?['status']?.toString());
     bool saving = false;
+    bool deleted = false;
 
     final saved = await showDialog<bool>(
       context: context,
@@ -190,6 +191,67 @@ class _EventsScreenState extends State<EventsScreen> {
             ),
           ),
           actions: [
+            if (event != null && _canManage)
+              TextButton.icon(
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(dialogContext).colorScheme.error,
+                ),
+                onPressed: saving
+                    ? null
+                    : () async {
+                        final eventName = name.text.trim().isEmpty
+                            ? 'este evento'
+                            : name.text.trim();
+                        final confirmed = await showDialog<bool>(
+                          context: dialogContext,
+                          builder: (confirmContext) => AlertDialog(
+                            title: const Text('Eliminar evento'),
+                            content: Text(
+                              'Queres eliminar o evento “$eventName”?\n\n'
+                              'Roadbooks, paragens, participantes, voluntários, turnos, tarefas e outros dados operacionais associados serão eliminados. '
+                              'Registos financeiros ou de inventário relacionados são preservados, mas deixam de ficar associados ao evento.\n\n'
+                              'Esta ação não pode ser anulada.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(confirmContext, false),
+                                child: const Text('Cancelar'),
+                              ),
+                              FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: Theme.of(confirmContext).colorScheme.error,
+                                  foregroundColor: Theme.of(confirmContext).colorScheme.onError,
+                                ),
+                                onPressed: () => Navigator.pop(confirmContext, true),
+                                child: const Text('Eliminar'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmed != true || !dialogContext.mounted) return;
+                        setDialogState(() => saving = true);
+                        try {
+                          final eventId = event['id']?.toString().trim() ?? '';
+                          if (eventId.isEmpty) {
+                            throw StateError('Não foi possível identificar o evento.');
+                          }
+                          await _events.deleteEvent(eventId);
+                          deleted = true;
+                          if (dialogContext.mounted) {
+                            Navigator.pop(dialogContext, true);
+                          }
+                        } catch (error) {
+                          if (dialogContext.mounted) {
+                            ScaffoldMessenger.of(dialogContext).showSnackBar(
+                              SnackBar(content: Text(_friendlyError(error))),
+                            );
+                            setDialogState(() => saving = false);
+                          }
+                        }
+                      },
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Eliminar'),
+              ),
             TextButton(
               onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
               child: const Text('Cancelar'),
@@ -262,7 +324,14 @@ class _EventsScreenState extends State<EventsScreen> {
     location.dispose();
     description.dispose();
     budget.dispose();
-    if (saved == true && mounted) setState(_reload);
+    if (saved == true && mounted) {
+      setState(_reload);
+      if (deleted) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(const SnackBar(content: Text('Evento eliminado.')));
+      }
+    }
   }
 
   Future<void> _openAnniversary(Map<String, dynamic> item) async {

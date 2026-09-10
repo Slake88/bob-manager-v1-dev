@@ -56,6 +56,7 @@ class _EventsAdvancedHomeScreenState extends State<EventsAdvancedHomeScreen> {
   final EventsAdvancedRepository _advanced = EventsAdvancedRepository();
   final EventsRepository _events = EventsRepository();
   late Future<List<dynamic>> _future;
+  String _statusFilter = 'all';
 
   @override
   void initState() {
@@ -113,6 +114,13 @@ class _EventsAdvancedHomeScreenState extends State<EventsAdvancedHomeScreen> {
             List<Map<String, dynamic>>.from(snapshot.data![1] as List);
         final pending =
             proposals.where((row) => row['status'] == 'submitted').length;
+        final visibleEvents = _statusFilter == 'all'
+            ? events
+            : events
+                .where(
+                  (row) => row['status']?.toString() == _statusFilter,
+                )
+                .toList();
 
         return RefreshIndicator(
           onRefresh: _refresh,
@@ -140,6 +148,19 @@ class _EventsAdvancedHomeScreenState extends State<EventsAdvancedHomeScreen> {
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ChoiceChip(label: const Text('Todos'), selected: _statusFilter == 'all', onSelected: (_) => setState(() => _statusFilter = 'all')),
+                  ChoiceChip(label: const Text('Rascunho'), selected: _statusFilter == 'draft', onSelected: (_) => setState(() => _statusFilter = 'draft')),
+                  ChoiceChip(label: const Text('Publicado'), selected: _statusFilter == 'published', onSelected: (_) => setState(() => _statusFilter = 'published')),
+                  ChoiceChip(label: const Text('Em curso'), selected: _statusFilter == 'active', onSelected: (_) => setState(() => _statusFilter = 'active')),
+                  ChoiceChip(label: const Text('Concluído'), selected: _statusFilter == 'completed', onSelected: (_) => setState(() => _statusFilter = 'completed')),
+                  ChoiceChip(label: const Text('Cancelado'), selected: _statusFilter == 'cancelled', onSelected: (_) => setState(() => _statusFilter = 'cancelled')),
+                ],
+              ),
+              const SizedBox(height: 8),
               if (events.isEmpty)
                 const Card(
                   child: ListTile(
@@ -147,8 +168,15 @@ class _EventsAdvancedHomeScreenState extends State<EventsAdvancedHomeScreen> {
                     title: Text('Ainda não existem eventos.'),
                   ),
                 )
+              else if (visibleEvents.isEmpty)
+                const Card(
+                  child: ListTile(
+                    leading: Icon(Icons.filter_alt_off_outlined),
+                    title: Text('Sem eventos neste estado.'),
+                  ),
+                )
               else
-                ...events.map(
+                ...visibleEvents.map(
                   (event) => Card(
                     child: ListTile(
                       leading: CircleAvatar(
@@ -156,7 +184,7 @@ class _EventsAdvancedHomeScreenState extends State<EventsAdvancedHomeScreen> {
                       ),
                       title: Text(event['name']?.toString() ?? 'Evento'),
                       subtitle: Text(
-                        '${eventKindLabel(event['event_kind'])} • ${_date(event['starts_at'])}\n${event['location']?.toString().trim().isNotEmpty == true ? event['location'] : 'Local por definir'}',
+                        '${eventKindLabel(event['event_kind'])} • ${_eventStatusLabel(event['status'])} • ${_date(event['starts_at'])}\n${event['location']?.toString().trim().isNotEmpty == true ? event['location'] : 'Local por definir'}',
                       ),
                       isThreeLine: true,
                       trailing: const Icon(Icons.chevron_right),
@@ -2256,6 +2284,14 @@ IconData _eventIcon(Object? kind) => switch (kind?.toString()) {
       'ride' => Icons.two_wheeler_outlined,
       'rock_ride_in' => Icons.music_note_outlined,
       _ => Icons.event_outlined,
+    };
+
+String _eventStatusLabel(Object? status) => switch (status?.toString()) {
+      'published' => 'Publicado',
+      'active' => 'Em curso',
+      'completed' => 'Concluído',
+      'cancelled' => 'Cancelado',
+      _ => 'Rascunho',
     };
 
 DateTime? _parse(Object? value) {
