@@ -344,6 +344,22 @@ class EventsAdvancedRepository {
     );
   }
 
+  Future<void> deleteRouteStop({
+    required String eventId,
+    required String routeId,
+    required String stopId,
+  }) async {
+    _require(AppPermission.manageEventRoadbook);
+    if (isDemo) return;
+    await _supabase
+        .from('event_route_stops')
+        .delete()
+        .eq('id', stopId)
+        .eq('event_id', eventId)
+        .eq('route_id', routeId)
+        .eq('club_id', AppSession.instance.clubId);
+  }
+
   Future<List<Map<String, dynamic>>> emergencyContacts(String eventId) async {
     if (isDemo) {
       return <Map<String, dynamic>>[
