@@ -54,36 +54,12 @@ jobs:
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  ChoiceChip(
-                    label: const Text('Todos'),
-                    selected: _statusFilter == 'all',
-                    onSelected: (_) => setState(() => _statusFilter = 'all'),
-                  ),
-                  ChoiceChip(
-                    label: const Text('Rascunho'),
-                    selected: _statusFilter == 'draft',
-                    onSelected: (_) => setState(() => _statusFilter = 'draft'),
-                  ),
-                  ChoiceChip(
-                    label: const Text('Publicado'),
-                    selected: _statusFilter == 'published',
-                    onSelected: (_) => setState(() => _statusFilter = 'published'),
-                  ),
-                  ChoiceChip(
-                    label: const Text('Em curso'),
-                    selected: _statusFilter == 'active',
-                    onSelected: (_) => setState(() => _statusFilter = 'active'),
-                  ),
-                  ChoiceChip(
-                    label: const Text('Concluído'),
-                    selected: _statusFilter == 'completed',
-                    onSelected: (_) => setState(() => _statusFilter = 'completed'),
-                  ),
-                  ChoiceChip(
-                    label: const Text('Cancelado'),
-                    selected: _statusFilter == 'cancelled',
-                    onSelected: (_) => setState(() => _statusFilter = 'cancelled'),
-                  ),
+                  ChoiceChip(label: const Text('Todos'), selected: _statusFilter == 'all', onSelected: (_) => setState(() => _statusFilter = 'all')),
+                  ChoiceChip(label: const Text('Rascunho'), selected: _statusFilter == 'draft', onSelected: (_) => setState(() => _statusFilter = 'draft')),
+                  ChoiceChip(label: const Text('Publicado'), selected: _statusFilter == 'published', onSelected: (_) => setState(() => _statusFilter = 'published')),
+                  ChoiceChip(label: const Text('Em curso'), selected: _statusFilter == 'active', onSelected: (_) => setState(() => _statusFilter = 'active')),
+                  ChoiceChip(label: const Text('Concluído'), selected: _statusFilter == 'completed', onSelected: (_) => setState(() => _statusFilter = 'completed')),
+                  ChoiceChip(label: const Text('Cancelado'), selected: _statusFilter == 'cancelled', onSelected: (_) => setState(() => _statusFilter = 'cancelled')),
                 ],
               ),
               const SizedBox(height: 8),
@@ -150,62 +126,44 @@ jobs:
           delete_actions = """          actions: [
             if (event != null && _canManage)
               TextButton.icon(
-                style: TextButton.styleFrom(
-                  foregroundColor: Theme.of(dialogContext).colorScheme.error,
-                ),
-                onPressed: saving
-                    ? null
-                    : () async {
-                        final eventName = name.text.trim().isEmpty
-                            ? 'este evento'
-                            : name.text.trim();
-                        final confirmed = await showDialog<bool>(
-                          context: dialogContext,
-                          builder: (confirmContext) => AlertDialog(
-                            title: const Text('Eliminar evento'),
-                            content: Text(
-                              'Queres eliminar o evento “$eventName”?\n\n'
-                              'Roadbooks, paragens, participantes, voluntários, turnos, tarefas e outros dados operacionais associados serão eliminados. '
-                              'Registos financeiros ou de inventário relacionados são preservados, mas deixam de ficar associados ao evento.\n\n'
-                              'Esta ação não pode ser anulada.',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(confirmContext, false),
-                                child: const Text('Cancelar'),
-                              ),
-                              FilledButton(
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: Theme.of(confirmContext).colorScheme.error,
-                                  foregroundColor: Theme.of(confirmContext).colorScheme.onError,
-                                ),
-                                onPressed: () => Navigator.pop(confirmContext, true),
-                                child: const Text('Eliminar'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (confirmed != true || !dialogContext.mounted) return;
-                        setDialogState(() => saving = true);
-                        try {
-                          final eventId = event['id']?.toString().trim() ?? '';
-                          if (eventId.isEmpty) {
-                            throw StateError('Não foi possível identificar o evento.');
-                          }
-                          await _events.deleteEvent(eventId);
-                          deleted = true;
-                          if (dialogContext.mounted) {
-                            Navigator.pop(dialogContext, true);
-                          }
-                        } catch (error) {
-                          if (dialogContext.mounted) {
-                            ScaffoldMessenger.of(dialogContext).showSnackBar(
-                              SnackBar(content: Text(_friendlyError(error))),
-                            );
-                            setDialogState(() => saving = false);
-                          }
-                        }
-                      },
+                style: TextButton.styleFrom(foregroundColor: Theme.of(dialogContext).colorScheme.error),
+                onPressed: saving ? null : () async {
+                  final eventName = name.text.trim().isEmpty ? 'este evento' : name.text.trim();
+                  final confirmed = await showDialog<bool>(
+                    context: dialogContext,
+                    builder: (confirmContext) => AlertDialog(
+                      title: const Text('Eliminar evento'),
+                      content: Text(
+                        'Queres eliminar o evento “$eventName”?\n\n'
+                        'Roadbooks, paragens, participantes, voluntários, turnos, tarefas e outros dados operacionais associados serão eliminados. '
+                        'Registos financeiros ou de inventário relacionados são preservados, mas deixam de ficar associados ao evento.\n\n'
+                        'Esta ação não pode ser anulada.',
+                      ),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(confirmContext, false), child: const Text('Cancelar')),
+                        FilledButton(
+                          style: FilledButton.styleFrom(backgroundColor: Theme.of(confirmContext).colorScheme.error, foregroundColor: Theme.of(confirmContext).colorScheme.onError),
+                          onPressed: () => Navigator.pop(confirmContext, true),
+                          child: const Text('Eliminar'),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirmed != true || !dialogContext.mounted) return;
+                  setDialogState(() => saving = true);
+                  try {
+                    final eventId = event['id']?.toString().trim() ?? '';
+                    if (eventId.isEmpty) throw StateError('Não foi possível identificar o evento.');
+                    await _events.deleteEvent(eventId);
+                    deleted = true;
+                    if (dialogContext.mounted) Navigator.pop(dialogContext, true);
+                  } catch (error) {
+                    if (dialogContext.mounted) {
+                      ScaffoldMessenger.of(dialogContext).showSnackBar(SnackBar(content: Text(_friendlyError(error))));
+                      setDialogState(() => saving = false);
+                    }
+                  }
+                },
                 icon: const Icon(Icons.delete_outline),
                 label: const Text('Eliminar'),
               ),
@@ -244,3 +202,5 @@ jobs:
           git add apps/mobile/lib/screens/events_module_screen.dart apps/mobile/lib/screens/events_screen.dart .github/workflows/temp-events-crud-status.yml
           git commit -m "feat(events): filter status and delete events safely"
           git push origin HEAD:rc1-rebuild
+
+# trigger 2026-09-10
