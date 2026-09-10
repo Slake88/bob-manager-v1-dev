@@ -302,6 +302,28 @@ class EventsAdvancedRepository {
     }
   }
 
+  Future<void> deleteRoute({
+    required String eventId,
+    required String routeId,
+  }) async {
+    _require(AppPermission.manageEventRoadbook);
+    final normalizedRouteId = routeId.trim();
+    if (normalizedRouteId.isEmpty) {
+      throw ArgumentError('Não foi possível identificar o Roadbook.');
+    }
+    if (isDemo) return;
+    final response = await _supabase
+        .from('event_routes')
+        .delete()
+        .eq('id', normalizedRouteId)
+        .eq('event_id', eventId)
+        .eq('club_id', AppSession.instance.clubId)
+        .select('id');
+    if (response.isEmpty) {
+      throw StateError('Roadbook não encontrado ou sem permissão para eliminar.');
+    }
+  }
+
   Future<List<Map<String, dynamic>>> listRouteStops(String routeId) async {
     if (isDemo) {
       return <Map<String, dynamic>>[
