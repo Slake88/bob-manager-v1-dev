@@ -26,17 +26,17 @@ jobs:
 
           path = Path('apps/mobile/lib/screens/events_module_screen.dart')
           text = path.read_text(encoding='utf-8')
-
           method_start = text.index('  Future<void> _deleteEvent() async {')
           content_start = text.index('        content: Text(', method_start)
           actions_start = text.index('        actions: [', content_start)
-          replacement = r'''        content: Text(
-            'Queres eliminar o evento “$eventName”?\n\n'
-            'Roadbooks, paragens, participantes, voluntários, turnos, tarefas e outros dados operacionais associados serão eliminados. '
-            'Registos financeiros ou de inventário relacionados são preservados, mas deixam de ficar associados ao evento.\n\n'
-            'Esta ação não pode ser anulada.',
-          ),
-'''
+          replacement = (
+              "        content: Text(\n"
+              "          'Queres eliminar o evento “$eventName”?\\n\\n'\n"
+              "          'Roadbooks, paragens, participantes, voluntários, turnos, tarefas e outros dados operacionais associados serão eliminados. '\n"
+              "          'Registos financeiros ou de inventário relacionados são preservados, mas deixam de ficar associados ao evento.\\n\\n'\n"
+              "          'Esta ação não pode ser anulada.',\n"
+              "        ),\n"
+          )
           text = text[:content_start] + replacement + text[actions_start:]
           path.write_text(text, encoding='utf-8')
           PY
