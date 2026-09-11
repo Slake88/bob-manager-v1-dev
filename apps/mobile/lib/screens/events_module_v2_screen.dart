@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'events_agenda_v2_screen.dart';
-import 'events_module_screen.dart';
+import 'events_management_v2_screen.dart';
 
 class EventsModuleV2Screen extends StatefulWidget {
   const EventsModuleV2Screen({super.key});
@@ -34,7 +34,7 @@ class _EventsModuleV2ScreenState extends State<EventsModuleV2Screen> {
         index: _index,
         children: [
           EventsAgendaV2Screen(refreshToken: _agendaRefreshToken),
-          EventsAdvancedHomeScreen(refreshToken: _managementRefreshToken),
+          EventsManagementV2Screen(refreshToken: _managementRefreshToken),
         ],
       ),
       bottomNavigationBar: NavigationBar(
