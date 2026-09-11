@@ -19,4 +19,4 @@ A aplicação arranca em modo demonstração quando `config/dev.json` não exist
 
 ## RC1
 
-A gestão de eventos inclui CRUD base, confirmação segura de eliminação na Agenda e na Gestão, filtragem por estado e atualização automática entre os separadores Agenda e Gestão.
+A gestão de eventos inclui CRUD base, confirmação segura de eliminação na Agenda e na Gestão, filtragem por estado e atualização forçada dos dados ao alternar entre os separadores Agenda e Gestão.
