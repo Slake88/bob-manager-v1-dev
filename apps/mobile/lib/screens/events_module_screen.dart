@@ -87,20 +87,18 @@ class _EventsAdvancedHomeScreenState extends State<EventsAdvancedHomeScreen> {
   }
 
   Future<void> _openEvent(Map<String, dynamic> event) async {
-  final deleted = await Navigator.of(context).push<bool>(
-    MaterialPageRoute<bool>(
-      builder: (_) => EventAdvancedScreen(
-        event: event,
-        repository: _advanced,
+    final deleted = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) =>
+            EventAdvancedScreen(event: event, repository: _advanced),
       ),
-    ),
-  );
-  if (!mounted) return;
-  setState(_reload);
-  if (deleted == true) {
-    _snack(context, 'Evento eliminado.');
+    );
+    if (!mounted) return;
+    setState(_reload);
+    if (deleted == true) {
+      _snack(context, 'Evento eliminado.');
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -113,19 +111,20 @@ class _EventsAdvancedHomeScreenState extends State<EventsAdvancedHomeScreen> {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final proposals =
-            List<Map<String, dynamic>>.from(snapshot.data![0] as List);
-        final events =
-            List<Map<String, dynamic>>.from(snapshot.data![1] as List);
-        final pending =
-            proposals.where((row) => row['status'] == 'submitted').length;
+        final proposals = List<Map<String, dynamic>>.from(
+          snapshot.data![0] as List,
+        );
+        final events = List<Map<String, dynamic>>.from(
+          snapshot.data![1] as List,
+        );
+        final pending = proposals
+            .where((row) => row['status'] == 'submitted')
+            .length;
         final visibleEvents = _statusFilter == 'all'
             ? events
             : events
-                .where(
-                  (row) => row['status']?.toString() == _statusFilter,
-                )
-                .toList();
+                  .where((row) => row['status']?.toString() == _statusFilter)
+                  .toList();
 
         return RefreshIndicator(
           onRefresh: _refresh,
@@ -157,12 +156,39 @@ class _EventsAdvancedHomeScreenState extends State<EventsAdvancedHomeScreen> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  ChoiceChip(label: const Text('Todos'), selected: _statusFilter == 'all', onSelected: (_) => setState(() => _statusFilter = 'all')),
-                  ChoiceChip(label: const Text('Rascunho'), selected: _statusFilter == 'draft', onSelected: (_) => setState(() => _statusFilter = 'draft')),
-                  ChoiceChip(label: const Text('Publicado'), selected: _statusFilter == 'published', onSelected: (_) => setState(() => _statusFilter = 'published')),
-                  ChoiceChip(label: const Text('Em curso'), selected: _statusFilter == 'active', onSelected: (_) => setState(() => _statusFilter = 'active')),
-                  ChoiceChip(label: const Text('Concluído'), selected: _statusFilter == 'completed', onSelected: (_) => setState(() => _statusFilter = 'completed')),
-                  ChoiceChip(label: const Text('Cancelado'), selected: _statusFilter == 'cancelled', onSelected: (_) => setState(() => _statusFilter = 'cancelled')),
+                  ChoiceChip(
+                    label: const Text('Todos'),
+                    selected: _statusFilter == 'all',
+                    onSelected: (_) => setState(() => _statusFilter = 'all'),
+                  ),
+                  ChoiceChip(
+                    label: const Text('Rascunho'),
+                    selected: _statusFilter == 'draft',
+                    onSelected: (_) => setState(() => _statusFilter = 'draft'),
+                  ),
+                  ChoiceChip(
+                    label: const Text('Publicado'),
+                    selected: _statusFilter == 'published',
+                    onSelected: (_) =>
+                        setState(() => _statusFilter = 'published'),
+                  ),
+                  ChoiceChip(
+                    label: const Text('Em curso'),
+                    selected: _statusFilter == 'active',
+                    onSelected: (_) => setState(() => _statusFilter = 'active'),
+                  ),
+                  ChoiceChip(
+                    label: const Text('Concluído'),
+                    selected: _statusFilter == 'completed',
+                    onSelected: (_) =>
+                        setState(() => _statusFilter = 'completed'),
+                  ),
+                  ChoiceChip(
+                    label: const Text('Cancelado'),
+                    selected: _statusFilter == 'cancelled',
+                    onSelected: (_) =>
+                        setState(() => _statusFilter = 'cancelled'),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -206,10 +232,7 @@ class _EventsAdvancedHomeScreenState extends State<EventsAdvancedHomeScreen> {
 }
 
 class EventProposalsScreen extends StatefulWidget {
-  const EventProposalsScreen({
-    super.key,
-    required this.repository,
-  });
+  const EventProposalsScreen({super.key, required this.repository});
 
   final EventsAdvancedRepository repository;
 
@@ -256,14 +279,8 @@ class _EventProposalsScreenState extends State<EventProposalsScreen> {
                     initialValue: kind,
                     decoration: const InputDecoration(labelText: 'Tipo'),
                     items: const [
-                      DropdownMenuItem(
-                        value: 'general',
-                        child: Text('Evento'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'ride',
-                        child: Text('Passeio'),
-                      ),
+                      DropdownMenuItem(value: 'general', child: Text('Evento')),
+                      DropdownMenuItem(value: 'ride', child: Text('Passeio')),
                       DropdownMenuItem(
                         value: 'rock_ride_in',
                         child: Text('Rock & Ride In'),
@@ -298,10 +315,12 @@ class _EventProposalsScreenState extends State<EventProposalsScreen> {
                             final picked = await showDatePicker(
                               context: dialogContext,
                               initialDate: startsAt ?? DateTime.now(),
-                              firstDate: DateTime.now()
-                                  .subtract(const Duration(days: 365)),
-                              lastDate: DateTime.now()
-                                  .add(const Duration(days: 3650)),
+                              firstDate: DateTime.now().subtract(
+                                const Duration(days: 365),
+                              ),
+                              lastDate: DateTime.now().add(
+                                const Duration(days: 3650),
+                              ),
                             );
                             if (picked == null || !dialogContext.mounted) {
                               return;
@@ -331,8 +350,9 @@ class _EventProposalsScreenState extends State<EventProposalsScreen> {
                     controller: description,
                     minLines: 2,
                     maxLines: 4,
-                    decoration:
-                        const InputDecoration(labelText: 'Descrição / notas'),
+                    decoration: const InputDecoration(
+                      labelText: 'Descrição / notas',
+                    ),
                   ),
                 ],
               ),
@@ -452,7 +472,8 @@ class _EventProposalsScreenState extends State<EventProposalsScreen> {
               else
                 ...rows.map((row) {
                   final pending = row['status'] == 'submitted';
-                  final mine = row['proposed_by']?.toString() ==
+                  final mine =
+                      row['proposed_by']?.toString() ==
                       AppSession.instance.profileId;
                   return Card(
                     child: Padding(
@@ -465,14 +486,13 @@ class _EventProposalsScreenState extends State<EventProposalsScreen> {
                               Expanded(
                                 child: Text(
                                   row['name']?.toString() ?? 'Proposta',
-                                  style:
-                                      Theme.of(context).textTheme.titleMedium,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium,
                                 ),
                               ),
                               Chip(
-                                label: Text(
-                                  proposalStatusLabel(row['status']),
-                                ),
+                                label: Text(proposalStatusLabel(row['status'])),
                               ),
                             ],
                           ),
@@ -480,10 +500,7 @@ class _EventProposalsScreenState extends State<EventProposalsScreen> {
                           Text(
                             '${eventKindLabel(row['event_kind'])} • ${_date(row['starts_at'])}',
                           ),
-                          if (row['location']
-                                  ?.toString()
-                                  .trim()
-                                  .isNotEmpty ==
+                          if (row['location']?.toString().trim().isNotEmpty ==
                               true)
                             Padding(
                               padding: const EdgeInsets.only(top: 4),
@@ -586,30 +603,24 @@ class _EventAdvancedScreenState extends State<EventAdvancedScreen> {
   void _reload() => _future = widget.repository.overview(_eventId);
 
   Future<void> _open(Widget screen) async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => screen),
-    );
+    await Navigator.of(context)
+        .push<void>(MaterialPageRoute(builder: (_) => screen));
     if (mounted) setState(_reload);
   }
 
   Future<void> _deleteEvent() async {
     if (_deleting || !_canManageEvent) return;
-    final eventName =
-        widget.event['name']?.toString().trim().isNotEmpty == true
-            ? widget.event['name'].toString().trim()
-            : 'este evento';
+    final eventName = widget.event['name']?.toString().trim().isNotEmpty == true
+        ? widget.event['name'].toString().trim()
+        : 'este evento';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (confirmContext) => AlertDialog(
         title: const Text('Eliminar evento'),
         content: Text(
-          'Queres eliminar o evento “$eventName”?
-
-'
+          'Queres eliminar o evento “$eventName”?\n\n'
           'Roadbooks, paragens, participantes, voluntários, turnos, tarefas e outros dados operacionais associados serão eliminados. '
-          'Registos financeiros ou de inventário relacionados são preservados, mas deixam de ficar associados ao evento.
-
-'
+          'Registos financeiros ou de inventário relacionados são preservados, mas deixam de ficar associados ao evento.\n\n'
           'Esta ação não pode ser anulada.',
         ),
         actions: [
@@ -645,9 +656,7 @@ class _EventAdvancedScreenState extends State<EventAdvancedScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.event['name']?.toString() ?? 'Evento'),
-      ),
+      appBar: AppBar(title: Text(widget.event['name']?.toString() ?? 'Evento')),
       body: FutureBuilder<Map<String, dynamic>>(
         future: _future,
         builder: (context, snapshot) {
@@ -685,10 +694,7 @@ class _EventAdvancedScreenState extends State<EventAdvancedScreen> {
                 title: 'Acompanhantes',
                 subtitle: '${data['guests']} registado(s)',
                 onTap: () => _open(
-                  _GuestsPage(
-                    eventId: _eventId,
-                    repository: widget.repository,
-                  ),
+                  _GuestsPage(eventId: _eventId, repository: widget.repository),
                 ),
               ),
               _HubTile(
@@ -738,37 +744,37 @@ class _EventAdvancedScreenState extends State<EventAdvancedScreen> {
                 ),
               ),
               if (_canManageEvent) ...[
-      const SizedBox(height: 12),
-      Card(
-        child: ListTile(
-          leading: Icon(
-            Icons.delete_outline,
-            color: Theme.of(context).colorScheme.error,
-          ),
-          title: Text(
-            'Eliminar evento',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.error,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          subtitle: const Text(
-            'Remove este evento e os dados operacionais associados.',
-          ),
-          trailing: _deleting
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Icon(
-                  Icons.chevron_right,
-                  color: Theme.of(context).colorScheme.error,
+                const SizedBox(height: 12),
+                Card(
+                  child: ListTile(
+                    leading: Icon(
+                      Icons.delete_outline,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    title: Text(
+                      'Eliminar evento',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Remove este evento e os dados operacionais associados.',
+                    ),
+                    trailing: _deleting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            Icons.chevron_right,
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                    onTap: _deleting ? null : _deleteEvent,
+                  ),
                 ),
-          onTap: _deleting ? null : _deleteEvent,
-        ),
-      ),
-    ],
+              ],
             ],
           );
         },
@@ -823,8 +829,9 @@ class _GuestsPageState extends State<_GuestsPage> {
               children: [
                 DropdownButtonFormField<String>(
                   initialValue: host['member_id'].toString(),
-                  decoration:
-                      const InputDecoration(labelText: 'Membro anfitrião'),
+                  decoration: const InputDecoration(
+                    labelText: 'Membro anfitrião',
+                  ),
                   items: participants
                       .map(
                         (row) => DropdownMenuItem<String>(
@@ -980,10 +987,12 @@ class _RoadbookPageState extends State<_RoadbookPage> {
                 const SizedBox(height: 8),
                 TextField(
                   controller: distance,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration:
-                      const InputDecoration(labelText: 'Distância (km)'),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Distância (km)',
+                  ),
                 ),
               ],
             ),
@@ -998,17 +1007,14 @@ class _RoadbookPageState extends State<_RoadbookPage> {
             onPressed: () async {
               if (name.text.trim().isEmpty) return;
               try {
-                await widget.repository.saveRoute(
-                  widget.eventId,
-                  {
-                    'name': name.text.trim(),
-                    'start_location': _nullText(start.text),
-                    'end_location': _nullText(end.text),
-                    'distance_km':
-                        double.tryParse(distance.text.replaceAll(',', '.')),
-                  },
-                  id: route?['id']?.toString(),
-                );
+                await widget.repository.saveRoute(widget.eventId, {
+                  'name': name.text.trim(),
+                  'start_location': _nullText(start.text),
+                  'end_location': _nullText(end.text),
+                  'distance_km': double.tryParse(
+                    distance.text.replaceAll(',', '.'),
+                  ),
+                }, id: route?['id']?.toString());
                 if (dialogContext.mounted) {
                   Navigator.pop(dialogContext, true);
                 }
@@ -1106,59 +1112,58 @@ class _RoadbookPageState extends State<_RoadbookPage> {
             children: rows.isEmpty
                 ? [
                     const Card(
-                      child: ListTile(
-                        title: Text('Sem roadbook configurado.'),
-                      ),
+                      child: ListTile(title: Text('Sem roadbook configurado.')),
                     ),
                   ]
                 : rows
-                    .map(
-                      (row) => Card(
-                        child: ListTile(
-                          leading: const Icon(Icons.route_outlined),
-                          title:
-                              Text(row['name']?.toString() ?? 'Roadbook'),
-                          subtitle: Text(
-                            '${row['start_location'] ?? 'Partida'} → ${row['end_location'] ?? 'Destino'}${row['distance_km'] == null ? '' : ' • ${row['distance_km']} km'}',
-                          ),
-                          trailing: widget.repository.canManageRoadbook
-                              ? Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      tooltip: 'Editar roadbook',
-                                      onPressed: () =>
-                                          _editRoadbook(route: row),
-                                      icon: const Icon(Icons.edit_outlined),
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Eliminar roadbook',
-                                      color: Theme.of(context).colorScheme.error,
-                                      onPressed: () => _deleteRoadbook(row),
-                                      icon: const Icon(Icons.delete_outline),
-                                    ),
-                                    const Icon(Icons.chevron_right),
-                                  ],
-                                )
-                              : const Icon(Icons.chevron_right),
-                          onTap: () async {
-                            await Navigator.of(context).push<void>(
-                              MaterialPageRoute(
-                                builder: (_) => RoadbookStopsScreen(
-                                  eventId: widget.eventId,
-                                  route: row,
-                                  repository: widget.repository,
+                      .map(
+                        (row) => Card(
+                          child: ListTile(
+                            leading: const Icon(Icons.route_outlined),
+                            title: Text(row['name']?.toString() ?? 'Roadbook'),
+                            subtitle: Text(
+                              '${row['start_location'] ?? 'Partida'} → ${row['end_location'] ?? 'Destino'}${row['distance_km'] == null ? '' : ' • ${row['distance_km']} km'}',
+                            ),
+                            trailing: widget.repository.canManageRoadbook
+                                ? Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        tooltip: 'Editar roadbook',
+                                        onPressed: () =>
+                                            _editRoadbook(route: row),
+                                        icon: const Icon(Icons.edit_outlined),
+                                      ),
+                                      IconButton(
+                                        tooltip: 'Eliminar roadbook',
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .error,
+                                        onPressed: () => _deleteRoadbook(row),
+                                        icon: const Icon(Icons.delete_outline),
+                                      ),
+                                      const Icon(Icons.chevron_right),
+                                    ],
+                                  )
+                                : const Icon(Icons.chevron_right),
+                            onTap: () async {
+                              await Navigator.of(context).push<void>(
+                                MaterialPageRoute(
+                                  builder: (_) => RoadbookStopsScreen(
+                                    eventId: widget.eventId,
+                                    route: row,
+                                    repository: widget.repository,
+                                  ),
                                 ),
-                              ),
-                            );
-                            if (mounted) {
-                              await _refreshRoadbooks();
-                            }
-                          },
+                              );
+                              if (mounted) {
+                                await _refreshRoadbooks();
+                              }
+                            },
+                          ),
                         ),
-                      ),
-                    )
-                    .toList(),
+                      )
+                      .toList(),
           );
         },
       ),
@@ -1214,8 +1219,7 @@ class _RouteStopsPageState extends State<_RouteStopsPage> {
   int _nextStopSequence(List<Map<String, dynamic>> current) {
     var highest = 0;
     for (final row in current) {
-      final sequence =
-          int.tryParse(row['sequence_no']?.toString() ?? '') ?? 0;
+      final sequence = int.tryParse(row['sequence_no']?.toString() ?? '') ?? 0;
       if (sequence > highest) highest = sequence;
     }
     return highest + 1;
@@ -1427,11 +1431,7 @@ class _RouteStopsPageState extends State<_RouteStopsPage> {
                         itemCount: rows.length,
                         onReorderItem: canManage
                             ? (oldIndex, newIndex) async {
-                                await _reorderStops(
-                                  rows,
-                                  oldIndex,
-                                  newIndex,
-                                );
+                                await _reorderStops(rows, oldIndex, newIndex);
                               }
                             : (_, __) {},
                         itemBuilder: (context, index) {
@@ -1444,9 +1444,7 @@ class _RouteStopsPageState extends State<_RouteStopsPage> {
                               leading: CircleAvatar(
                                 child: Text('${row['sequence_no'] ?? ''}'),
                               ),
-                              title: Text(
-                                row['name']?.toString() ?? 'Paragem',
-                              ),
+                              title: Text(row['name']?.toString() ?? 'Paragem'),
                               subtitle: Text(
                                 row['location']?.toString() ??
                                     'Local por definir',
@@ -1459,13 +1457,9 @@ class _RouteStopsPageState extends State<_RouteStopsPage> {
                                           tooltip: 'Editar paragem',
                                           onPressed: _reordering
                                               ? null
-                                              : () => _editStop(
-                                                    rows,
-                                                    stop: row,
-                                                  ),
-                                          icon: const Icon(
-                                            Icons.edit_outlined,
-                                          ),
+                                              : () =>
+                                                    _editStop(rows, stop: row),
+                                          icon: const Icon(Icons.edit_outlined),
                                         ),
                                         IconButton(
                                           tooltip: 'Eliminar paragem',
@@ -1555,14 +1549,14 @@ class _EmergencyEventPage extends StatelessWidget {
                 final emergency = row['emergency_contact'];
                 final emergencyText = emergency is Map
                     ? emergency.entries
-                        .map((entry) => '${entry.key}: ${entry.value}')
-                        .join(' • ')
-                    : emergency?.toString() ??
-                        'Sem contacto de emergência';
+                          .map((entry) => '${entry.key}: ${entry.value}')
+                          .join(' • ')
+                    : emergency?.toString() ?? 'Sem contacto de emergência';
                 return Card(
                   child: ListTile(
-                    leading:
-                        const CircleAvatar(child: Icon(Icons.person_outline)),
+                    leading: const CircleAvatar(
+                      child: Icon(Icons.person_outline),
+                    ),
                     title: Text(
                       row['nickname']?.toString().trim().isNotEmpty == true
                           ? row['nickname'].toString()
@@ -1617,13 +1611,11 @@ class _RockRidePageState extends State<_RockRidePage> {
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(
-          switch (type) {
-            'band' => 'Nova banda',
-            'exhibitor' => 'Novo expositor',
-            _ => 'Novo patrocinador',
-          },
-        ),
+        title: Text(switch (type) {
+          'band' => 'Nova banda',
+          'exhibitor' => 'Novo expositor',
+          _ => 'Novo patrocinador',
+        }),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1635,8 +1627,9 @@ class _RockRidePageState extends State<_RockRidePage> {
             TextField(
               controller: extra,
               decoration: InputDecoration(
-                labelText:
-                    type == 'exhibitor' ? 'Categoria' : 'Valor acordado (€)',
+                labelText: type == 'exhibitor'
+                    ? 'Categoria'
+                    : 'Valor acordado (€)',
               ),
               keyboardType: type == 'exhibitor'
                   ? TextInputType.text
@@ -1694,12 +1687,15 @@ class _RockRidePageState extends State<_RockRidePage> {
   }
 
   Future<void> _octanes(Map<String, dynamic>? current) async {
-    final unit =
-        TextEditingController(text: '${current?['unit_price'] ?? 1.5}');
-    final five =
-        TextEditingController(text: '${current?['five_card_price'] ?? 7}');
-    final ten =
-        TextEditingController(text: '${current?['ten_card_price'] ?? 13}');
+    final unit = TextEditingController(
+      text: '${current?['unit_price'] ?? 1.5}',
+    );
+    final five = TextEditingController(
+      text: '${current?['five_card_price'] ?? 7}',
+    );
+    final ten = TextEditingController(
+      text: '${current?['ten_card_price'] ?? 13}',
+    );
     final saved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -1709,25 +1705,28 @@ class _RockRidePageState extends State<_RockRidePage> {
           children: [
             TextField(
               controller: unit,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               decoration: const InputDecoration(labelText: '1 Octana (€)'),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: five,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration:
-                  const InputDecoration(labelText: 'Cartão 5 Octanas (€)'),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(
+                labelText: 'Cartão 5 Octanas (€)',
+              ),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: ten,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              decoration:
-                  const InputDecoration(labelText: 'Cartão 10 + 1 (€)'),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: const InputDecoration(labelText: 'Cartão 10 + 1 (€)'),
             ),
           ],
         ),
@@ -1739,22 +1738,18 @@ class _RockRidePageState extends State<_RockRidePage> {
           FilledButton(
             onPressed: () async {
               try {
-                await widget.repository.saveOctaneConfig(
-                  widget.eventId,
-                  {
-                    'unit_price':
-                        double.tryParse(unit.text.replaceAll(',', '.')) ?? 1.5,
-                    'five_card_units': 5,
-                    'five_card_price':
-                        double.tryParse(five.text.replaceAll(',', '.')) ?? 7,
-                    'ten_card_units': 10,
-                    'ten_card_price':
-                        double.tryParse(ten.text.replaceAll(',', '.')) ?? 13,
-                    'ten_card_bonus': 1,
-                    'active': true,
-                  },
-                  id: current?['id']?.toString(),
-                );
+                await widget.repository.saveOctaneConfig(widget.eventId, {
+                  'unit_price':
+                      double.tryParse(unit.text.replaceAll(',', '.')) ?? 1.5,
+                  'five_card_units': 5,
+                  'five_card_price':
+                      double.tryParse(five.text.replaceAll(',', '.')) ?? 7,
+                  'ten_card_units': 10,
+                  'ten_card_price':
+                      double.tryParse(ten.text.replaceAll(',', '.')) ?? 13,
+                  'ten_card_bonus': 1,
+                  'active': true,
+                }, id: current?['id']?.toString());
                 if (dialogContext.mounted) {
                   Navigator.pop(dialogContext, true);
                 }
@@ -1788,14 +1783,18 @@ class _RockRidePageState extends State<_RockRidePage> {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          final bands =
-              List<Map<String, dynamic>>.from(snapshot.data![0] as List);
-          final exhibitors =
-              List<Map<String, dynamic>>.from(snapshot.data![1] as List);
-          final sponsors =
-              List<Map<String, dynamic>>.from(snapshot.data![2] as List);
+          final bands = List<Map<String, dynamic>>.from(
+            snapshot.data![0] as List,
+          );
+          final exhibitors = List<Map<String, dynamic>>.from(
+            snapshot.data![1] as List,
+          );
+          final sponsors = List<Map<String, dynamic>>.from(
+            snapshot.data![2] as List,
+          );
           final octanes = snapshot.data![3] as Map<String, dynamic>?;
-          final canWrite = widget.repository.canManageRockRide ||
+          final canWrite =
+              widget.repository.canManageRockRide ||
               widget.repository.canManageFinance;
           return ListView(
             padding: const EdgeInsets.all(12),
@@ -1843,10 +1842,7 @@ class _RockRidePageState extends State<_RockRidePage> {
 }
 
 class _EventOperationsPage extends StatefulWidget {
-  const _EventOperationsPage({
-    required this.eventId,
-    required this.repository,
-  });
+  const _EventOperationsPage({required this.eventId, required this.repository});
 
   final String eventId;
   final EventsAdvancedRepository repository;
@@ -1943,8 +1939,9 @@ class _EventOperationsPageState extends State<_EventOperationsPage> {
                   'name': name.text.trim(),
                   'area': _nullText(area.text),
                   'starts_at': now.toIso8601String(),
-                  'ends_at':
-                      now.add(const Duration(hours: 2)).toIso8601String(),
+                  'ends_at': now
+                      .add(const Duration(hours: 2))
+                      .toIso8601String(),
                   'required_people': 1,
                   'status': 'planned',
                 });
@@ -2029,18 +2026,24 @@ class _EventOperationsPageState extends State<_EventOperationsPage> {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          final tasks =
-              List<Map<String, dynamic>>.from(snapshot.data![0] as List);
-          final taskAssignees =
-              List<Map<String, dynamic>>.from(snapshot.data![1] as List);
-          final shifts =
-              List<Map<String, dynamic>>.from(snapshot.data![2] as List);
-          final shiftMembers =
-              List<Map<String, dynamic>>.from(snapshot.data![3] as List);
-          final program =
-              List<Map<String, dynamic>>.from(snapshot.data![4] as List);
-          final incidents =
-              List<Map<String, dynamic>>.from(snapshot.data![5] as List);
+          final tasks = List<Map<String, dynamic>>.from(
+            snapshot.data![0] as List,
+          );
+          final taskAssignees = List<Map<String, dynamic>>.from(
+            snapshot.data![1] as List,
+          );
+          final shifts = List<Map<String, dynamic>>.from(
+            snapshot.data![2] as List,
+          );
+          final shiftMembers = List<Map<String, dynamic>>.from(
+            snapshot.data![3] as List,
+          );
+          final program = List<Map<String, dynamic>>.from(
+            snapshot.data![4] as List,
+          );
+          final incidents = List<Map<String, dynamic>>.from(
+            snapshot.data![5] as List,
+          );
           final canManage = widget.repository.canManageOperations;
           return ListView(
             padding: const EdgeInsets.all(12),
@@ -2275,15 +2278,15 @@ class _SimpleFutureList extends StatelessWidget {
           children: rows.isEmpty
               ? [Card(child: ListTile(title: Text(emptyText)))]
               : rows
-                  .map(
-                    (row) => Card(
-                      child: ListTile(
-                        title: Text(title(row)),
-                        subtitle: Text(subtitle(row)),
+                    .map(
+                      (row) => Card(
+                        child: ListTile(
+                          title: Text(title(row)),
+                          subtitle: Text(subtitle(row)),
+                        ),
                       ),
-                    ),
-                  )
-                  .toList(),
+                    )
+                    .toList(),
         );
       },
     );
@@ -2372,18 +2375,18 @@ Future<bool> _textDialog(
 }
 
 IconData _eventIcon(Object? kind) => switch (kind?.toString()) {
-      'ride' => Icons.two_wheeler_outlined,
-      'rock_ride_in' => Icons.music_note_outlined,
-      _ => Icons.event_outlined,
-    };
+  'ride' => Icons.two_wheeler_outlined,
+  'rock_ride_in' => Icons.music_note_outlined,
+  _ => Icons.event_outlined,
+};
 
 String _eventStatusLabel(Object? status) => switch (status?.toString()) {
-      'published' => 'Publicado',
-      'active' => 'Em curso',
-      'completed' => 'Concluído',
-      'cancelled' => 'Cancelado',
-      _ => 'Rascunho',
-    };
+  'published' => 'Publicado',
+  'active' => 'Em curso',
+  'completed' => 'Concluído',
+  'cancelled' => 'Cancelado',
+  _ => 'Rascunho',
+};
 
 DateTime? _parse(Object? value) {
   if (value is DateTime) return value;
