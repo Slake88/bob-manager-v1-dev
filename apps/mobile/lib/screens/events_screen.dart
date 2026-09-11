@@ -7,7 +7,9 @@ import '../repositories/events_repository.dart';
 import '../repositories/member_repository.dart';
 
 class EventsScreen extends StatefulWidget {
-  const EventsScreen({super.key});
+  const EventsScreen({super.key, this.refreshToken = 0});
+
+  final int refreshToken;
 
   @override
   State<EventsScreen> createState() => _EventsScreenState();
@@ -31,6 +33,14 @@ class _EventsScreenState extends State<EventsScreen> {
     _reload();
   }
 
+  @override
+  void didUpdateWidget(covariant EventsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshToken != widget.refreshToken) {
+      _reload();
+    }
+  }
+
   void _reload() {
     _future = _events.listMonth(_month.year, _month.month);
   }
@@ -49,10 +59,12 @@ class _EventsScreenState extends State<EventsScreen> {
 
   Future<void> _openEvent([Map<String, dynamic>? event]) async {
     final name = TextEditingController(text: event?['name']?.toString() ?? '');
-    final location =
-        TextEditingController(text: event?['location']?.toString() ?? '');
-    final description =
-        TextEditingController(text: event?['description']?.toString() ?? '');
+    final location = TextEditingController(
+      text: event?['location']?.toString() ?? '',
+    );
+    final description = TextEditingController(
+      text: event?['description']?.toString() ?? '',
+    );
     final budget = TextEditingController(
       text: event?['budget'] == null ? '' : event!['budget'].toString(),
     );
@@ -110,7 +122,8 @@ class _EventsScreenState extends State<EventsScreen> {
                               helpText: 'Selecionar hora do evento',
                             );
                             if (!dialogContext.mounted) return;
-                            final time = pickedTime ?? TimeOfDay.fromDateTime(initial);
+                            final time =
+                                pickedTime ?? TimeOfDay.fromDateTime(initial);
                             setDialogState(() {
                               startsAt = DateTime(
                                 pickedDate.year,
@@ -168,7 +181,10 @@ class _EventsScreenState extends State<EventsScreen> {
                         value: 'published',
                         child: Text('Publicado'),
                       ),
-                      DropdownMenuItem(value: 'active', child: Text('Em curso')),
+                      DropdownMenuItem(
+                        value: 'active',
+                        child: Text('Em curso'),
+                      ),
                       DropdownMenuItem(
                         value: 'completed',
                         child: Text('Concluído'),
@@ -214,15 +230,21 @@ class _EventsScreenState extends State<EventsScreen> {
                             ),
                             actions: [
                               TextButton(
-                                onPressed: () => Navigator.pop(confirmContext, false),
+                                onPressed: () =>
+                                    Navigator.pop(confirmContext, false),
                                 child: const Text('Cancelar'),
                               ),
                               FilledButton(
                                 style: FilledButton.styleFrom(
-                                  backgroundColor: Theme.of(confirmContext).colorScheme.error,
-                                  foregroundColor: Theme.of(confirmContext).colorScheme.onError,
+                                  backgroundColor: Theme.of(confirmContext)
+                                      .colorScheme
+                                      .error,
+                                  foregroundColor: Theme.of(confirmContext)
+                                      .colorScheme
+                                      .onError,
                                 ),
-                                onPressed: () => Navigator.pop(confirmContext, true),
+                                onPressed: () =>
+                                    Navigator.pop(confirmContext, true),
                                 child: const Text('Eliminar'),
                               ),
                             ],
@@ -233,7 +255,9 @@ class _EventsScreenState extends State<EventsScreen> {
                         try {
                           final eventId = event['id']?.toString().trim() ?? '';
                           if (eventId.isEmpty) {
-                            throw StateError('Não foi possível identificar o evento.');
+                            throw StateError(
+                              'Não foi possível identificar o evento.',
+                            );
                           }
                           await _events.deleteEvent(eventId);
                           deleted = true;
@@ -253,7 +277,9 @@ class _EventsScreenState extends State<EventsScreen> {
                 label: const Text('Eliminar'),
               ),
             TextButton(
-              onPressed: saving ? null : () => Navigator.pop(dialogContext, false),
+              onPressed: saving
+                  ? null
+                  : () => Navigator.pop(dialogContext, false),
               child: const Text('Cancelar'),
             ),
             FilledButton.icon(
@@ -262,7 +288,9 @@ class _EventsScreenState extends State<EventsScreen> {
                   : () async {
                       if (name.text.trim().isEmpty) {
                         ScaffoldMessenger.of(dialogContext).showSnackBar(
-                          const SnackBar(content: Text('Indica o nome do evento.')),
+                          const SnackBar(
+                            content: Text('Indica o nome do evento.'),
+                          ),
                         );
                         return;
                       }
@@ -276,24 +304,22 @@ class _EventsScreenState extends State<EventsScreen> {
                       }
                       setDialogState(() => saving = true);
                       try {
-                        await _events.saveEvent(
-                          {
-                            'name': name.text.trim(),
-                            'description': description.text.trim().isEmpty
-                                ? null
-                                : description.text.trim(),
-                            'location': location.text.trim().isEmpty
-                                ? null
-                                : location.text.trim(),
-                            'starts_at': startsAt!.toIso8601String(),
-                            'budget': double.tryParse(
-                                  budget.text.trim().replaceAll(',', '.'),
-                                ) ??
-                                0,
-                            'status': status,
-                          },
-                          eventId: event?['id']?.toString(),
-                        );
+                        await _events.saveEvent({
+                          'name': name.text.trim(),
+                          'description': description.text.trim().isEmpty
+                              ? null
+                              : description.text.trim(),
+                          'location': location.text.trim().isEmpty
+                              ? null
+                              : location.text.trim(),
+                          'starts_at': startsAt!.toIso8601String(),
+                          'budget':
+                              double.tryParse(
+                                budget.text.trim().replaceAll(',', '.'),
+                              ) ??
+                              0,
+                          'status': status,
+                        }, eventId: event?['id']?.toString());
                         if (dialogContext.mounted) {
                           Navigator.pop(dialogContext, true);
                         }
@@ -335,7 +361,8 @@ class _EventsScreenState extends State<EventsScreen> {
   }
 
   Future<void> _openAnniversary(Map<String, dynamic> item) async {
-    final years = int.tryParse(item['anniversary_years']?.toString() ?? '') ?? 0;
+    final years =
+        int.tryParse(item['anniversary_years']?.toString() ?? '') ?? 0;
     final type = item['calendar_type']?.toString() ?? '';
     final detail = switch (type) {
       'birthday' => years > 0 ? '$years anos' : 'Aniversário',
@@ -354,10 +381,7 @@ class _EventsScreenState extends State<EventsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Data: ${_datePt(_parseDate(item['starts_at']))}'),
-            if (detail.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(detail),
-            ],
+            if (detail.isNotEmpty) ...[const SizedBox(height: 8), Text(detail)],
           ],
         ),
         actions: [
@@ -390,13 +414,17 @@ class _EventsScreenState extends State<EventsScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text('Erro: ${_friendlyError(snapshot.error!)}'));
+            return Center(
+              child: Text('Erro: ${_friendlyError(snapshot.error!)}'),
+            );
           }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
           final items = snapshot.data!;
-          final events = items.where((row) => row['calendar_type'] == 'event').length;
+          final events = items
+              .where((row) => row['calendar_type'] == 'event')
+              .length;
           final anniversaries = items.length - events;
 
           return RefreshIndicator(
@@ -423,7 +451,10 @@ class _EventsScreenState extends State<EventsScreen> {
                   children: [
                     _MetricCard(label: 'Eventos', value: '$events'),
                     _MetricCard(label: 'Aniversários', value: '$anniversaries'),
-                    _MetricCard(label: 'Total no mês', value: '${items.length}'),
+                    _MetricCard(
+                      label: 'Total no mês',
+                      value: '${items.length}',
+                    ),
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -457,39 +488,45 @@ class _EventsScreenState extends State<EventsScreen> {
     final date = _parseDate(item['starts_at']);
     final theme = Theme.of(context);
 
-    final (IconData icon, Color background, Color foreground, String badge) =
-        switch (type) {
+    final (
+      IconData icon,
+      Color background,
+      Color foreground,
+      String badge,
+    ) = switch (type) {
       'birthday' => (
-          Icons.cake_outlined,
-          theme.colorScheme.tertiaryContainer,
-          theme.colorScheme.onTertiaryContainer,
-          'ANIVERSÁRIO'
-        ),
+        Icons.cake_outlined,
+        theme.colorScheme.tertiaryContainer,
+        theme.colorScheme.onTertiaryContainer,
+        'ANIVERSÁRIO',
+      ),
       'prospect_anniversary' => (
-          Icons.workspace_premium_outlined,
-          theme.colorScheme.secondaryContainer,
-          theme.colorScheme.onSecondaryContainer,
-          'PROSPECT'
-        ),
+        Icons.workspace_premium_outlined,
+        theme.colorScheme.secondaryContainer,
+        theme.colorScheme.onSecondaryContainer,
+        'PROSPECT',
+      ),
       'full_color_anniversary' => (
-          Icons.shield_outlined,
-          theme.colorScheme.primaryContainer,
-          theme.colorScheme.onPrimaryContainer,
-          'FULL COLOR'
-        ),
+        Icons.shield_outlined,
+        theme.colorScheme.primaryContainer,
+        theme.colorScheme.onPrimaryContainer,
+        'FULL COLOR',
+      ),
       _ => (
-          Icons.event_outlined,
-          theme.colorScheme.surfaceContainerHighest,
-          theme.colorScheme.onSurfaceVariant,
-          _statusLabel(item['status']?.toString())
-        ),
+        Icons.event_outlined,
+        theme.colorScheme.surfaceContainerHighest,
+        theme.colorScheme.onSurfaceVariant,
+        _statusLabel(item['status']?.toString()),
+      ),
     };
 
     return Card(
       color: isEvent ? null : background.withValues(alpha: 0.58),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: isEvent ? () => _openDetails(item) : () => _openAnniversary(item),
+        onTap: isEvent
+            ? () => _openDetails(item)
+            : () => _openAnniversary(item),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
@@ -535,7 +572,9 @@ class _EventsScreenState extends State<EventsScreen> {
                         ),
                       ),
                     if (!isEvent &&
-                        (int.tryParse(item['anniversary_years']?.toString() ?? '') ??
+                        (int.tryParse(
+                                  item['anniversary_years']?.toString() ?? '',
+                                ) ??
                                 0) >
                             0)
                       Padding(
@@ -584,10 +623,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   late Future<_EventDetailData> _future;
 
   AppRole get _role => AppRole.fromValue(AppSession.instance.role);
-  bool get _canManage => PermissionPolicy.allows(
-        _role,
-        AppPermission.manageEventParticipants,
-      );
+  bool get _canManage =>
+      PermissionPolicy.allows(_role, AppPermission.manageEventParticipants);
 
   @override
   void initState() {
@@ -597,17 +634,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   void _reload() {
     final id = widget.event['id'].toString();
-    _future = Future.wait([
-      widget.repository.participants(id),
-      widget.repository.volunteers(id),
-      widget.repository.financialSummary(id),
-    ]).then(
-      (values) => _EventDetailData(
-        participants: List<Map<String, dynamic>>.from(values[0] as List),
-        volunteers: List<Map<String, dynamic>>.from(values[1] as List),
-        finance: Map<String, dynamic>.from(values[2] as Map),
-      ),
-    );
+    _future =
+        Future.wait([
+          widget.repository.participants(id),
+          widget.repository.volunteers(id),
+          widget.repository.financialSummary(id),
+        ]).then(
+          (values) => _EventDetailData(
+            participants: List<Map<String, dynamic>>.from(values[0] as List),
+            volunteers: List<Map<String, dynamic>>.from(values[1] as List),
+            finance: Map<String, dynamic>.from(values[2] as Map),
+          ),
+        );
   }
 
   Future<void> _addPerson({required bool volunteer}) async {
@@ -619,7 +657,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       context: context,
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text(volunteer ? 'Adicionar voluntário' : 'Adicionar participante'),
+          title: Text(
+            volunteer ? 'Adicionar voluntário' : 'Adicionar participante',
+          ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -674,8 +714,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       eventId: widget.event['id'].toString(),
                       memberId: memberId,
                       memberName: member['full_name'].toString(),
-                      companionName:
-                          extra.text.trim().isEmpty ? null : extra.text.trim(),
+                      companionName: extra.text.trim().isEmpty
+                          ? null
+                          : extra.text.trim(),
                     );
                   }
                   if (dialogContext.mounted) {
@@ -707,7 +748,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text('Erro: ${_friendlyError(snapshot.error!)}'));
+            return Center(
+              child: Text('Erro: ${_friendlyError(snapshot.error!)}'),
+            );
           }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
@@ -721,7 +764,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 child: ListTile(
                   leading: const Icon(Icons.event_outlined),
                   title: Text(
-                    widget.event['location']?.toString().trim().isNotEmpty == true
+                    widget.event['location']?.toString().trim().isNotEmpty ==
+                            true
                         ? widget.event['location'].toString()
                         : 'Sem local definido',
                   ),
@@ -729,11 +773,14 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     _dateTimePt(_parseDate(widget.event['starts_at'])),
                   ),
                   trailing: Chip(
-                    label: Text(_statusLabel(widget.event['status']?.toString())),
+                    label: Text(
+                      _statusLabel(widget.event['status']?.toString()),
+                    ),
                   ),
                 ),
               ),
-              if (widget.event['description']?.toString().trim().isNotEmpty == true)
+              if (widget.event['description']?.toString().trim().isNotEmpty ==
+                  true)
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -805,17 +852,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   Widget _metric(String label, String value) => SizedBox(
-        width: 130,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: Theme.of(context).textTheme.labelLarge),
-            Text(value, style: Theme.of(context).textTheme.titleLarge),
-          ],
-        ),
-      );
+    width: 130,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelLarge),
+        Text(value, style: Theme.of(context).textTheme.titleLarge),
+      ],
+    ),
+  );
 
-  Widget _section(String title, List<Widget> children, {Widget? action}) => Card(
+  Widget _section(String title, List<Widget> children, {Widget? action}) =>
+      Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -932,13 +980,13 @@ String _normalizeStatus(String? value) {
 }
 
 String _statusLabel(String? status) => switch (status) {
-      'published' => 'Publicado',
-      'active' => 'Em curso',
-      'completed' => 'Concluído',
-      'cancelled' => 'Cancelado',
-      'anniversary' => 'Aniversário',
-      _ => 'Rascunho',
-    };
+  'published' => 'Publicado',
+  'active' => 'Em curso',
+  'completed' => 'Concluído',
+  'cancelled' => 'Cancelado',
+  'anniversary' => 'Aniversário',
+  _ => 'Rascunho',
+};
 
 String _anniversarySubtitle(Map<String, dynamic> item) {
   final years = int.tryParse(item['anniversary_years']?.toString() ?? '') ?? 0;

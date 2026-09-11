@@ -17,17 +17,34 @@ class EventsModuleScreen extends StatefulWidget {
 
 class _EventsModuleScreenState extends State<EventsModuleScreen> {
   int _index = 0;
+  int _agendaRefreshToken = 0;
+  int _managementRefreshToken = 0;
+
+  void _selectTab(int value) {
+    if (value == _index) return;
+    setState(() {
+      _index = value;
+      if (value == 0) {
+        _agendaRefreshToken++;
+      } else {
+        _managementRefreshToken++;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
         index: _index,
-        children: const [EventsScreen(), EventsAdvancedHomeScreen()],
+        children: [
+          EventsScreen(refreshToken: _agendaRefreshToken),
+          EventsAdvancedHomeScreen(refreshToken: _managementRefreshToken),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (value) => setState(() => _index = value),
+        onDestinationSelected: _selectTab,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.calendar_month_outlined),
@@ -46,7 +63,9 @@ class _EventsModuleScreenState extends State<EventsModuleScreen> {
 }
 
 class EventsAdvancedHomeScreen extends StatefulWidget {
-  const EventsAdvancedHomeScreen({super.key});
+  const EventsAdvancedHomeScreen({super.key, this.refreshToken = 0});
+
+  final int refreshToken;
 
   @override
   State<EventsAdvancedHomeScreen> createState() =>
@@ -63,6 +82,14 @@ class _EventsAdvancedHomeScreenState extends State<EventsAdvancedHomeScreen> {
   void initState() {
     super.initState();
     _reload();
+  }
+
+  @override
+  void didUpdateWidget(covariant EventsAdvancedHomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshToken != widget.refreshToken) {
+      _reload();
+    }
   }
 
   void _reload() {
