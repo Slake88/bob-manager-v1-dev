@@ -88,7 +88,9 @@ class _EventsAdvancedHomeScreenState extends State<EventsAdvancedHomeScreen> {
   void didUpdateWidget(covariant EventsAdvancedHomeScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.refreshToken != widget.refreshToken) {
-      _reload();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(_reload);
+      });
     }
   }
 

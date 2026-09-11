@@ -37,7 +37,9 @@ class _EventsScreenState extends State<EventsScreen> {
   void didUpdateWidget(covariant EventsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.refreshToken != widget.refreshToken) {
-      _reload();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(_reload);
+      });
     }
   }
 
