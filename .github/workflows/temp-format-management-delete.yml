@@ -23,18 +23,18 @@ jobs:
         shell: bash
         run: |
           python - <<'PY'
+          import re
           from pathlib import Path
 
-          old = """    if (oldWidget.refreshToken != widget.refreshToken) {
-              _reload();
-            }
-          """
-          new = """    if (oldWidget.refreshToken != widget.refreshToken) {
+          pattern = re.compile(
+              r"if \(oldWidget\.refreshToken != widget\.refreshToken\) \{\s*_reload\(\);\s*\}",
+              re.MULTILINE,
+          )
+          replacement = """if (oldWidget.refreshToken != widget.refreshToken) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (mounted) setState(_reload);
               });
-            }
-          """
+            }"""
 
           for filename in [
               'apps/mobile/lib/screens/events_module_screen.dart',
@@ -42,9 +42,10 @@ jobs:
           ]:
               path = Path(filename)
               text = path.read_text(encoding='utf-8')
-              if text.count(old) != 1:
-                  raise SystemExit(f'{filename}: refresh anchor count={text.count(old)}')
-              path.write_text(text.replace(old, new, 1), encoding='utf-8')
+              text, count = pattern.subn(replacement, text, count=1)
+              if count != 1:
+                  raise SystemExit(f'{filename}: refresh pattern count={count}')
+              path.write_text(text, encoding='utf-8')
           PY
           dart format apps/mobile/lib/screens/events_module_screen.dart apps/mobile/lib/screens/events_screen.dart
           rm .github/workflows/temp-format-management-delete.yml
