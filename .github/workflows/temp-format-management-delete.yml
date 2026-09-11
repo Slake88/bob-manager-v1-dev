@@ -1,0 +1,54 @@
+name: Temporary format management delete patch
+
+on:
+  push:
+    branches: [rc1-rebuild]
+    paths:
+      - '.github/workflows/temp-format-management-delete.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rc1-rebuild
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Fix strings and format
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/mobile/lib/screens/events_module_screen.dart')
+          text = path.read_text(encoding='utf-8')
+
+          method_start = text.index('  Future<void> _deleteEvent() async {')
+          content_start = text.index('        content: Text(', method_start)
+          actions_start = text.index('        actions: [', content_start)
+          replacement = r'''        content: Text(
+            'Queres eliminar o evento “$eventName”?\n\n'
+            'Roadbooks, paragens, participantes, voluntários, turnos, tarefas e outros dados operacionais associados serão eliminados. '
+            'Registos financeiros ou de inventário relacionados são preservados, mas deixam de ficar associados ao evento.\n\n'
+            'Esta ação não pode ser anulada.',
+          ),
+'''
+          text = text[:content_start] + replacement + text[actions_start:]
+          path.write_text(text, encoding='utf-8')
+          PY
+          dart format apps/mobile/lib/screens/events_module_screen.dart
+          rm .github/workflows/temp-format-management-delete.yml
+      - name: Commit fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/mobile/lib/screens/events_module_screen.dart .github/workflows/temp-format-management-delete.yml
+          git commit -m "fix(events): finalize management event deletion UI"
+          git push origin rc1-rebuild
