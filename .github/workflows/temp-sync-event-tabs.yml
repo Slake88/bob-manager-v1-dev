@@ -2,7 +2,8 @@ name: Temporary sync event tabs
 
 on:
   push:
-    branches: [rc1-rebuild]
+    branches:
+      - rc1-rebuild
     paths:
       - '.github/workflows/temp-sync-event-tabs.yml'
 
@@ -120,7 +121,6 @@ jobs:
 
             void _reload() {
 '''
-          # Restrict to the advanced screen state area.
           advanced_start = text.index('class _EventsAdvancedHomeScreenState')
           advanced_end = text.index('class EventProposalsScreen', advanced_start)
           segment = text[advanced_start:advanced_end]
