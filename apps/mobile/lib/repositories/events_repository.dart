@@ -9,7 +9,7 @@ import '../services/rc1_data_extensions.dart';
 
 class EventsRepository {
   EventsRepository({DataService? dataService})
-      : _dataService = dataService ?? DataService.instance;
+    : _dataService = dataService ?? DataService.instance;
 
   final DataService _dataService;
 
@@ -20,8 +20,11 @@ class EventsRepository {
     _require(AppPermission.viewEvents);
     if (AppConfig.demoMode) {
       final rows = await _dataService.list('events');
-      rows.sort((a, b) => (a['starts_at']?.toString() ?? '')
-          .compareTo(b['starts_at']?.toString() ?? ''));
+      rows.sort(
+        (a, b) => (a['starts_at']?.toString() ?? '').compareTo(
+          b['starts_at']?.toString() ?? '',
+        ),
+      );
       return rows;
     }
 
@@ -88,8 +91,9 @@ class EventsRepository {
       final db = _parseDate(b['starts_at']) ?? DateTime(9999);
       final byDate = da.compareTo(db);
       if (byDate != 0) return byDate;
-      return (a['name']?.toString() ?? '')
-          .compareTo(b['name']?.toString() ?? '');
+      return (a['name']?.toString() ?? '').compareTo(
+        b['name']?.toString() ?? '',
+      );
     });
     return rows;
   }
@@ -105,11 +109,7 @@ class EventsRepository {
           ? member['nickname'].toString().trim()
           : member['full_name']?.toString() ?? 'Membro';
 
-      void addAnniversary(
-        String field,
-        String type,
-        String label,
-      ) {
+      void addAnniversary(String field, String type, String label) {
         final original = _parseDate(member[field]);
         if (original == null || original.month != month) return;
         final years = year - original.year;
@@ -155,6 +155,30 @@ class EventsRepository {
     final startsAt = _parseDate(values['starts_at']);
     if (startsAt == null) throw ArgumentError('Seleciona a data do evento.');
 
+    final endsAt = _parseDate(values['ends_at']);
+    if (endsAt != null && !endsAt.isAfter(startsAt)) {
+      throw ArgumentError('A data de fim tem de ser posterior ao início.');
+    }
+
+    final eventKind = values['event_kind']?.toString() ?? 'general';
+    const allowedEventKinds = {'general', 'ride', 'rock_ride_in'};
+    if (!allowedEventKinds.contains(eventKind)) {
+      throw ArgumentError('Tipo de evento inválido.');
+    }
+
+    int? capacity;
+    final capacityValue = values['capacity'];
+    if (capacityValue != null && capacityValue.toString().trim().isNotEmpty) {
+      capacity = capacityValue is int
+          ? capacityValue
+          : int.tryParse(capacityValue.toString());
+      if (capacity == null || capacity <= 0) {
+        throw ArgumentError(
+          'A capacidade tem de ser um número inteiro superior a zero.',
+        );
+      }
+    }
+
     final status = values['status']?.toString() ?? 'draft';
     const allowedStatuses = {
       'draft',
@@ -171,6 +195,9 @@ class EventsRepository {
       ...values,
       'name': name,
       'starts_at': startsAt.toUtc().toIso8601String(),
+      'ends_at': endsAt?.toUtc().toIso8601String(),
+      'event_kind': eventKind,
+      'capacity': capacity,
       'status': status,
       'budget': _asDouble(values['budget']),
     };
@@ -187,8 +214,9 @@ class EventsRepository {
       'location': normalized['location'],
       'starts_at': normalized['starts_at'],
       'ends_at': normalized['ends_at'],
+      'event_kind': normalized['event_kind'],
       'status': normalized['status'],
-      'capacity': normalized['capacity'] ?? normalized['expected_attendance'],
+      'capacity': normalized['capacity'],
       'budget': normalized['budget'],
       'banner_path': normalized['banner_path'],
       'event_mode_enabled': normalized['event_mode_enabled'] == true,
@@ -450,10 +478,12 @@ double _asDouble(Object? value) {
 
 String _friendlyEventError(PostgrestException error) {
   final message = error.message.toLowerCase();
-  if (message.contains('event_status') || message.contains('invalid input value')) {
+  if (message.contains('event_status') ||
+      message.contains('invalid input value')) {
     return 'O estado selecionado para o evento não é válido.';
   }
-  if (message.contains('row-level security') || message.contains('permission')) {
+  if (message.contains('row-level security') ||
+      message.contains('permission')) {
     return 'Não tens permissão para guardar este evento.';
   }
   return 'Não foi possível guardar o evento. Confirma os dados e tenta novamente.';

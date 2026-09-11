@@ -69,7 +69,12 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
     final budget = TextEditingController(
       text: event?['budget'] == null ? '' : event!['budget'].toString(),
     );
+    final capacity = TextEditingController(
+      text: event?['capacity'] == null ? '' : event!['capacity'].toString(),
+    );
     DateTime? startsAt = _parseDate(event?['starts_at']);
+    DateTime? endsAt = _parseDate(event?['ends_at']);
+    String eventKind = _normalizeEventKind(event?['event_kind']?.toString());
     String status = _normalizeStatus(event?['status']?.toString());
     bool saving = false;
 
@@ -90,6 +95,29 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
                       labelText: 'Nome do evento',
                       prefixIcon: Icon(Icons.event_outlined),
                     ),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: eventKind,
+                    decoration: const InputDecoration(
+                      labelText: 'Tipo de evento',
+                      prefixIcon: Icon(Icons.category_outlined),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'general', child: Text('Evento')),
+                      DropdownMenuItem(value: 'ride', child: Text('Passeio')),
+                      DropdownMenuItem(
+                        value: 'rock_ride_in',
+                        child: Text('Rock & Ride In'),
+                      ),
+                    ],
+                    onChanged: saving
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setDialogState(() => eventKind = value);
+                            }
+                          },
                   ),
                   const SizedBox(height: 10),
                   TextField(
@@ -136,14 +164,73 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
                           },
                     child: InputDecorator(
                       decoration: const InputDecoration(
-                        labelText: 'Data e hora',
+                        labelText: 'Início — data e hora',
                         prefixIcon: Icon(Icons.calendar_month_outlined),
                         suffixIcon: Icon(Icons.edit_calendar_outlined),
                       ),
                       child: Text(
                         startsAt == null
-                            ? 'Selecionar data e hora'
+                            ? 'Selecionar início'
                             : _dateTimePt(startsAt!),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: saving
+                        ? null
+                        : () async {
+                            final initial =
+                                endsAt ??
+                                startsAt?.add(const Duration(hours: 2)) ??
+                                DateTime.now();
+                            final pickedDate = await showDatePicker(
+                              context: dialogContext,
+                              initialDate: initial,
+                              firstDate: DateTime(2000),
+                              lastDate: DateTime(2100),
+                              helpText: 'Selecionar data de fim',
+                            );
+                            if (pickedDate == null || !dialogContext.mounted) {
+                              return;
+                            }
+                            final pickedTime = await showTimePicker(
+                              context: dialogContext,
+                              initialTime: TimeOfDay.fromDateTime(initial),
+                              helpText: 'Selecionar hora de fim',
+                            );
+                            if (!dialogContext.mounted) return;
+                            final time =
+                                pickedTime ?? TimeOfDay.fromDateTime(initial);
+                            setDialogState(() {
+                              endsAt = DateTime(
+                                pickedDate.year,
+                                pickedDate.month,
+                                pickedDate.day,
+                                time.hour,
+                                time.minute,
+                              );
+                            });
+                          },
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: 'Fim — data e hora (opcional)',
+                        prefixIcon: const Icon(Icons.event_available_outlined),
+                        suffixIcon: endsAt == null
+                            ? const Icon(Icons.edit_calendar_outlined)
+                            : IconButton(
+                                tooltip: 'Remover data de fim',
+                                onPressed: saving
+                                    ? null
+                                    : () => setDialogState(() => endsAt = null),
+                                icon: const Icon(Icons.clear),
+                              ),
+                      ),
+                      child: Text(
+                        endsAt == null
+                            ? 'Sem data de fim definida'
+                            : _dateTimePt(endsAt!),
                       ),
                     ),
                   ),
@@ -166,6 +253,15 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
                     decoration: const InputDecoration(
                       labelText: 'Orçamento (€)',
                       prefixIcon: Icon(Icons.euro_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: capacity,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Capacidade prevista (opcional)',
+                      prefixIcon: Icon(Icons.groups_outlined),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -233,6 +329,31 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
                         );
                         return;
                       }
+                      if (endsAt != null && !endsAt!.isAfter(startsAt!)) {
+                        ScaffoldMessenger.of(dialogContext).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'A data de fim tem de ser posterior ao início.',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+                      final capacityText = capacity.text.trim();
+                      final parsedCapacity = capacityText.isEmpty
+                          ? null
+                          : int.tryParse(capacityText);
+                      if (capacityText.isNotEmpty &&
+                          (parsedCapacity == null || parsedCapacity <= 0)) {
+                        ScaffoldMessenger.of(dialogContext).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'A capacidade tem de ser um número inteiro superior a zero.',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
                       setDialogState(() => saving = true);
                       try {
                         await _events.saveEvent({
@@ -244,6 +365,9 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
                               ? null
                               : location.text.trim(),
                           'starts_at': startsAt!.toIso8601String(),
+                          'ends_at': endsAt?.toIso8601String(),
+                          'event_kind': eventKind,
+                          'capacity': parsedCapacity,
                           'budget':
                               double.tryParse(
                                 budget.text.trim().replaceAll(',', '.'),
@@ -281,6 +405,7 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
     location.dispose();
     description.dispose();
     budget.dispose();
+    capacity.dispose();
     if (saved == true && mounted) setState(_reload);
   }
 
@@ -998,8 +1123,24 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
                           ? widget.event['location'].toString()
                           : 'Sem local definido',
                     ),
-                    subtitle: Text(
-                      _dateTimePt(_parseDate(widget.event['starts_at'])),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Tipo: ${_eventKindLabel(widget.event['event_kind'])}',
+                        ),
+                        Text(
+                          'Início: ${_dateTimePt(_parseDate(widget.event['starts_at']))}',
+                        ),
+                        if (_parseDate(widget.event['ends_at']) != null)
+                          Text(
+                            'Fim: ${_dateTimePt(_parseDate(widget.event['ends_at']))}',
+                          ),
+                        if (widget.event['capacity'] != null)
+                          Text(
+                            'Capacidade: ${widget.event['capacity']} pessoas',
+                          ),
+                      ],
                     ),
                     trailing: Chip(
                       label: Text(
@@ -1397,6 +1538,18 @@ List<Map<String, dynamic>> _companions(Map<String, dynamic> registration) {
   if (value is List) return List<Map<String, dynamic>>.from(value);
   return const <Map<String, dynamic>>[];
 }
+
+String _normalizeEventKind(String? value) => switch (value) {
+  'ride' => 'ride',
+  'rock_ride_in' => 'rock_ride_in',
+  _ => 'general',
+};
+
+String _eventKindLabel(Object? value) => switch (value?.toString()) {
+  'ride' => 'Passeio',
+  'rock_ride_in' => 'Rock & Ride In',
+  _ => 'Evento',
+};
 
 String _normalizeStatus(String? value) {
   return switch (value) {
