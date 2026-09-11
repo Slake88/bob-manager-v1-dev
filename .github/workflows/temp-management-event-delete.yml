@@ -1,0 +1,222 @@
+name: Temporary management event delete patch
+
+on:
+  push:
+    branches: [rc1-rebuild]
+    paths:
+      - '.github/workflows/temp-management-event-delete.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rc1-rebuild
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Patch management event screen
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/mobile/lib/screens/events_module_screen.dart')
+          text = path.read_text(encoding='utf-8')
+
+          old = "import '../core/app_session.dart';\n"
+          new = "import '../core/app_session.dart';\nimport '../core/permissions.dart';\n"
+          if new not in text:
+              if text.count(old) != 1:
+                  raise SystemExit(f'import anchor count={text.count(old)}')
+              text = text.replace(old, new, 1)
+
+          old = '''  Future<void> _openEvent(Map<String, dynamic> event) async {
+            await Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => EventAdvancedScreen(
+                  event: event,
+                  repository: _advanced,
+                ),
+              ),
+            );
+            if (mounted) setState(_reload);
+          }
+          '''
+          new = '''  Future<void> _openEvent(Map<String, dynamic> event) async {
+            final deleted = await Navigator.of(context).push<bool>(
+              MaterialPageRoute<bool>(
+                builder: (_) => EventAdvancedScreen(
+                  event: event,
+                  repository: _advanced,
+                ),
+              ),
+            );
+            if (!mounted) return;
+            setState(_reload);
+            if (deleted == true) {
+              _snack(context, 'Evento eliminado.');
+            }
+          }
+          '''
+          if new not in text:
+              if text.count(old) != 1:
+                  raise SystemExit(f'open event anchor count={text.count(old)}')
+              text = text.replace(old, new, 1)
+
+          old = '''class _EventAdvancedScreenState extends State<EventAdvancedScreen> {
+            late Future<Map<String, dynamic>> _future;
+
+            String get _eventId => widget.event['id'].toString();
+          '''
+          new = '''class _EventAdvancedScreenState extends State<EventAdvancedScreen> {
+            final EventsRepository _events = EventsRepository();
+            late Future<Map<String, dynamic>> _future;
+            bool _deleting = false;
+
+            String get _eventId => widget.event['id'].toString();
+            bool get _canManageEvent =>
+                AppSession.instance.can(AppPermission.manageEvents);
+          '''
+          if new not in text:
+              if text.count(old) != 1:
+                  raise SystemExit(f'state anchor count={text.count(old)}')
+              text = text.replace(old, new, 1)
+
+          old = '''  @override
+            Widget build(BuildContext context) {
+              return Scaffold(
+          '''
+          method = '''  Future<void> _deleteEvent() async {
+            if (_deleting || !_canManageEvent) return;
+            final eventName =
+                widget.event['name']?.toString().trim().isNotEmpty == true
+                    ? widget.event['name'].toString().trim()
+                    : 'este evento';
+            final confirmed = await showDialog<bool>(
+              context: context,
+              builder: (confirmContext) => AlertDialog(
+                title: const Text('Eliminar evento'),
+                content: Text(
+                  'Queres eliminar o evento “$eventName”?\n\n'
+                  'Roadbooks, paragens, participantes, voluntários, turnos, tarefas e outros dados operacionais associados serão eliminados. '
+                  'Registos financeiros ou de inventário relacionados são preservados, mas deixam de ficar associados ao evento.\n\n'
+                  'Esta ação não pode ser anulada.',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(confirmContext, false),
+                    child: const Text('Cancelar'),
+                  ),
+                  FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Theme.of(confirmContext).colorScheme.error,
+                      foregroundColor: Theme.of(confirmContext).colorScheme.onError,
+                    ),
+                    onPressed: () => Navigator.pop(confirmContext, true),
+                    child: const Text('Eliminar'),
+                  ),
+                ],
+              ),
+            );
+            if (confirmed != true || !mounted) return;
+
+            setState(() => _deleting = true);
+            try {
+              await _events.deleteEvent(_eventId);
+              if (!mounted) return;
+              Navigator.of(context).pop(true);
+            } catch (error) {
+              if (!mounted) return;
+              setState(() => _deleting = false);
+              _snack(context, _friendly(error));
+            }
+          }
+
+          '''
+          # Restrict insertion to EventAdvancedScreen state only.
+          state_start = text.index('class _EventAdvancedScreenState')
+          build_pos = text.index('  @override\n  Widget build(BuildContext context) {', state_start)
+          if '_deleteEvent() async' not in text[state_start:build_pos]:
+              text = text[:build_pos] + method + text[build_pos:]
+
+          old = '''              _HubTile(
+                icon: Icons.music_note_outlined,
+                title: 'Rock & Ride In',
+                subtitle:
+                    '${data['bands']} bandas • ${data['exhibitors']} expositores • ${data['sponsors']} apoios',
+                onTap: () => _open(
+                  _RockRidePage(
+                    eventId: _eventId,
+                    repository: widget.repository,
+                  ),
+                ),
+              ),
+          '''
+          new = '''              _HubTile(
+                icon: Icons.music_note_outlined,
+                title: 'Rock & Ride In',
+                subtitle:
+                    '${data['bands']} bandas • ${data['exhibitors']} expositores • ${data['sponsors']} apoios',
+                onTap: () => _open(
+                  _RockRidePage(
+                    eventId: _eventId,
+                    repository: widget.repository,
+                  ),
+                ),
+              ),
+              if (_canManageEvent) ...[
+                const SizedBox(height: 12),
+                Card(
+                  child: ListTile(
+                    leading: Icon(
+                      Icons.delete_outline,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    title: Text(
+                      'Eliminar evento',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Remove este evento e os dados operacionais associados.',
+                    ),
+                    trailing: _deleting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            Icons.chevron_right,
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                    onTap: _deleting ? null : _deleteEvent,
+                  ),
+                ),
+              ],
+          '''
+          if new not in text:
+              if text.count(old) != 1:
+                  raise SystemExit(f'rock ride anchor count={text.count(old)}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text, encoding='utf-8')
+          PY
+          dart format apps/mobile/lib/screens/events_module_screen.dart
+          rm .github/workflows/temp-management-event-delete.yml
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/mobile/lib/screens/events_module_screen.dart .github/workflows/temp-management-event-delete.yml
+          git commit -m "fix(events): expose event deletion in management"
+          git push origin rc1-rebuild
