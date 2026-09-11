@@ -2,9 +2,8 @@ name: Temporary active event V2 refresh
 
 on:
   push:
-    branches: [rc1-rebuild]
-    paths:
-      - '.github/workflows/temp-event-v2-refresh.yml'
+    branches:
+      - rc1-rebuild
 
 permissions:
   contents: write
@@ -20,124 +19,49 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-      - name: Patch active Events V2 refresh
+      - name: Patch active event tabs
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
 
           module = Path('apps/mobile/lib/screens/events_module_v2_screen.dart')
-          module.write_text("""import 'package:flutter/material.dart';
-
-import 'events_agenda_v2_screen.dart';
-import 'events_module_screen.dart';
-
-class EventsModuleV2Screen extends StatefulWidget {
-  const EventsModuleV2Screen({super.key});
-
-  @override
-  State<EventsModuleV2Screen> createState() => _EventsModuleV2ScreenState();
-}
-
-class _EventsModuleV2ScreenState extends State<EventsModuleV2Screen> {
-  int _index = 0;
-  int _agendaRefreshToken = 0;
-  int _managementRefreshToken = 0;
-
-  void _selectTab(int value) {
-    if (value == _index) return;
-    setState(() {
-      _index = value;
-      if (value == 0) {
-        _agendaRefreshToken++;
-      } else {
-        _managementRefreshToken++;
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _index,
-        children: [
-          EventsAgendaV2Screen(refreshToken: _agendaRefreshToken),
-          EventsAdvancedHomeScreen(refreshToken: _managementRefreshToken),
-        ],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: _selectTab,
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.calendar_month_outlined),
-            selectedIcon: Icon(Icons.calendar_month),
-            label: 'Agenda',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.event_note_outlined),
-            selectedIcon: Icon(Icons.event_note),
-            label: 'Gestão',
-          ),
-        ],
-      ),
-    );
-  }
-}
-""", encoding='utf-8')
+          text = module.read_text(encoding='utf-8')
+          text = text.replace(
+              "  int _index = 0;\n",
+              "  int _index = 0;\n  int _agendaRefreshToken = 0;\n  int _managementRefreshToken = 0;\n\n  void _selectTab(int value) {\n    if (value == _index) return;\n    setState(() {\n      _index = value;\n      if (value == 0) {\n        _agendaRefreshToken++;\n      } else {\n        _managementRefreshToken++;\n      }\n    });\n  }\n",
+              1,
+          )
+          text = text.replace(
+              "        children: const [\n          EventsAgendaV2Screen(),\n          EventsAdvancedHomeScreen(),\n        ],",
+              "        children: [\n          EventsAgendaV2Screen(refreshToken: _agendaRefreshToken),\n          EventsAdvancedHomeScreen(refreshToken: _managementRefreshToken),\n        ],",
+              1,
+          )
+          text = text.replace(
+              "        onDestinationSelected: (value) => setState(() => _index = value),",
+              "        onDestinationSelected: _selectTab,",
+              1,
+          )
+          if '_agendaRefreshToken' not in text or 'onDestinationSelected: _selectTab' not in text:
+              raise SystemExit('events_module_v2_screen.dart was not patched')
+          module.write_text(text, encoding='utf-8')
 
           agenda = Path('apps/mobile/lib/screens/events_agenda_v2_screen.dart')
           text = agenda.read_text(encoding='utf-8')
-          old_ctor = """class EventsAgendaV2Screen extends StatefulWidget {
-  const EventsAgendaV2Screen({super.key});
-
-  @override
-"""
-          new_ctor = """class EventsAgendaV2Screen extends StatefulWidget {
-  const EventsAgendaV2Screen({super.key, this.refreshToken = 0});
-
-  final int refreshToken;
-
-  @override
-"""
-          if text.count(old_ctor) != 1:
-              raise SystemExit(f'agenda constructor anchor count={text.count(old_ctor)}')
-          text = text.replace(old_ctor, new_ctor, 1)
-
-          old_lifecycle = """  @override
-  void initState() {
-    super.initState();
-    final now = DateTime.now();
-    _month = DateTime(now.year, now.month);
-    _reload();
-  }
-
-  void _reload() {
-"""
-          new_lifecycle = """  @override
-  void initState() {
-    super.initState();
-    final now = DateTime.now();
-    _month = DateTime(now.year, now.month);
-    _reload();
-  }
-
-  @override
-  void didUpdateWidget(covariant EventsAgendaV2Screen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.refreshToken != widget.refreshToken) {
-      _reload();
-    }
-  }
-
-  void _reload() {
-"""
-          if text.count(old_lifecycle) != 1:
-              raise SystemExit(f'agenda lifecycle anchor count={text.count(old_lifecycle)}')
-          agenda.write_text(text.replace(old_lifecycle, new_lifecycle, 1), encoding='utf-8')
+          ctor = "class EventsAgendaV2Screen extends StatefulWidget {\n  const EventsAgendaV2Screen({super.key});"
+          replacement = "class EventsAgendaV2Screen extends StatefulWidget {\n  const EventsAgendaV2Screen({super.key, this.refreshToken = 0});\n\n  final int refreshToken;"
+          if ctor not in text:
+              raise SystemExit('agenda constructor anchor not found')
+          text = text.replace(ctor, replacement, 1)
+          lifecycle_anchor = "  void _reload() {\n    _future = _events.listMonth(_month.year, _month.month);\n  }"
+          lifecycle = "  @override\n  void didUpdateWidget(covariant EventsAgendaV2Screen oldWidget) {\n    super.didUpdateWidget(oldWidget);\n    if (oldWidget.refreshToken != widget.refreshToken) {\n      _reload();\n    }\n  }\n\n  void _reload() {\n    _future = _events.listMonth(_month.year, _month.month);\n  }"
+          if lifecycle_anchor not in text:
+              raise SystemExit('agenda lifecycle anchor not found')
+          text = text.replace(lifecycle_anchor, lifecycle, 1)
+          agenda.write_text(text, encoding='utf-8')
           PY
           dart format apps/mobile/lib/screens/events_module_v2_screen.dart apps/mobile/lib/screens/events_agenda_v2_screen.dart
+          rm .github/workflows/temp-event-v2-refresh.yml
       - name: Validate Flutter
         working-directory: apps/mobile
         run: |
@@ -145,12 +69,11 @@ class _EventsModuleV2ScreenState extends State<EventsModuleV2Screen> {
           flutter analyze
           flutter test
           flutter build web --release
-      - name: Commit active V2 refresh fix
+      - name: Commit fix
         shell: bash
         run: |
-          rm .github/workflows/temp-event-v2-refresh.yml
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add apps/mobile/lib/screens/events_module_v2_screen.dart apps/mobile/lib/screens/events_agenda_v2_screen.dart .github/workflows/temp-event-v2-refresh.yml
-          git commit -m 'fix(events): refresh active agenda and management tabs'
+          git commit -m "fix(events): refresh active agenda and management tabs"
           git push origin rc1-rebuild
