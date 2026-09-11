@@ -9,9 +9,56 @@ permissions:
   contents: write
 
 jobs:
-  validate:
+  patch:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Check workflow
-        run: echo ready
+        with:
+          ref: rc1-rebuild
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Patch refresh lifecycle
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          old = """    if (oldWidget.refreshToken != widget.refreshToken) {
+              _reload();
+            }
+          """
+          new = """    if (oldWidget.refreshToken != widget.refreshToken) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) setState(_reload);
+              });
+            }
+          """
+
+          for filename in [
+              'apps/mobile/lib/screens/events_module_screen.dart',
+              'apps/mobile/lib/screens/events_screen.dart',
+          ]:
+              path = Path(filename)
+              text = path.read_text(encoding='utf-8')
+              if text.count(old) != 1:
+                  raise SystemExit(f'{filename}: refresh anchor count={text.count(old)}')
+              path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          dart format apps/mobile/lib/screens/events_module_screen.dart apps/mobile/lib/screens/events_screen.dart
+          rm .github/workflows/temp-format-management-delete.yml
+      - name: Validate Flutter
+        working-directory: apps/mobile
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+      - name: Commit fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/mobile/lib/screens/events_module_screen.dart apps/mobile/lib/screens/events_screen.dart .github/workflows/temp-format-management-delete.yml
+          git commit -m "fix(events): force refresh after event tab switch"
+          git push origin rc1-rebuild
