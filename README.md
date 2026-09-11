@@ -19,4 +19,4 @@ A aplicação arranca em modo demonstração quando `config/dev.json` não exist
 
 ## RC1
 
-A gestão de eventos inclui CRUD base, confirmação segura de eliminação e filtragem por estado.
+A gestão de eventos inclui CRUD base, confirmação segura de eliminação na Agenda e na Gestão, e filtragem por estado.
