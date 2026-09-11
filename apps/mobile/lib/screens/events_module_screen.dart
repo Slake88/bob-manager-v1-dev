@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_session.dart';
+import '../core/permissions.dart';
 import '../repositories/events_advanced_repository.dart';
 import '../repositories/events_repository.dart';
 import '../repositories/member_repository.dart';
@@ -86,16 +87,20 @@ class _EventsAdvancedHomeScreenState extends State<EventsAdvancedHomeScreen> {
   }
 
   Future<void> _openEvent(Map<String, dynamic> event) async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => EventAdvancedScreen(
-          event: event,
-          repository: _advanced,
-        ),
+  final deleted = await Navigator.of(context).push<bool>(
+    MaterialPageRoute<bool>(
+      builder: (_) => EventAdvancedScreen(
+        event: event,
+        repository: _advanced,
       ),
-    );
-    if (mounted) setState(_reload);
+    ),
+  );
+  if (!mounted) return;
+  setState(_reload);
+  if (deleted == true) {
+    _snack(context, 'Evento eliminado.');
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -564,9 +569,13 @@ class EventAdvancedScreen extends StatefulWidget {
 }
 
 class _EventAdvancedScreenState extends State<EventAdvancedScreen> {
+  final EventsRepository _events = EventsRepository();
   late Future<Map<String, dynamic>> _future;
+  bool _deleting = false;
 
   String get _eventId => widget.event['id'].toString();
+  bool get _canManageEvent =>
+      AppSession.instance.can(AppPermission.manageEvents);
 
   @override
   void initState() {
@@ -581,6 +590,56 @@ class _EventAdvancedScreenState extends State<EventAdvancedScreen> {
       MaterialPageRoute(builder: (_) => screen),
     );
     if (mounted) setState(_reload);
+  }
+
+  Future<void> _deleteEvent() async {
+    if (_deleting || !_canManageEvent) return;
+    final eventName =
+        widget.event['name']?.toString().trim().isNotEmpty == true
+            ? widget.event['name'].toString().trim()
+            : 'este evento';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (confirmContext) => AlertDialog(
+        title: const Text('Eliminar evento'),
+        content: Text(
+          'Queres eliminar o evento “$eventName”?
+
+'
+          'Roadbooks, paragens, participantes, voluntários, turnos, tarefas e outros dados operacionais associados serão eliminados. '
+          'Registos financeiros ou de inventário relacionados são preservados, mas deixam de ficar associados ao evento.
+
+'
+          'Esta ação não pode ser anulada.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(confirmContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(confirmContext).colorScheme.error,
+              foregroundColor: Theme.of(confirmContext).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(confirmContext, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _deleting = true);
+    try {
+      await _events.deleteEvent(_eventId);
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _deleting = false);
+      _snack(context, _friendly(error));
+    }
   }
 
   @override
@@ -678,6 +737,38 @@ class _EventAdvancedScreenState extends State<EventAdvancedScreen> {
                   ),
                 ),
               ),
+              if (_canManageEvent) ...[
+      const SizedBox(height: 12),
+      Card(
+        child: ListTile(
+          leading: Icon(
+            Icons.delete_outline,
+            color: Theme.of(context).colorScheme.error,
+          ),
+          title: Text(
+            'Eliminar evento',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.error,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          subtitle: const Text(
+            'Remove este evento e os dados operacionais associados.',
+          ),
+          trailing: _deleting
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Icon(
+                  Icons.chevron_right,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+          onTap: _deleting ? null : _deleteEvent,
+        ),
+      ),
+    ],
             ],
           );
         },
