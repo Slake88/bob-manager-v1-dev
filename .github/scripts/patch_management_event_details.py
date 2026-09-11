@@ -1,0 +1,189 @@
+from pathlib import Path
+
+path = Path('apps/mobile/lib/screens/events_module_screen.dart')
+text = path.read_text(encoding='utf-8')
+
+old = """              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        eventKindLabel(widget.event['event_kind']),
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${_date(widget.event['starts_at'])} • ${widget.event['location'] ?? 'Local por definir'}',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+"""
+
+new = """              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CircleAvatar(
+                            child: Icon(_eventIcon(widget.event['event_kind'])),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  eventKindLabel(widget.event['event_kind']),
+                                  style: Theme.of(context).textTheme.titleLarge,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  widget.event['location']
+                                              ?.toString()
+                                              .trim()
+                                              .isNotEmpty ==
+                                          true
+                                      ? widget.event['location'].toString()
+                                      : 'Local por definir',
+                                ),
+                              ],
+                            ),
+                          ),
+                          Chip(
+                            label: Text(
+                              _eventStatusLabel(widget.event['status']),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Divider(height: 1),
+                      const SizedBox(height: 12),
+                      _EventInfoRow(
+                        icon: Icons.play_circle_outline,
+                        label: 'Início',
+                        value: _dateTimeValue(widget.event['starts_at']),
+                      ),
+                      const SizedBox(height: 8),
+                      _EventInfoRow(
+                        icon: Icons.stop_circle_outlined,
+                        label: 'Fim',
+                        value: _dateTimeValue(
+                          widget.event['ends_at'],
+                          empty: 'Por definir',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _EventInfoRow(
+                        icon: Icons.groups_outlined,
+                        label: 'Capacidade prevista',
+                        value: _capacityLabel(widget.event['capacity']),
+                      ),
+                      const SizedBox(height: 8),
+                      _EventInfoRow(
+                        icon: Icons.euro_outlined,
+                        label: 'Orçamento',
+                        value: _moneyValue(widget.event['budget']),
+                      ),
+                      if (widget.event['description']
+                              ?.toString()
+                              .trim()
+                              .isNotEmpty ==
+                          true) ...[
+                        const SizedBox(height: 12),
+                        const Divider(height: 1),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Descrição / notas',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(widget.event['description'].toString()),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+"""
+
+if old not in text:
+    raise SystemExit('Target event detail card not found')
+text = text.replace(old, new, 1)
+
+marker = 'class _GuestsPage extends StatefulWidget {'
+widget_code = """class _EventInfoRow extends StatelessWidget {
+  const _EventInfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 145,
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: Text(value)),
+      ],
+    );
+  }
+}
+
+"""
+if marker not in text:
+    raise SystemExit('Guests page marker not found')
+text = text.replace(marker, widget_code + marker, 1)
+
+helper_marker = 'String? _nullText(String value) {'
+helpers = """String _dateTimeValue(Object? value, {String empty = 'Por definir'}) {
+  final date = _parse(value)?.toLocal();
+  if (date == null) return empty;
+  return '${date.day.toString().padLeft(2, '0')}/'
+      '${date.month.toString().padLeft(2, '0')}/${date.year} • '
+      '${date.hour.toString().padLeft(2, '0')}:'
+      '${date.minute.toString().padLeft(2, '0')}';
+}
+
+String _capacityLabel(Object? value) {
+  final capacity = value is num
+      ? value.toInt()
+      : int.tryParse(value?.toString() ?? '');
+  if (capacity == null || capacity <= 0) return 'Por definir';
+  return '$capacity ${capacity == 1 ? 'pessoa' : 'pessoas'}';
+}
+
+String _moneyValue(Object? value) {
+  final amount = value is num
+      ? value.toDouble()
+      : double.tryParse(value?.toString() ?? '') ?? 0;
+  return '${amount.toStringAsFixed(2).replaceAll('.', ',')} €';
+}
+
+"""
+if helper_marker not in text:
+    raise SystemExit('Helper marker not found')
+text = text.replace(helper_marker, helpers + helper_marker, 1)
+
+path.write_text(text, encoding='utf-8')
