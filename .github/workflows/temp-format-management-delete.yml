@@ -3,8 +3,6 @@ name: Temporary format management delete patch
 on:
   push:
     branches: [rc1-rebuild]
-    paths:
-      - '.github/workflows/temp-format-management-delete.yml'
 
 permissions:
   contents: write
