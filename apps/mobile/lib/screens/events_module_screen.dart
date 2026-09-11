@@ -146,14 +146,13 @@ class _EventsAdvancedHomeScreenState extends State<EventsAdvancedHomeScreen> {
         final events = List<Map<String, dynamic>>.from(
           snapshot.data![1] as List,
         );
-        final pending = proposals
-            .where((row) => row['status'] == 'submitted')
-            .length;
+        final pending =
+            proposals.where((row) => row['status'] == 'submitted').length;
         final visibleEvents = _statusFilter == 'all'
             ? events
             : events
-                  .where((row) => row['status']?.toString() == _statusFilter)
-                  .toList();
+                .where((row) => row['status']?.toString() == _statusFilter)
+                .toList();
 
         return RefreshIndicator(
           onRefresh: _refresh,
@@ -389,9 +388,8 @@ class _EventProposalsScreenState extends State<EventProposalsScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: saving
-                  ? null
-                  : () => Navigator.pop(dialogContext, false),
+              onPressed:
+                  saving ? null : () => Navigator.pop(dialogContext, false),
               child: const Text('Cancelar'),
             ),
             FilledButton.icon(
@@ -501,8 +499,7 @@ class _EventProposalsScreenState extends State<EventProposalsScreen> {
               else
                 ...rows.map((row) {
                   final pending = row['status'] == 'submitted';
-                  final mine =
-                      row['proposed_by']?.toString() ==
+                  final mine = row['proposed_by']?.toString() ==
                       AppSession.instance.profileId;
                   return Card(
                     child: Padding(
@@ -515,9 +512,8 @@ class _EventProposalsScreenState extends State<EventProposalsScreen> {
                               Expanded(
                                 child: Text(
                                   row['name']?.toString() ?? 'Proposta',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium,
+                                  style:
+                                      Theme.of(context).textTheme.titleMedium,
                                 ),
                               ),
                               Chip(
@@ -705,14 +701,85 @@ class _EventAdvancedScreenState extends State<EventAdvancedScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        eventKindLabel(widget.event['event_kind']),
-                        style: Theme.of(context).textTheme.titleLarge,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CircleAvatar(
+                            child: Icon(_eventIcon(widget.event['event_kind'])),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  eventKindLabel(widget.event['event_kind']),
+                                  style: Theme.of(context).textTheme.titleLarge,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  widget.event['location']
+                                              ?.toString()
+                                              .trim()
+                                              .isNotEmpty ==
+                                          true
+                                      ? widget.event['location'].toString()
+                                      : 'Local por definir',
+                                ),
+                              ],
+                            ),
+                          ),
+                          Chip(
+                            label: Text(
+                              _eventStatusLabel(widget.event['status']),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '${_date(widget.event['starts_at'])} • ${widget.event['location'] ?? 'Local por definir'}',
+                      const SizedBox(height: 16),
+                      const Divider(height: 1),
+                      const SizedBox(height: 12),
+                      _EventInfoRow(
+                        icon: Icons.play_circle_outline,
+                        label: 'Início',
+                        value: _dateTimeValue(widget.event['starts_at']),
                       ),
+                      const SizedBox(height: 8),
+                      _EventInfoRow(
+                        icon: Icons.stop_circle_outlined,
+                        label: 'Fim',
+                        value: _dateTimeValue(
+                          widget.event['ends_at'],
+                          empty: 'Por definir',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _EventInfoRow(
+                        icon: Icons.groups_outlined,
+                        label: 'Capacidade prevista',
+                        value: _capacityLabel(widget.event['capacity']),
+                      ),
+                      const SizedBox(height: 8),
+                      _EventInfoRow(
+                        icon: Icons.euro_outlined,
+                        label: 'Orçamento',
+                        value: _moneyValue(widget.event['budget']),
+                      ),
+                      if (widget.event['description']
+                              ?.toString()
+                              .trim()
+                              .isNotEmpty ==
+                          true) ...[
+                        const SizedBox(height: 12),
+                        const Divider(height: 1),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Descrição / notas',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(widget.event['description'].toString()),
+                      ],
                     ],
                   ),
                 ),
@@ -808,6 +875,38 @@ class _EventAdvancedScreenState extends State<EventAdvancedScreen> {
           );
         },
       ),
+    );
+  }
+}
+
+class _EventInfoRow extends StatelessWidget {
+  const _EventInfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 145,
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: Text(value)),
+      ],
     );
   }
 }
@@ -1036,14 +1135,17 @@ class _RoadbookPageState extends State<_RoadbookPage> {
             onPressed: () async {
               if (name.text.trim().isEmpty) return;
               try {
-                await widget.repository.saveRoute(widget.eventId, {
-                  'name': name.text.trim(),
-                  'start_location': _nullText(start.text),
-                  'end_location': _nullText(end.text),
-                  'distance_km': double.tryParse(
-                    distance.text.replaceAll(',', '.'),
-                  ),
-                }, id: route?['id']?.toString());
+                await widget.repository.saveRoute(
+                    widget.eventId,
+                    {
+                      'name': name.text.trim(),
+                      'start_location': _nullText(start.text),
+                      'end_location': _nullText(end.text),
+                      'distance_km': double.tryParse(
+                        distance.text.replaceAll(',', '.'),
+                      ),
+                    },
+                    id: route?['id']?.toString());
                 if (dialogContext.mounted) {
                   Navigator.pop(dialogContext, true);
                 }
@@ -1145,54 +1247,53 @@ class _RoadbookPageState extends State<_RoadbookPage> {
                     ),
                   ]
                 : rows
-                      .map(
-                        (row) => Card(
-                          child: ListTile(
-                            leading: const Icon(Icons.route_outlined),
-                            title: Text(row['name']?.toString() ?? 'Roadbook'),
-                            subtitle: Text(
-                              '${row['start_location'] ?? 'Partida'} → ${row['end_location'] ?? 'Destino'}${row['distance_km'] == null ? '' : ' • ${row['distance_km']} km'}',
-                            ),
-                            trailing: widget.repository.canManageRoadbook
-                                ? Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      IconButton(
-                                        tooltip: 'Editar roadbook',
-                                        onPressed: () =>
-                                            _editRoadbook(route: row),
-                                        icon: const Icon(Icons.edit_outlined),
-                                      ),
-                                      IconButton(
-                                        tooltip: 'Eliminar roadbook',
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .error,
-                                        onPressed: () => _deleteRoadbook(row),
-                                        icon: const Icon(Icons.delete_outline),
-                                      ),
-                                      const Icon(Icons.chevron_right),
-                                    ],
-                                  )
-                                : const Icon(Icons.chevron_right),
-                            onTap: () async {
-                              await Navigator.of(context).push<void>(
-                                MaterialPageRoute(
-                                  builder: (_) => RoadbookStopsScreen(
-                                    eventId: widget.eventId,
-                                    route: row,
-                                    repository: widget.repository,
-                                  ),
-                                ),
-                              );
-                              if (mounted) {
-                                await _refreshRoadbooks();
-                              }
-                            },
+                    .map(
+                      (row) => Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.route_outlined),
+                          title: Text(row['name']?.toString() ?? 'Roadbook'),
+                          subtitle: Text(
+                            '${row['start_location'] ?? 'Partida'} → ${row['end_location'] ?? 'Destino'}${row['distance_km'] == null ? '' : ' • ${row['distance_km']} km'}',
                           ),
+                          trailing: widget.repository.canManageRoadbook
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'Editar roadbook',
+                                      onPressed: () =>
+                                          _editRoadbook(route: row),
+                                      icon: const Icon(Icons.edit_outlined),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Eliminar roadbook',
+                                      color:
+                                          Theme.of(context).colorScheme.error,
+                                      onPressed: () => _deleteRoadbook(row),
+                                      icon: const Icon(Icons.delete_outline),
+                                    ),
+                                    const Icon(Icons.chevron_right),
+                                  ],
+                                )
+                              : const Icon(Icons.chevron_right),
+                          onTap: () async {
+                            await Navigator.of(context).push<void>(
+                              MaterialPageRoute(
+                                builder: (_) => RoadbookStopsScreen(
+                                  eventId: widget.eventId,
+                                  route: row,
+                                  repository: widget.repository,
+                                ),
+                              ),
+                            );
+                            if (mounted) {
+                              await _refreshRoadbooks();
+                            }
+                          },
                         ),
-                      )
-                      .toList(),
+                      ),
+                    )
+                    .toList(),
           );
         },
       ),
@@ -1487,7 +1588,7 @@ class _RouteStopsPageState extends State<_RouteStopsPage> {
                                           onPressed: _reordering
                                               ? null
                                               : () =>
-                                                    _editStop(rows, stop: row),
+                                                  _editStop(rows, stop: row),
                                           icon: const Icon(Icons.edit_outlined),
                                         ),
                                         IconButton(
@@ -1578,8 +1679,8 @@ class _EmergencyEventPage extends StatelessWidget {
                 final emergency = row['emergency_contact'];
                 final emergencyText = emergency is Map
                     ? emergency.entries
-                          .map((entry) => '${entry.key}: ${entry.value}')
-                          .join(' • ')
+                        .map((entry) => '${entry.key}: ${entry.value}')
+                        .join(' • ')
                     : emergency?.toString() ?? 'Sem contacto de emergência';
                 return Card(
                   child: ListTile(
@@ -1656,9 +1757,8 @@ class _RockRidePageState extends State<_RockRidePage> {
             TextField(
               controller: extra,
               decoration: InputDecoration(
-                labelText: type == 'exhibitor'
-                    ? 'Categoria'
-                    : 'Valor acordado (€)',
+                labelText:
+                    type == 'exhibitor' ? 'Categoria' : 'Valor acordado (€)',
               ),
               keyboardType: type == 'exhibitor'
                   ? TextInputType.text
@@ -1767,18 +1867,22 @@ class _RockRidePageState extends State<_RockRidePage> {
           FilledButton(
             onPressed: () async {
               try {
-                await widget.repository.saveOctaneConfig(widget.eventId, {
-                  'unit_price':
-                      double.tryParse(unit.text.replaceAll(',', '.')) ?? 1.5,
-                  'five_card_units': 5,
-                  'five_card_price':
-                      double.tryParse(five.text.replaceAll(',', '.')) ?? 7,
-                  'ten_card_units': 10,
-                  'ten_card_price':
-                      double.tryParse(ten.text.replaceAll(',', '.')) ?? 13,
-                  'ten_card_bonus': 1,
-                  'active': true,
-                }, id: current?['id']?.toString());
+                await widget.repository.saveOctaneConfig(
+                    widget.eventId,
+                    {
+                      'unit_price':
+                          double.tryParse(unit.text.replaceAll(',', '.')) ??
+                              1.5,
+                      'five_card_units': 5,
+                      'five_card_price':
+                          double.tryParse(five.text.replaceAll(',', '.')) ?? 7,
+                      'ten_card_units': 10,
+                      'ten_card_price':
+                          double.tryParse(ten.text.replaceAll(',', '.')) ?? 13,
+                      'ten_card_bonus': 1,
+                      'active': true,
+                    },
+                    id: current?['id']?.toString());
                 if (dialogContext.mounted) {
                   Navigator.pop(dialogContext, true);
                 }
@@ -1822,8 +1926,7 @@ class _RockRidePageState extends State<_RockRidePage> {
             snapshot.data![2] as List,
           );
           final octanes = snapshot.data![3] as Map<String, dynamic>?;
-          final canWrite =
-              widget.repository.canManageRockRide ||
+          final canWrite = widget.repository.canManageRockRide ||
               widget.repository.canManageFinance;
           return ListView(
             padding: const EdgeInsets.all(12),
@@ -1968,9 +2071,8 @@ class _EventOperationsPageState extends State<_EventOperationsPage> {
                   'name': name.text.trim(),
                   'area': _nullText(area.text),
                   'starts_at': now.toIso8601String(),
-                  'ends_at': now
-                      .add(const Duration(hours: 2))
-                      .toIso8601String(),
+                  'ends_at':
+                      now.add(const Duration(hours: 2)).toIso8601String(),
                   'required_people': 1,
                   'status': 'planned',
                 });
@@ -2307,15 +2409,15 @@ class _SimpleFutureList extends StatelessWidget {
           children: rows.isEmpty
               ? [Card(child: ListTile(title: Text(emptyText)))]
               : rows
-                    .map(
-                      (row) => Card(
-                        child: ListTile(
-                          title: Text(title(row)),
-                          subtitle: Text(subtitle(row)),
-                        ),
+                  .map(
+                    (row) => Card(
+                      child: ListTile(
+                        title: Text(title(row)),
+                        subtitle: Text(subtitle(row)),
                       ),
-                    )
-                    .toList(),
+                    ),
+                  )
+                  .toList(),
         );
       },
     );
@@ -2404,18 +2506,18 @@ Future<bool> _textDialog(
 }
 
 IconData _eventIcon(Object? kind) => switch (kind?.toString()) {
-  'ride' => Icons.two_wheeler_outlined,
-  'rock_ride_in' => Icons.music_note_outlined,
-  _ => Icons.event_outlined,
-};
+      'ride' => Icons.two_wheeler_outlined,
+      'rock_ride_in' => Icons.music_note_outlined,
+      _ => Icons.event_outlined,
+    };
 
 String _eventStatusLabel(Object? status) => switch (status?.toString()) {
-  'published' => 'Publicado',
-  'active' => 'Em curso',
-  'completed' => 'Concluído',
-  'cancelled' => 'Cancelado',
-  _ => 'Rascunho',
-};
+      'published' => 'Publicado',
+      'active' => 'Em curso',
+      'completed' => 'Concluído',
+      'cancelled' => 'Cancelado',
+      _ => 'Rascunho',
+    };
 
 DateTime? _parse(Object? value) {
   if (value is DateTime) return value;
@@ -2431,6 +2533,29 @@ String _date(Object? value) {
 String _dateTime(DateTime? value) {
   if (value == null) return 'Por definir';
   return '${_date(value)} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+}
+
+String _dateTimeValue(Object? value, {String empty = 'Por definir'}) {
+  final date = _parse(value)?.toLocal();
+  if (date == null) return empty;
+  return '${date.day.toString().padLeft(2, '0')}/'
+      '${date.month.toString().padLeft(2, '0')}/${date.year} • '
+      '${date.hour.toString().padLeft(2, '0')}:'
+      '${date.minute.toString().padLeft(2, '0')}';
+}
+
+String _capacityLabel(Object? value) {
+  final capacity =
+      value is num ? value.toInt() : int.tryParse(value?.toString() ?? '');
+  if (capacity == null || capacity <= 0) return 'Por definir';
+  return '$capacity ${capacity == 1 ? 'pessoa' : 'pessoas'}';
+}
+
+String _moneyValue(Object? value) {
+  final amount = value is num
+      ? value.toDouble()
+      : double.tryParse(value?.toString() ?? '') ?? 0;
+  return '${amount.toStringAsFixed(2).replaceAll('.', ',')} €';
 }
 
 String? _nullText(String value) {
