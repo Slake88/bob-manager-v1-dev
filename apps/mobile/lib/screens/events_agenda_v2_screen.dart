@@ -8,7 +8,9 @@ import '../repositories/events_repository.dart';
 import '../repositories/member_repository.dart';
 
 class EventsAgendaV2Screen extends StatefulWidget {
-  const EventsAgendaV2Screen({super.key});
+  const EventsAgendaV2Screen({super.key, this.refreshToken = 0});
+
+  final int refreshToken;
 
   @override
   State<EventsAgendaV2Screen> createState() => _EventsAgendaV2ScreenState();
@@ -32,6 +34,14 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
     _reload();
   }
 
+  @override
+  void didUpdateWidget(covariant EventsAgendaV2Screen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshToken != widget.refreshToken) {
+      _reload();
+    }
+  }
+
   void _reload() {
     _future = _events.listMonth(_month.year, _month.month);
   }
@@ -50,10 +60,12 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
 
   Future<void> _openEvent([Map<String, dynamic>? event]) async {
     final name = TextEditingController(text: event?['name']?.toString() ?? '');
-    final location =
-        TextEditingController(text: event?['location']?.toString() ?? '');
-    final description =
-        TextEditingController(text: event?['description']?.toString() ?? '');
+    final location = TextEditingController(
+      text: event?['location']?.toString() ?? '',
+    );
+    final description = TextEditingController(
+      text: event?['description']?.toString() ?? '',
+    );
     final budget = TextEditingController(
       text: event?['budget'] == null ? '' : event!['budget'].toString(),
     );
@@ -148,8 +160,9 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
                   const SizedBox(height: 10),
                   TextField(
                     controller: budget,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     decoration: const InputDecoration(
                       labelText: 'Orçamento (€)',
                       prefixIcon: Icon(Icons.euro_outlined),
@@ -163,10 +176,7 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
                       prefixIcon: Icon(Icons.flag_outlined),
                     ),
                     items: const [
-                      DropdownMenuItem(
-                        value: 'draft',
-                        child: Text('Rascunho'),
-                      ),
+                      DropdownMenuItem(value: 'draft', child: Text('Rascunho')),
                       DropdownMenuItem(
                         value: 'published',
                         child: Text('Publicado'),
@@ -198,8 +208,9 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
           ),
           actions: [
             TextButton(
-              onPressed:
-                  saving ? null : () => Navigator.pop(dialogContext, false),
+              onPressed: saving
+                  ? null
+                  : () => Navigator.pop(dialogContext, false),
               child: const Text('Cancelar'),
             ),
             FilledButton.icon(
@@ -224,24 +235,22 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
                       }
                       setDialogState(() => saving = true);
                       try {
-                        await _events.saveEvent(
-                          {
-                            'name': name.text.trim(),
-                            'description': description.text.trim().isEmpty
-                                ? null
-                                : description.text.trim(),
-                            'location': location.text.trim().isEmpty
-                                ? null
-                                : location.text.trim(),
-                            'starts_at': startsAt!.toIso8601String(),
-                            'budget': double.tryParse(
-                                  budget.text.trim().replaceAll(',', '.'),
-                                ) ??
-                                0,
-                            'status': status,
-                          },
-                          eventId: event?['id']?.toString(),
-                        );
+                        await _events.saveEvent({
+                          'name': name.text.trim(),
+                          'description': description.text.trim().isEmpty
+                              ? null
+                              : description.text.trim(),
+                          'location': location.text.trim().isEmpty
+                              ? null
+                              : location.text.trim(),
+                          'starts_at': startsAt!.toIso8601String(),
+                          'budget':
+                              double.tryParse(
+                                budget.text.trim().replaceAll(',', '.'),
+                              ) ??
+                              0,
+                          'status': status,
+                        }, eventId: event?['id']?.toString());
                         if (dialogContext.mounted) {
                           Navigator.pop(dialogContext, true);
                         }
@@ -276,7 +285,8 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
   }
 
   Future<void> _openAnniversary(Map<String, dynamic> item) async {
-    final years = int.tryParse(item['anniversary_years']?.toString() ?? '') ?? 0;
+    final years =
+        int.tryParse(item['anniversary_years']?.toString() ?? '') ?? 0;
     final type = item['calendar_type']?.toString() ?? '';
     final detail = switch (type) {
       'birthday' => years > 0 ? '$years anos' : 'Aniversário',
@@ -295,10 +305,7 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Data: ${_datePt(_parseDate(item['starts_at']))}'),
-            if (detail.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(detail),
-            ],
+            if (detail.isNotEmpty) ...[const SizedBox(height: 8), Text(detail)],
           ],
         ),
         actions: [
@@ -339,8 +346,9 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
             return const Center(child: CircularProgressIndicator());
           }
           final items = snapshot.data!;
-          final events =
-              items.where((row) => row['calendar_type'] == 'event').length;
+          final events = items
+              .where((row) => row['calendar_type'] == 'event')
+              .length;
           final anniversaries = items.length - events;
 
           return RefreshIndicator(
@@ -366,10 +374,7 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
                   runSpacing: 8,
                   children: [
                     _MetricCard(label: 'Eventos', value: '$events'),
-                    _MetricCard(
-                      label: 'Aniversários',
-                      value: '$anniversaries',
-                    ),
+                    _MetricCard(label: 'Aniversários', value: '$anniversaries'),
                     _MetricCard(
                       label: 'Total no mês',
                       value: '${items.length}',
@@ -407,40 +412,45 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
     final date = _parseDate(item['starts_at']);
     final theme = Theme.of(context);
 
-    final (IconData icon, Color background, Color foreground, String badge) =
-        switch (type) {
+    final (
+      IconData icon,
+      Color background,
+      Color foreground,
+      String badge,
+    ) = switch (type) {
       'birthday' => (
-          Icons.cake_outlined,
-          theme.colorScheme.tertiaryContainer,
-          theme.colorScheme.onTertiaryContainer,
-          'ANIVERSÁRIO'
-        ),
+        Icons.cake_outlined,
+        theme.colorScheme.tertiaryContainer,
+        theme.colorScheme.onTertiaryContainer,
+        'ANIVERSÁRIO',
+      ),
       'prospect_anniversary' => (
-          Icons.workspace_premium_outlined,
-          theme.colorScheme.secondaryContainer,
-          theme.colorScheme.onSecondaryContainer,
-          'PROSPECT'
-        ),
+        Icons.workspace_premium_outlined,
+        theme.colorScheme.secondaryContainer,
+        theme.colorScheme.onSecondaryContainer,
+        'PROSPECT',
+      ),
       'full_color_anniversary' => (
-          Icons.shield_outlined,
-          theme.colorScheme.primaryContainer,
-          theme.colorScheme.onPrimaryContainer,
-          'FULL COLOR'
-        ),
+        Icons.shield_outlined,
+        theme.colorScheme.primaryContainer,
+        theme.colorScheme.onPrimaryContainer,
+        'FULL COLOR',
+      ),
       _ => (
-          Icons.event_outlined,
-          theme.colorScheme.surfaceContainerHighest,
-          theme.colorScheme.onSurfaceVariant,
-          _statusLabel(item['status']?.toString())
-        ),
+        Icons.event_outlined,
+        theme.colorScheme.surfaceContainerHighest,
+        theme.colorScheme.onSurfaceVariant,
+        _statusLabel(item['status']?.toString()),
+      ),
     };
 
     return Card(
       color: isEvent ? null : background.withValues(alpha: 0.58),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap:
-            isEvent ? () => _openDetails(item) : () => _openAnniversary(item),
+        onTap: isEvent
+            ? () => _openDetails(item)
+            : () => _openAnniversary(item),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
@@ -539,10 +549,8 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
   late Future<_EventDetailV2Data> _future;
 
   AppRole get _role => AppRole.fromValue(AppSession.instance.role);
-  bool get _canManage => PermissionPolicy.allows(
-        _role,
-        AppPermission.manageEventParticipants,
-      );
+  bool get _canManage =>
+      PermissionPolicy.allows(_role, AppPermission.manageEventParticipants);
   bool get _selfRegistrationOpen {
     final status = widget.event['status']?.toString();
     return status == 'published' || status == 'active';
@@ -556,21 +564,22 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
 
   void _reload() {
     final id = widget.event['id'].toString();
-    _future = Future.wait<dynamic>([
-      _participation.registrations(id),
-      widget.repository.volunteers(id),
-      widget.repository.financialSummary(id),
-      _participation.currentMember(),
-    ]).then(
-      (values) => _EventDetailV2Data(
-        participants: List<Map<String, dynamic>>.from(values[0] as List),
-        volunteers: List<Map<String, dynamic>>.from(values[1] as List),
-        finance: Map<String, dynamic>.from(values[2] as Map),
-        currentMember: values[3] == null
-            ? null
-            : Map<String, dynamic>.from(values[3] as Map),
-      ),
-    );
+    _future =
+        Future.wait<dynamic>([
+          _participation.registrations(id),
+          widget.repository.volunteers(id),
+          widget.repository.financialSummary(id),
+          _participation.currentMember(),
+        ]).then(
+          (values) => _EventDetailV2Data(
+            participants: List<Map<String, dynamic>>.from(values[0] as List),
+            volunteers: List<Map<String, dynamic>>.from(values[1] as List),
+            finance: Map<String, dynamic>.from(values[2] as Map),
+            currentMember: values[3] == null
+                ? null
+                : Map<String, dynamic>.from(values[3] as Map),
+          ),
+        );
   }
 
   Future<void> _refresh() async {
@@ -580,9 +589,7 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
 
   Future<void> _registerSelf() async {
     try {
-      await _participation.registerSelf(
-        eventId: widget.event['id'].toString(),
-      );
+      await _participation.registerSelf(eventId: widget.event['id'].toString());
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Ficaste inscrito neste evento.')),
@@ -641,8 +648,9 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
           ),
           actions: [
             TextButton(
-              onPressed:
-                  saving ? null : () => Navigator.pop(dialogContext, false),
+              onPressed: saving
+                  ? null
+                  : () => Navigator.pop(dialogContext, false),
               child: const Text('Cancelar'),
             ),
             FilledButton(
@@ -701,8 +709,9 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
           ),
           actions: [
             TextButton(
-              onPressed:
-                  saving ? null : () => Navigator.pop(dialogContext, false),
+              onPressed: saving
+                  ? null
+                  : () => Navigator.pop(dialogContext, false),
               child: const Text('Cancelar'),
             ),
             FilledButton(
@@ -783,13 +792,15 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(self ? 'Cancelar a minha participação' : 'Remover participante'),
+        title: Text(
+          self ? 'Cancelar a minha participação' : 'Remover participante',
+        ),
         content: Text(
           self
               ? 'Queres retirar a tua inscrição deste evento? '
-                  '${companions.isEmpty ? '' : 'Os teus acompanhantes também serão removidos.'}'
+                    '${companions.isEmpty ? '' : 'Os teus acompanhantes também serão removidos.'}'
               : 'Remover ${registration['member_name']?.toString() ?? 'este membro'} '
-                  'e os respetivos acompanhantes deste evento?',
+                    'e os respetivos acompanhantes deste evento?',
         ),
         actions: [
           TextButton(
@@ -907,9 +918,7 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Remover voluntário'),
-        content: Text(
-          'Remover $name da equipa de voluntariado deste evento?',
-        ),
+        content: Text('Remover $name da equipa de voluntariado deste evento?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -938,17 +947,14 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
 
   void _showError(Object error) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(_friendlyError(error))),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(_friendlyError(error))));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.event['name']?.toString() ?? 'Evento'),
-      ),
+      appBar: AppBar(title: Text(widget.event['name']?.toString() ?? 'Evento')),
       body: FutureBuilder<_EventDetailV2Data>(
         future: _future,
         builder: (context, snapshot) {
@@ -1002,10 +1008,7 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
                     ),
                   ),
                 ),
-                if (widget.event['description']
-                        ?.toString()
-                        .trim()
-                        .isNotEmpty ==
+                if (widget.event['description']?.toString().trim().isNotEmpty ==
                     true)
                   Card(
                     child: Padding(
@@ -1040,8 +1043,9 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
                   data.volunteers
                       .map(
                         (row) => ListTile(
-                          leading:
-                              const Icon(Icons.volunteer_activism_outlined),
+                          leading: const Icon(
+                            Icons.volunteer_activism_outlined,
+                          ),
                           title: Text(
                             row['member_name']?.toString() ?? 'Membro',
                           ),
@@ -1049,7 +1053,8 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                row['function_name']?.toString() ?? 'Apoio geral',
+                                row['function_name']?.toString() ??
+                                    'Apoio geral',
                               ),
                               if (_canManage)
                                 Padding(
@@ -1190,7 +1195,8 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
     required String? currentMemberId,
   }) {
     final companions = _companions(registration);
-    final isMine = currentMemberId != null &&
+    final isMine =
+        currentMemberId != null &&
         registration['member_id']?.toString() == currentMemberId;
     final canEdit = _canManage || isMine;
 
@@ -1201,9 +1207,7 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
         title: Row(
           children: [
             Expanded(
-              child: Text(
-                registration['member_name']?.toString() ?? 'Membro',
-              ),
+              child: Text(registration['member_name']?.toString() ?? 'Membro'),
             ),
             if (isMine)
               const Padding(
@@ -1249,19 +1253,13 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
                   children: [
                     OutlinedButton.icon(
                       onPressed: () => _addCompanion(registration),
-                      icon: const Icon(
-                        Icons.person_add_alt_outlined,
-                        size: 18,
-                      ),
+                      icon: const Icon(Icons.person_add_alt_outlined, size: 18),
                       label: const Text('Adicionar acompanhante'),
                     ),
                     TextButton.icon(
                       onPressed: () =>
                           _cancelRegistration(registration, self: false),
-                      icon: const Icon(
-                        Icons.person_remove_outlined,
-                        size: 18,
-                      ),
+                      icon: const Icon(Icons.person_remove_outlined, size: 18),
                       label: const Text('Remover participante'),
                     ),
                   ],
@@ -1275,15 +1273,15 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
   }
 
   Widget _metric(String label, String value) => SizedBox(
-        width: 130,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: Theme.of(context).textTheme.labelLarge),
-            Text(value, style: Theme.of(context).textTheme.titleLarge),
-          ],
-        ),
-      );
+    width: 130,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelLarge),
+        Text(value, style: Theme.of(context).textTheme.titleLarge),
+      ],
+    ),
+  );
 
   Widget _section(String title, List<Widget> children, {Widget? action}) =>
       Card(
@@ -1411,13 +1409,13 @@ String _normalizeStatus(String? value) {
 }
 
 String _statusLabel(String? status) => switch (status) {
-      'published' => 'Publicado',
-      'active' => 'Em curso',
-      'completed' => 'Concluído',
-      'cancelled' => 'Cancelado',
-      'anniversary' => 'Aniversário',
-      _ => 'Rascunho',
-    };
+  'published' => 'Publicado',
+  'active' => 'Em curso',
+  'completed' => 'Concluído',
+  'cancelled' => 'Cancelado',
+  'anniversary' => 'Aniversário',
+  _ => 'Rascunho',
+};
 
 String _anniversarySubtitle(Map<String, dynamic> item) {
   final years = int.tryParse(item['anniversary_years']?.toString() ?? '') ?? 0;

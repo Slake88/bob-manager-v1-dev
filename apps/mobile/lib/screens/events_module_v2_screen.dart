@@ -12,20 +12,34 @@ class EventsModuleV2Screen extends StatefulWidget {
 
 class _EventsModuleV2ScreenState extends State<EventsModuleV2Screen> {
   int _index = 0;
+  int _agendaRefreshToken = 0;
+  int _managementRefreshToken = 0;
+
+  void _selectTab(int value) {
+    if (value == _index) return;
+    setState(() {
+      _index = value;
+      if (value == 0) {
+        _agendaRefreshToken++;
+      } else {
+        _managementRefreshToken++;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(
         index: _index,
-        children: const [
-          EventsAgendaV2Screen(),
-          EventsAdvancedHomeScreen(),
+        children: [
+          EventsAgendaV2Screen(refreshToken: _agendaRefreshToken),
+          EventsAdvancedHomeScreen(refreshToken: _managementRefreshToken),
         ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (value) => setState(() => _index = value),
+        onDestinationSelected: _selectTab,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.calendar_month_outlined),
