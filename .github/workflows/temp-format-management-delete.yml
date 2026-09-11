@@ -1,0 +1,202 @@
+name: Temporary event tab sync
+
+on:
+  push:
+    branches:
+      - rc1-rebuild
+    paths:
+      - '.github/workflows/temp-format-management-delete.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rc1-rebuild
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Synchronize Agenda and Gestão refresh
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          module = Path('apps/mobile/lib/screens/events_module_screen.dart')
+          text = module.read_text(encoding='utf-8')
+
+          old = '''class _EventsModuleScreenState extends State<EventsModuleScreen> {
+            int _index = 0;
+
+            @override
+            Widget build(BuildContext context) {
+              return Scaffold(
+                body: IndexedStack(
+                  index: _index,
+                  children: const [EventsScreen(), EventsAdvancedHomeScreen()],
+                ),
+                bottomNavigationBar: NavigationBar(
+                  selectedIndex: _index,
+                  onDestinationSelected: (value) => setState(() => _index = value),
+'''
+          new = '''class _EventsModuleScreenState extends State<EventsModuleScreen> {
+            int _index = 0;
+            int _agendaRefreshToken = 0;
+            int _managementRefreshToken = 0;
+
+            void _selectTab(int value) {
+              if (value == _index) return;
+              setState(() {
+                _index = value;
+                if (value == 0) {
+                  _agendaRefreshToken++;
+                } else {
+                  _managementRefreshToken++;
+                }
+              });
+            }
+
+            @override
+            Widget build(BuildContext context) {
+              return Scaffold(
+                body: IndexedStack(
+                  index: _index,
+                  children: [
+                    EventsScreen(refreshToken: _agendaRefreshToken),
+                    EventsAdvancedHomeScreen(
+                      refreshToken: _managementRefreshToken,
+                    ),
+                  ],
+                ),
+                bottomNavigationBar: NavigationBar(
+                  selectedIndex: _index,
+                  onDestinationSelected: _selectTab,
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'module state anchor count={text.count(old)}')
+          text = text.replace(old, new, 1)
+
+          old = '''class EventsAdvancedHomeScreen extends StatefulWidget {
+            const EventsAdvancedHomeScreen({super.key});
+
+            @override
+'''
+          new = '''class EventsAdvancedHomeScreen extends StatefulWidget {
+            const EventsAdvancedHomeScreen({super.key, this.refreshToken = 0});
+
+            final int refreshToken;
+
+            @override
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'advanced constructor anchor count={text.count(old)}')
+          text = text.replace(old, new, 1)
+
+          state_start = text.index('class _EventsAdvancedHomeScreenState')
+          state_end = text.index('class EventProposalsScreen', state_start)
+          segment = text[state_start:state_end]
+          old = '''  @override
+            void initState() {
+              super.initState();
+              _reload();
+            }
+
+            void _reload() {
+'''
+          new = '''  @override
+            void initState() {
+              super.initState();
+              _reload();
+            }
+
+            @override
+            void didUpdateWidget(covariant EventsAdvancedHomeScreen oldWidget) {
+              super.didUpdateWidget(oldWidget);
+              if (oldWidget.refreshToken != widget.refreshToken) {
+                _reload();
+              }
+            }
+
+            void _reload() {
+'''
+          if segment.count(old) != 1:
+              raise SystemExit(f'advanced init anchor count={segment.count(old)}')
+          segment = segment.replace(old, new, 1)
+          text = text[:state_start] + segment + text[state_end:]
+          module.write_text(text, encoding='utf-8')
+
+          agenda = Path('apps/mobile/lib/screens/events_screen.dart')
+          text = agenda.read_text(encoding='utf-8')
+
+          old = '''class EventsScreen extends StatefulWidget {
+            const EventsScreen({super.key});
+
+            @override
+'''
+          new = '''class EventsScreen extends StatefulWidget {
+            const EventsScreen({super.key, this.refreshToken = 0});
+
+            final int refreshToken;
+
+            @override
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'agenda constructor anchor count={text.count(old)}')
+          text = text.replace(old, new, 1)
+
+          old = '''  @override
+            void initState() {
+              super.initState();
+              final now = DateTime.now();
+              _month = DateTime(now.year, now.month);
+              _reload();
+            }
+
+            void _reload() {
+'''
+          new = '''  @override
+            void initState() {
+              super.initState();
+              final now = DateTime.now();
+              _month = DateTime(now.year, now.month);
+              _reload();
+            }
+
+            @override
+            void didUpdateWidget(covariant EventsScreen oldWidget) {
+              super.didUpdateWidget(oldWidget);
+              if (oldWidget.refreshToken != widget.refreshToken) {
+                _reload();
+              }
+            }
+
+            void _reload() {
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'agenda init anchor count={text.count(old)}')
+          text = text.replace(old, new, 1)
+          agenda.write_text(text, encoding='utf-8')
+          PY
+          dart format apps/mobile/lib/screens/events_module_screen.dart apps/mobile/lib/screens/events_screen.dart
+          rm .github/workflows/temp-format-management-delete.yml
+          rm -f .github/workflows/temp-sync-event-tabs.yml
+      - name: Validate Flutter
+        working-directory: apps/mobile
+        shell: bash
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+      - name: Commit synchronization
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/mobile/lib/screens/events_module_screen.dart apps/mobile/lib/screens/events_screen.dart .github/workflows/temp-format-management-delete.yml .github/workflows/temp-sync-event-tabs.yml
+          git commit -m "fix(events): refresh agenda and management on tab switch"
+          git push origin rc1-rebuild
