@@ -12,7 +12,8 @@ class EventsAdvancedRepository {
 
   bool get isDemo => AppConfig.demoMode;
   bool get canPropose => AppSession.instance.can(AppPermission.proposeEvents);
-  bool get canApprove => AppSession.instance.can(AppPermission.approveEventProposals);
+  bool get canApprove =>
+      AppSession.instance.can(AppPermission.approveEventProposals);
   bool get canManageParticipants =>
       AppSession.instance.can(AppPermission.manageEventParticipants);
   bool get canManageRoadbook =>
@@ -126,12 +127,16 @@ class EventsAdvancedRepository {
       'sponsors': (values[4] as List).length,
       'tasks': tasks.length,
       'tasks_open': tasks
-          .where((row) => row['status'] != 'done' && row['status'] != 'cancelled')
+          .where(
+            (row) => row['status'] != 'done' && row['status'] != 'cancelled',
+          )
           .length,
       'shifts': (values[6] as List).length,
       'incidents': incidents.length,
       'incidents_open': incidents
-          .where((row) => row['status'] != 'resolved' && row['status'] != 'closed')
+          .where(
+            (row) => row['status'] != 'resolved' && row['status'] != 'closed',
+          )
           .length,
       'program': (values[8] as List).length,
       'octane_configured': values[9] != null,
@@ -169,8 +174,9 @@ class EventsAdvancedRepository {
         'event_id': registration is Map
             ? registration['event_id']?.toString() ?? eventId
             : eventId,
-        'host_member_id':
-            registration is Map ? registration['member_id'] : null,
+        'host_member_id': registration is Map
+            ? registration['member_id']
+            : null,
         'registration_id': row['registration_id'],
         'name': row['guest_name'],
         'status': 'confirmed',
@@ -320,7 +326,9 @@ class EventsAdvancedRepository {
         .eq('club_id', AppSession.instance.clubId)
         .select('id');
     if (response.isEmpty) {
-      throw StateError('Roadbook não encontrado ou sem permissão para eliminar.');
+      throw StateError(
+        'Roadbook não encontrado ou sem permissão para eliminar.',
+      );
     }
   }
 
@@ -358,12 +366,10 @@ class EventsAdvancedRepository {
     String? id,
   }) async {
     _require(AppPermission.manageEventRoadbook);
-    return _saveEventRow(
-      'event_route_stops',
-      eventId,
-      {...values, 'route_id': routeId},
-      id: id,
-    );
+    return _saveEventRow('event_route_stops', eventId, {
+      ...values,
+      'route_id': routeId,
+    }, id: id);
   }
 
   Future<void> deleteRouteStop({
@@ -430,7 +436,9 @@ class EventsAdvancedRepository {
     }
     final response = await _supabase
         .from('event_registrations')
-        .select('member_id,members(id,full_name,nickname,phone,emergency_contact)')
+        .select(
+          'member_id,members(id,full_name,nickname,phone,emergency_contact)',
+        )
         .eq('event_id', eventId)
         .neq('status', 'cancelled')
         .order('created_at');
@@ -538,11 +546,33 @@ class EventsAdvancedRepository {
     required String memberId,
   }) async {
     _require(AppPermission.manageEventOperations);
-    return _saveEventRow(
-      'event_task_assignees',
-      eventId,
-      {'task_id': taskId, 'member_id': memberId},
-    );
+    try {
+      return await _saveEventRow('event_task_assignees', eventId, {
+        'task_id': taskId,
+        'member_id': memberId,
+      });
+    } on PostgrestException catch (error) {
+      if (error.code == '23505') {
+        throw StateError('Este voluntário já está atribuído a esta tarefa.');
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> deleteTask({
+    required String eventId,
+    required String taskId,
+  }) async {
+    _require(AppPermission.manageEventOperations);
+    await _deleteEventRow('event_tasks', eventId, taskId);
+  }
+
+  Future<void> removeTaskAssignee({
+    required String eventId,
+    required String assignmentId,
+  }) async {
+    _require(AppPermission.manageEventOperations);
+    await _deleteEventRow('event_task_assignees', eventId, assignmentId);
   }
 
   Future<void> acknowledgeTask(
@@ -571,17 +601,37 @@ class EventsAdvancedRepository {
     required String memberId,
   }) async {
     _require(AppPermission.manageEventOperations);
-    return _saveEventRow(
-      'event_shift_members',
-      eventId,
-      {'shift_id': shiftId, 'member_id': memberId, 'status': 'assigned'},
-    );
+    try {
+      return await _saveEventRow('event_shift_members', eventId, {
+        'shift_id': shiftId,
+        'member_id': memberId,
+        'status': 'assigned',
+      });
+    } on PostgrestException catch (error) {
+      if (error.code == '23505') {
+        throw StateError('Este voluntário já está atribuído a este turno.');
+      }
+      rethrow;
+    }
   }
 
-  Future<void> setShiftMemberStatus(
-    String assignmentId,
-    String status,
-  ) async {
+  Future<void> deleteShift({
+    required String eventId,
+    required String shiftId,
+  }) async {
+    _require(AppPermission.manageEventOperations);
+    await _deleteEventRow('event_shifts', eventId, shiftId);
+  }
+
+  Future<void> removeShiftMember({
+    required String eventId,
+    required String assignmentId,
+  }) async {
+    _require(AppPermission.manageEventOperations);
+    await _deleteEventRow('event_shift_members', eventId, assignmentId);
+  }
+
+  Future<void> setShiftMemberStatus(String assignmentId, String status) async {
     if (isDemo) return;
     await _supabase.rpc(
       'set_event_shift_member_status_v1',
@@ -653,8 +703,11 @@ class EventsAdvancedRepository {
       };
     }
     if (id == null) {
-      final response =
-          await _supabase.from(table).insert(payload).select().single();
+      final response = await _supabase
+          .from(table)
+          .insert(payload)
+          .select()
+          .single();
       return Map<String, dynamic>.from(response);
     }
     final response = await _supabase
@@ -667,65 +720,81 @@ class EventsAdvancedRepository {
     return Map<String, dynamic>.from(response);
   }
 
+  Future<void> _deleteEventRow(String table, String eventId, String id) async {
+    if (isDemo) return;
+    final response = await _supabase
+        .from(table)
+        .delete()
+        .eq('id', id)
+        .eq('event_id', eventId)
+        .eq('club_id', AppSession.instance.clubId)
+        .select('id');
+    if (response.isEmpty) {
+      throw StateError(
+        'Registo não encontrado ou sem permissão para eliminar.',
+      );
+    }
+  }
+
   List<Map<String, dynamic>> _demoRows(String table, String eventId) {
     return switch (table) {
       'event_bands' => [
-          {
-            'id': 'demo-band',
-            'event_id': eventId,
-            'name': 'RAD — Rock All Day',
-            'status': 'confirmed',
-          },
-        ],
+        {
+          'id': 'demo-band',
+          'event_id': eventId,
+          'name': 'RAD — Rock All Day',
+          'status': 'confirmed',
+        },
+      ],
       'event_exhibitors' => [
-          {
-            'id': 'demo-exhibitor',
-            'event_id': eventId,
-            'name': 'Man Cave Motorcycles',
-            'status': 'confirmed',
-          },
-        ],
+        {
+          'id': 'demo-exhibitor',
+          'event_id': eventId,
+          'name': 'Man Cave Motorcycles',
+          'status': 'confirmed',
+        },
+      ],
       'event_sponsors' => [
-          {
-            'id': 'demo-sponsor',
-            'event_id': eventId,
-            'name': 'Apoio local',
-            'status': 'confirmed',
-          },
-        ],
+        {
+          'id': 'demo-sponsor',
+          'event_id': eventId,
+          'name': 'Apoio local',
+          'status': 'confirmed',
+        },
+      ],
       'event_tasks' => [
-          {
-            'id': 'demo-task',
-            'event_id': eventId,
-            'title': 'Preparar recinto',
-            'status': 'in_progress',
-            'priority': 'high',
-          },
-        ],
+        {
+          'id': 'demo-task',
+          'event_id': eventId,
+          'title': 'Preparar recinto',
+          'status': 'in_progress',
+          'priority': 'high',
+        },
+      ],
       'event_task_assignees' => <Map<String, dynamic>>[],
       'event_shifts' => [
-          {
-            'id': 'demo-shift',
-            'event_id': eventId,
-            'name': 'Bar — Turno 1',
-            'area': 'Bar',
-            'starts_at': DateTime.now().toIso8601String(),
-            'ends_at': DateTime.now()
-                .add(const Duration(hours: 2))
-                .toIso8601String(),
-            'status': 'planned',
-          },
-        ],
+        {
+          'id': 'demo-shift',
+          'event_id': eventId,
+          'name': 'Bar — Turno 1',
+          'area': 'Bar',
+          'starts_at': DateTime.now().toIso8601String(),
+          'ends_at': DateTime.now()
+              .add(const Duration(hours: 2))
+              .toIso8601String(),
+          'status': 'planned',
+        },
+      ],
       'event_shift_members' => <Map<String, dynamic>>[],
       'event_program' => [
-          {
-            'id': 'demo-program',
-            'event_id': eventId,
-            'sequence_no': 1,
-            'title': 'Abertura de portas',
-            'item_type': 'activity',
-          },
-        ],
+        {
+          'id': 'demo-program',
+          'event_id': eventId,
+          'sequence_no': 1,
+          'title': 'Abertura de portas',
+          'item_type': 'activity',
+        },
+      ],
       'event_incidents' => <Map<String, dynamic>>[],
       _ => <Map<String, dynamic>>[],
     };
@@ -745,18 +814,18 @@ class EventsAdvancedRepository {
 }
 
 String eventKindLabel(Object? value) => switch (value?.toString()) {
-      'ride' => 'Passeio',
-      'rock_ride_in' => 'Rock & Ride In',
-      _ => 'Evento',
-    };
+  'ride' => 'Passeio',
+  'rock_ride_in' => 'Rock & Ride In',
+  _ => 'Evento',
+};
 
 String proposalStatusLabel(Object? value) => switch (value?.toString()) {
-      'submitted' => 'Em aprovação',
-      'approved' => 'Aprovada',
-      'rejected' => 'Rejeitada',
-      'withdrawn' => 'Retirada',
-      _ => value?.toString() ?? '—',
-    };
+  'submitted' => 'Em aprovação',
+  'approved' => 'Aprovada',
+  'rejected' => 'Rejeitada',
+  'withdrawn' => 'Retirada',
+  _ => value?.toString() ?? '—',
+};
 
 int octaneCardTotalUnits(Map<String, dynamic> config) {
   final base = int.tryParse(config['ten_card_units']?.toString() ?? '') ?? 0;
