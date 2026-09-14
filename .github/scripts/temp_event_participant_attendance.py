@@ -1,0 +1,484 @@
+from pathlib import Path
+
+repo_path = Path('apps/mobile/lib/repositories/event_participation_repository.dart')
+repo = repo_path.read_text()
+marker = '\n  void _requireView() {'
+if 'Future<Map<String, dynamic>> updateRegistration({' not in repo:
+    if marker not in repo:
+        raise SystemExit('repository insertion marker not found')
+    method = r'''
+
+  Future<Map<String, dynamic>> updateRegistration({
+    required String eventId,
+    required String registrationId,
+    required String status,
+    required String? notes,
+    required DateTime? checkedInAt,
+  }) async {
+    if (!canManageAll) {
+      throw StateError('Sem permissão para gerir esta inscrição.');
+    }
+
+    final normalizedStatus = status.trim();
+    if (normalizedStatus != 'confirmed' && normalizedStatus != 'pending') {
+      throw ArgumentError('O estado da inscrição não é válido.');
+    }
+    if (normalizedStatus != 'confirmed' && checkedInAt != null) {
+      throw ArgumentError(
+        'Só é possível registar presença numa inscrição confirmada.',
+      );
+    }
+
+    final normalizedNotes = notes?.trim();
+    final payload = <String, dynamic>{
+      'status': normalizedStatus,
+      'notes': normalizedNotes == null || normalizedNotes.isEmpty
+          ? null
+          : normalizedNotes,
+      'checked_in_at': checkedInAt?.toUtc().toIso8601String(),
+    };
+
+    if (AppConfig.demoMode) {
+      final row = await _dataService.getById(
+        'event_participants',
+        registrationId,
+      );
+      if (row == null || row['event_id']?.toString() != eventId) {
+        throw StateError('Inscrição não encontrada neste evento.');
+      }
+      return _dataService.update(
+        'event_participants',
+        registrationId,
+        payload,
+      );
+    }
+
+    try {
+      final response = await _client
+          .from('event_registrations')
+          .update(payload)
+          .eq('id', registrationId)
+          .eq('event_id', eventId)
+          .select()
+          .single();
+      return Map<String, dynamic>.from(response);
+    } on PostgrestException catch (error) {
+      throw StateError(_friendly(error));
+    }
+  }
+'''
+    repo = repo.replace(marker, method + marker, 1)
+    repo_path.write_text(repo)
+
+screen_path = Path('apps/mobile/lib/screens/events_agenda_v2_screen.dart')
+screen = screen_path.read_text()
+
+if 'Future<void> _editRegistration(' not in screen:
+    marker = '  Future<void> _addVolunteer() async {'
+    if marker not in screen:
+        raise SystemExit('screen method insertion marker not found')
+    methods = r'''  Future<void> _editRegistration(
+    Map<String, dynamic> registration,
+  ) async {
+    String status = _normalizeRegistrationStatus(registration['status']);
+    final notes = TextEditingController(
+      text: registration['notes']?.toString() ?? '',
+    );
+    DateTime? checkedInAt = _parseDate(registration['checked_in_at']);
+    bool saving = false;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(
+            'Gerir participante — '
+            '${registration['member_name']?.toString() ?? 'Membro'}',
+          ),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: status,
+                    decoration: const InputDecoration(
+                      labelText: 'Estado da inscrição',
+                      prefixIcon: Icon(Icons.fact_check_outlined),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'confirmed',
+                        child: Text('Confirmado'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'pending',
+                        child: Text('Pendente'),
+                      ),
+                    ],
+                    onChanged: saving
+                        ? null
+                        : (value) {
+                            if (value == null) return;
+                            setDialogState(() {
+                              status = value;
+                              if (status != 'confirmed') {
+                                checkedInAt = null;
+                              }
+                            });
+                          },
+                  ),
+                  const SizedBox(height: 10),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Check-in / presença'),
+                    subtitle: Text(
+                      checkedInAt == null
+                          ? 'Presença ainda não registada'
+                          : 'Registado em ${_dateTimePt(checkedInAt)}',
+                    ),
+                    value: checkedInAt != null,
+                    onChanged: saving || status != 'confirmed'
+                        ? null
+                        : (value) {
+                            setDialogState(() {
+                              checkedInAt = value ? DateTime.now() : null;
+                            });
+                          },
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: notes,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Notas operacionais (opcional)',
+                      prefixIcon: Icon(Icons.notes_outlined),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving
+                  ? null
+                  : () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.icon(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      setDialogState(() => saving = true);
+                      try {
+                        await _participation.updateRegistration(
+                          eventId: widget.event['id'].toString(),
+                          registrationId: registration['id'].toString(),
+                          status: status,
+                          notes: notes.text,
+                          checkedInAt: checkedInAt,
+                        );
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext, true);
+                        }
+                      } catch (error) {
+                        if (dialogContext.mounted) {
+                          ScaffoldMessenger.of(dialogContext).showSnackBar(
+                            SnackBar(content: Text(_friendlyError(error))),
+                          );
+                          setDialogState(() => saving = false);
+                        }
+                      }
+                    },
+              icon: saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save_outlined),
+              label: Text(saving ? 'A guardar...' : 'Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    notes.dispose();
+    if (saved == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Participante atualizado.')),
+      );
+      setState(_reload);
+    }
+  }
+
+  Future<void> _toggleCheckIn(Map<String, dynamic> registration) async {
+    final currentCheckIn = _parseDate(registration['checked_in_at']);
+    final registeringPresence = currentCheckIn == null;
+    final currentStatus = _normalizeRegistrationStatus(
+      registration['status'],
+    );
+
+    try {
+      await _participation.updateRegistration(
+        eventId: widget.event['id'].toString(),
+        registrationId: registration['id'].toString(),
+        status: registeringPresence ? 'confirmed' : currentStatus,
+        notes: registration['notes']?.toString(),
+        checkedInAt: registeringPresence ? DateTime.now() : null,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            registeringPresence
+                ? (currentStatus == 'pending'
+                      ? 'Check-in registado e inscrição confirmada.'
+                      : 'Check-in registado.')
+                : 'Check-in anulado.',
+          ),
+        ),
+      );
+      setState(_reload);
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
+'''
+    screen = screen.replace(marker, methods + marker, 1)
+
+old_people = r'''          final peopleCount = data.participants.fold<int>(
+            0,
+            (sum, row) => sum + 1 + _companions(row).length,
+          );
+'''
+new_people = r'''          final peopleCount = data.participants.fold<int>(
+            0,
+            (sum, row) => sum + 1 + _companions(row).length,
+          );
+          final checkInCount = data.participants
+              .where((row) => _parseDate(row['checked_in_at']) != null)
+              .length;
+'''
+if 'final checkInCount = data.participants' not in screen:
+    if old_people not in screen:
+        raise SystemExit('peopleCount block not found')
+    screen = screen.replace(old_people, new_people, 1)
+
+old_call = r'''                _participantsSection(
+                  data: data,
+                  currentMemberId: currentMemberId,
+                  peopleCount: peopleCount,
+                ),
+'''
+new_call = r'''                _participantsSection(
+                  data: data,
+                  currentMemberId: currentMemberId,
+                  peopleCount: peopleCount,
+                  checkInCount: checkInCount,
+                ),
+'''
+if 'checkInCount: checkInCount' not in screen:
+    if old_call not in screen:
+        raise SystemExit('participantsSection call not found')
+    screen = screen.replace(old_call, new_call, 1)
+
+old_signature = r'''  Widget _participantsSection({
+    required _EventDetailV2Data data,
+    required String? currentMemberId,
+    required int peopleCount,
+  }) {
+'''
+new_signature = r'''  Widget _participantsSection({
+    required _EventDetailV2Data data,
+    required String? currentMemberId,
+    required int peopleCount,
+    required int checkInCount,
+  }) {
+'''
+if 'required int checkInCount' not in screen:
+    if old_signature not in screen:
+        raise SystemExit('participantsSection signature not found')
+    screen = screen.replace(old_signature, new_signature, 1)
+
+old_summary = r'''                      Text(
+                        '${data.participants.length} membro${data.participants.length == 1 ? '' : 's'} inscrito${data.participants.length == 1 ? '' : 's'}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+'''
+new_summary = r'''                      Text(
+                        '${data.participants.length} membro${data.participants.length == 1 ? '' : 's'} inscrito${data.participants.length == 1 ? '' : 's'} • '
+                        '$checkInCount check-in${checkInCount == 1 ? '' : 's'}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+'''
+if '$checkInCount check-in' not in screen:
+    if old_summary not in screen:
+        raise SystemExit('participant summary not found')
+    screen = screen.replace(old_summary, new_summary, 1)
+
+start = screen.find('  Widget _participantTile(\n')
+end = screen.find('  Widget _metric(', start)
+if start < 0 or end < 0:
+    raise SystemExit('participant tile bounds not found')
+new_tile = r'''  Widget _participantTile(
+    Map<String, dynamic> registration, {
+    required String? currentMemberId,
+  }) {
+    final companions = _companions(registration);
+    final isMine =
+        currentMemberId != null &&
+        registration['member_id']?.toString() == currentMemberId;
+    final canEditCompanions = _canManage || isMine;
+    final registrationStatus = _normalizeRegistrationStatus(
+      registration['status'],
+    );
+    final checkedInAt = _parseDate(registration['checked_in_at']);
+    final notes = registration['notes']?.toString().trim() ?? '';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: ListTile(
+        leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(registration['member_name']?.toString() ?? 'Membro'),
+            ),
+            if (isMine)
+              const Padding(
+                padding: EdgeInsets.only(left: 8),
+                child: Chip(
+                  visualDensity: VisualDensity.compact,
+                  label: Text('Tu'),
+                ),
+              ),
+          ],
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  Chip(
+                    visualDensity: VisualDensity.compact,
+                    avatar: Icon(
+                      registrationStatus == 'confirmed'
+                          ? Icons.verified_outlined
+                          : Icons.schedule_outlined,
+                      size: 16,
+                    ),
+                    label: Text(
+                      _registrationStatusLabel(registrationStatus),
+                    ),
+                  ),
+                  if (checkedInAt != null)
+                    Chip(
+                      visualDensity: VisualDensity.compact,
+                      avatar: const Icon(Icons.how_to_reg_outlined, size: 16),
+                      label: Text('Presente • ${_dateTimePt(checkedInAt)}'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              if (companions.isEmpty)
+                const Text('Sem acompanhantes')
+              else
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: companions
+                      .map(
+                        (companion) => InputChip(
+                          avatar: const Icon(Icons.group_outlined, size: 16),
+                          label: Text(
+                            companion['guest_name']?.toString() ??
+                                'Acompanhante',
+                          ),
+                          onDeleted: canEditCompanions
+                              ? () => _removeCompanion(companion)
+                              : null,
+                        ),
+                      )
+                      .toList(),
+                ),
+              if (_canManage && notes.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('Notas: $notes'),
+              ],
+              if (_canManage) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    FilledButton.tonalIcon(
+                      onPressed: () => _toggleCheckIn(registration),
+                      icon: Icon(
+                        checkedInAt == null
+                            ? Icons.how_to_reg_outlined
+                            : Icons.undo_outlined,
+                        size: 18,
+                      ),
+                      label: Text(
+                        checkedInAt == null ? 'Check-in' : 'Anular check-in',
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _editRegistration(registration),
+                      icon: const Icon(Icons.edit_note_outlined, size: 18),
+                      label: const Text('Estado / notas'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _addCompanion(registration),
+                      icon: const Icon(Icons.person_add_alt_outlined, size: 18),
+                      label: const Text('Adicionar acompanhante'),
+                    ),
+                    TextButton.icon(
+                      onPressed: () =>
+                          _cancelRegistration(registration, self: false),
+                      icon: const Icon(Icons.person_remove_outlined, size: 18),
+                      label: const Text('Remover participante'),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+'''
+screen = screen[:start] + new_tile + screen[end:]
+
+helper_marker = "String _normalizeEventKind(String? value) => switch (value) {\n"
+if 'String _normalizeRegistrationStatus(' not in screen:
+    if helper_marker not in screen:
+        raise SystemExit('helper insertion marker not found')
+    helpers = r'''String _normalizeRegistrationStatus(Object? value) => switch (
+  value?.toString(),
+) {
+  'pending' => 'pending',
+  _ => 'confirmed',
+};
+
+String _registrationStatusLabel(Object? value) => switch (value?.toString()) {
+  'pending' => 'Pendente',
+  _ => 'Confirmado',
+};
+
+'''
+    screen = screen.replace(helper_marker, helpers + helper_marker, 1)
+
+screen_path.write_text(screen)
