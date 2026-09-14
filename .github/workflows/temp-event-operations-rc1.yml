@@ -45,3 +45,4 @@ jobs:
           git add apps/mobile/lib/repositories/events_advanced_repository.dart apps/mobile/lib/screens/events_module_screen.dart
           git commit -m "feat(events): complete volunteer task and shift operations"
           git push origin rc1-rebuild
+# retry after cleanup script correction
