@@ -648,6 +648,42 @@ class EventsAdvancedRepository {
     return _saveEventRow('event_program', eventId, values, id: id);
   }
 
+  Future<void> deleteProgramItem({
+    required String eventId,
+    required String itemId,
+  }) async {
+    _require(AppPermission.manageEventOperations);
+    await _deleteEventRow('event_program', eventId, itemId);
+  }
+
+  Future<void> reorderProgramItems({
+    required String eventId,
+    required List<String> itemIds,
+  }) async {
+    _require(AppPermission.manageEventOperations);
+    final normalized = itemIds.map((id) => id.trim()).toList();
+    if (normalized.any((id) => id.isEmpty)) {
+      throw ArgumentError(
+        'Não foi possível identificar todos os pontos do programa.',
+      );
+    }
+    if (normalized.toSet().length != normalized.length) {
+      throw ArgumentError('A ordem do programa contém registos repetidos.');
+    }
+    if (isDemo || normalized.isEmpty) return;
+    try {
+      await _supabase.rpc(
+        'reorder_event_program_v1',
+        params: {'p_event': eventId, 'p_item_ids': normalized},
+      );
+    } on PostgrestException catch (error) {
+      if (error.code == 'P0001' || error.code == '42501') {
+        throw StateError(error.message);
+      }
+      rethrow;
+    }
+  }
+
   Future<Map<String, dynamic>> saveIncident(
     String eventId,
     Map<String, dynamic> values, {
@@ -658,6 +694,14 @@ class EventsAdvancedRepository {
       throw StateError('Sem permissão para registar incidentes.');
     }
     return _saveEventRow('event_incidents', eventId, values, id: id);
+  }
+
+  Future<void> deleteIncident({
+    required String eventId,
+    required String incidentId,
+  }) async {
+    _require(AppPermission.manageEventOperations);
+    await _deleteEventRow('event_incidents', eventId, incidentId);
   }
 
   Future<List<Map<String, dynamic>>> _listEventRows(
