@@ -5,6 +5,7 @@ import '../core/permissions.dart';
 import '../repositories/events_advanced_repository.dart';
 import '../repositories/events_repository.dart';
 import '../repositories/member_repository.dart';
+import 'events_agenda_v2_screen.dart';
 import 'events_screen.dart';
 import 'roadbook_stops_screen.dart';
 
@@ -786,11 +787,15 @@ class _EventAdvancedScreenState extends State<EventAdvancedScreen> {
               ),
               const SizedBox(height: 8),
               _HubTile(
-                icon: Icons.people_alt_outlined,
-                title: 'Acompanhantes',
-                subtitle: '${data['guests']} registado(s)',
+                icon: Icons.groups_outlined,
+                title: 'Participantes e acompanhantes',
+                subtitle: 'Gerir inscrições e acompanhantes',
                 onTap: () => _open(
-                  _GuestsPage(eventId: _eventId, repository: widget.repository),
+                  EventDetailV2Screen(
+                    event: widget.event,
+                    repository: _events,
+                    memberRepository: MemberRepository(),
+                  ),
                 ),
               ),
               _HubTile(
