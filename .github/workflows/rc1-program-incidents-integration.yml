@@ -34,8 +34,21 @@ jobs:
         run: flutter pub get
 
       - name: Analyze
-        working-directory: apps/mobile
-        run: flutter analyze
+        run: |
+          set +e
+          cd apps/mobile
+          flutter analyze 2>&1 | tee ../../.github/rc1-program-incidents-analyze.txt
+          status=${PIPESTATUS[0]}
+          cd ../..
+          if [ "$status" -ne 0 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/rc1-program-incidents-analyze.txt
+            git commit -m "chore(events): capture program incident analyzer failure"
+            git push origin HEAD:rc1-rebuild
+            exit "$status"
+          fi
+          rm -f .github/rc1-program-incidents-analyze.txt
 
       - name: Test
         working-directory: apps/mobile
@@ -50,6 +63,7 @@ jobs:
           git checkout -- apps/mobile/pubspec.lock || true
           rm -f .github/scripts/rc1_program_incidents_patch.py
           rm -f .github/workflows/rc1-program-incidents-integration.yml
+          rm -f .github/rc1-program-incidents-analyze.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
