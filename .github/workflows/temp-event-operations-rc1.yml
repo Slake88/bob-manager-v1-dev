@@ -26,6 +26,8 @@ jobs:
         run: python3 .github/scripts/temp_event_operations_rc1.py
       - name: Fix generated operations syntax
         run: python3 .github/scripts/temp_event_operations_fix.py
+      - name: Clean legacy operations helpers
+        run: python3 .github/scripts/temp_event_operations_cleanup.py
       - name: Format
         working-directory: apps/mobile
         run: dart format lib/repositories/events_advanced_repository.dart lib/screens/events_module_screen.dart
