@@ -181,8 +181,7 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
                     onTap: saving
                         ? null
                         : () async {
-                            final initial =
-                                endsAt ??
+                            final initial = endsAt ??
                                 startsAt?.add(const Duration(hours: 2)) ??
                                 DateTime.now();
                             final pickedDate = await showDatePicker(
@@ -304,9 +303,8 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
           ),
           actions: [
             TextButton(
-              onPressed: saving
-                  ? null
-                  : () => Navigator.pop(dialogContext, false),
+              onPressed:
+                  saving ? null : () => Navigator.pop(dialogContext, false),
               child: const Text('Cancelar'),
             ),
             FilledButton.icon(
@@ -368,8 +366,7 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
                           'ends_at': endsAt?.toIso8601String(),
                           'event_kind': eventKind,
                           'capacity': parsedCapacity,
-                          'budget':
-                              double.tryParse(
+                          'budget': double.tryParse(
                                 budget.text.trim().replaceAll(',', '.'),
                               ) ??
                               0,
@@ -471,9 +468,8 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
             return const Center(child: CircularProgressIndicator());
           }
           final items = snapshot.data!;
-          final events = items
-              .where((row) => row['calendar_type'] == 'event')
-              .length;
+          final events =
+              items.where((row) => row['calendar_type'] == 'event').length;
           final anniversaries = items.length - events;
 
           return RefreshIndicator(
@@ -544,38 +540,37 @@ class _EventsAgendaV2ScreenState extends State<EventsAgendaV2Screen> {
       String badge,
     ) = switch (type) {
       'birthday' => (
-        Icons.cake_outlined,
-        theme.colorScheme.tertiaryContainer,
-        theme.colorScheme.onTertiaryContainer,
-        'ANIVERSÁRIO',
-      ),
+          Icons.cake_outlined,
+          theme.colorScheme.tertiaryContainer,
+          theme.colorScheme.onTertiaryContainer,
+          'ANIVERSÁRIO',
+        ),
       'prospect_anniversary' => (
-        Icons.workspace_premium_outlined,
-        theme.colorScheme.secondaryContainer,
-        theme.colorScheme.onSecondaryContainer,
-        'PROSPECT',
-      ),
+          Icons.workspace_premium_outlined,
+          theme.colorScheme.secondaryContainer,
+          theme.colorScheme.onSecondaryContainer,
+          'PROSPECT',
+        ),
       'full_color_anniversary' => (
-        Icons.shield_outlined,
-        theme.colorScheme.primaryContainer,
-        theme.colorScheme.onPrimaryContainer,
-        'FULL COLOR',
-      ),
+          Icons.shield_outlined,
+          theme.colorScheme.primaryContainer,
+          theme.colorScheme.onPrimaryContainer,
+          'FULL COLOR',
+        ),
       _ => (
-        Icons.event_outlined,
-        theme.colorScheme.surfaceContainerHighest,
-        theme.colorScheme.onSurfaceVariant,
-        _statusLabel(item['status']?.toString()),
-      ),
+          Icons.event_outlined,
+          theme.colorScheme.surfaceContainerHighest,
+          theme.colorScheme.onSurfaceVariant,
+          _statusLabel(item['status']?.toString()),
+        ),
     };
 
     return Card(
       color: isEvent ? null : background.withValues(alpha: 0.58),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: isEvent
-            ? () => _openDetails(item)
-            : () => _openAnniversary(item),
+        onTap:
+            isEvent ? () => _openDetails(item) : () => _openAnniversary(item),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
@@ -689,22 +684,21 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
 
   void _reload() {
     final id = widget.event['id'].toString();
-    _future =
-        Future.wait<dynamic>([
-          _participation.registrations(id),
-          widget.repository.volunteers(id),
-          widget.repository.financialSummary(id),
-          _participation.currentMember(),
-        ]).then(
-          (values) => _EventDetailV2Data(
-            participants: List<Map<String, dynamic>>.from(values[0] as List),
-            volunteers: List<Map<String, dynamic>>.from(values[1] as List),
-            finance: Map<String, dynamic>.from(values[2] as Map),
-            currentMember: values[3] == null
-                ? null
-                : Map<String, dynamic>.from(values[3] as Map),
-          ),
-        );
+    _future = Future.wait<dynamic>([
+      _participation.registrations(id),
+      widget.repository.volunteers(id),
+      widget.repository.financialSummary(id),
+      _participation.currentMember(),
+    ]).then(
+      (values) => _EventDetailV2Data(
+        participants: List<Map<String, dynamic>>.from(values[0] as List),
+        volunteers: List<Map<String, dynamic>>.from(values[1] as List),
+        finance: Map<String, dynamic>.from(values[2] as Map),
+        currentMember: values[3] == null
+            ? null
+            : Map<String, dynamic>.from(values[3] as Map),
+      ),
+    );
   }
 
   Future<void> _refresh() async {
@@ -773,9 +767,8 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
           ),
           actions: [
             TextButton(
-              onPressed: saving
-                  ? null
-                  : () => Navigator.pop(dialogContext, false),
+              onPressed:
+                  saving ? null : () => Navigator.pop(dialogContext, false),
               child: const Text('Cancelar'),
             ),
             FilledButton(
@@ -834,9 +827,8 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
           ),
           actions: [
             TextButton(
-              onPressed: saving
-                  ? null
-                  : () => Navigator.pop(dialogContext, false),
+              onPressed:
+                  saving ? null : () => Navigator.pop(dialogContext, false),
               child: const Text('Cancelar'),
             ),
             FilledButton(
@@ -923,9 +915,9 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
         content: Text(
           self
               ? 'Queres retirar a tua inscrição deste evento? '
-                    '${companions.isEmpty ? '' : 'Os teus acompanhantes também serão removidos.'}'
+                  '${companions.isEmpty ? '' : 'Os teus acompanhantes também serão removidos.'}'
               : 'Remover ${registration['member_name']?.toString() ?? 'este membro'} '
-                    'e os respetivos acompanhantes deste evento?',
+                  'e os respetivos acompanhantes deste evento?',
         ),
         actions: [
           TextButton(
@@ -949,6 +941,177 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
             self
                 ? 'A tua participação foi cancelada.'
                 : 'Participante removido do evento.',
+          ),
+        ),
+      );
+      setState(_reload);
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
+  Future<void> _editRegistration(
+    Map<String, dynamic> registration,
+  ) async {
+    String status = _normalizeRegistrationStatus(registration['status']);
+    final notes = TextEditingController(
+      text: registration['notes']?.toString() ?? '',
+    );
+    DateTime? checkedInAt = _parseDate(registration['checked_in_at']);
+    bool saving = false;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(
+            'Gerir participante — '
+            '${registration['member_name']?.toString() ?? 'Membro'}',
+          ),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: status,
+                    decoration: const InputDecoration(
+                      labelText: 'Estado da inscrição',
+                      prefixIcon: Icon(Icons.fact_check_outlined),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'confirmed',
+                        child: Text('Confirmado'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'pending',
+                        child: Text('Pendente'),
+                      ),
+                    ],
+                    onChanged: saving
+                        ? null
+                        : (value) {
+                            if (value == null) return;
+                            setDialogState(() {
+                              status = value;
+                              if (status != 'confirmed') {
+                                checkedInAt = null;
+                              }
+                            });
+                          },
+                  ),
+                  const SizedBox(height: 10),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Check-in / presença'),
+                    subtitle: Text(
+                      checkedInAt == null
+                          ? 'Presença ainda não registada'
+                          : 'Registado em ${_dateTimePt(checkedInAt)}',
+                    ),
+                    value: checkedInAt != null,
+                    onChanged: saving || status != 'confirmed'
+                        ? null
+                        : (value) {
+                            setDialogState(() {
+                              checkedInAt = value ? DateTime.now() : null;
+                            });
+                          },
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: notes,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Notas operacionais (opcional)',
+                      prefixIcon: Icon(Icons.notes_outlined),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed:
+                  saving ? null : () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.icon(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      setDialogState(() => saving = true);
+                      try {
+                        await _participation.updateRegistration(
+                          eventId: widget.event['id'].toString(),
+                          registrationId: registration['id'].toString(),
+                          status: status,
+                          notes: notes.text,
+                          checkedInAt: checkedInAt,
+                        );
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext, true);
+                        }
+                      } catch (error) {
+                        if (dialogContext.mounted) {
+                          ScaffoldMessenger.of(dialogContext).showSnackBar(
+                            SnackBar(content: Text(_friendlyError(error))),
+                          );
+                          setDialogState(() => saving = false);
+                        }
+                      }
+                    },
+              icon: saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save_outlined),
+              label: Text(saving ? 'A guardar...' : 'Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    notes.dispose();
+    if (saved == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Participante atualizado.')),
+      );
+      setState(_reload);
+    }
+  }
+
+  Future<void> _toggleCheckIn(Map<String, dynamic> registration) async {
+    final currentCheckIn = _parseDate(registration['checked_in_at']);
+    final registeringPresence = currentCheckIn == null;
+    final currentStatus = _normalizeRegistrationStatus(
+      registration['status'],
+    );
+
+    try {
+      await _participation.updateRegistration(
+        eventId: widget.event['id'].toString(),
+        registrationId: registration['id'].toString(),
+        status: registeringPresence ? 'confirmed' : currentStatus,
+        notes: registration['notes']?.toString(),
+        checkedInAt: registeringPresence ? DateTime.now() : null,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            registeringPresence
+                ? (currentStatus == 'pending'
+                    ? 'Check-in registado e inscrição confirmada.'
+                    : 'Check-in registado.')
+                : 'Check-in anulado.',
           ),
         ),
       );
@@ -1108,6 +1271,9 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
             0,
             (sum, row) => sum + 1 + _companions(row).length,
           );
+          final checkInCount = data.participants
+              .where((row) => _parseDate(row['checked_in_at']) != null)
+              .length;
 
           return RefreshIndicator(
             onRefresh: _refresh,
@@ -1178,6 +1344,7 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
                   data: data,
                   currentMemberId: currentMemberId,
                   peopleCount: peopleCount,
+                  checkInCount: checkInCount,
                 ),
                 _section(
                   'Voluntariado (${data.volunteers.length})',
@@ -1284,6 +1451,7 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
     required _EventDetailV2Data data,
     required String? currentMemberId,
     required int peopleCount,
+    required int checkInCount,
   }) {
     return Card(
       child: Padding(
@@ -1301,7 +1469,8 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       Text(
-                        '${data.participants.length} membro${data.participants.length == 1 ? '' : 's'} inscrito${data.participants.length == 1 ? '' : 's'}',
+                        '${data.participants.length} membro${data.participants.length == 1 ? '' : 's'} inscrito${data.participants.length == 1 ? '' : 's'} • '
+                        '$checkInCount check-in${checkInCount == 1 ? '' : 's'}',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
@@ -1336,10 +1505,14 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
     required String? currentMemberId,
   }) {
     final companions = _companions(registration);
-    final isMine =
-        currentMemberId != null &&
+    final isMine = currentMemberId != null &&
         registration['member_id']?.toString() == currentMemberId;
-    final canEdit = _canManage || isMine;
+    final canEditCompanions = _canManage || isMine;
+    final registrationStatus = _normalizeRegistrationStatus(
+      registration['status'],
+    );
+    final checkedInAt = _parseDate(registration['checked_in_at']);
+    final notes = registration['notes']?.toString().trim() ?? '';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -1365,6 +1538,31 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  Chip(
+                    visualDensity: VisualDensity.compact,
+                    avatar: Icon(
+                      registrationStatus == 'confirmed'
+                          ? Icons.verified_outlined
+                          : Icons.schedule_outlined,
+                      size: 16,
+                    ),
+                    label: Text(
+                      _registrationStatusLabel(registrationStatus),
+                    ),
+                  ),
+                  if (checkedInAt != null)
+                    Chip(
+                      visualDensity: VisualDensity.compact,
+                      avatar: const Icon(Icons.how_to_reg_outlined, size: 16),
+                      label: Text('Presente • ${_dateTimePt(checkedInAt)}'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
               if (companions.isEmpty)
                 const Text('Sem acompanhantes')
               else
@@ -1379,19 +1577,40 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
                             companion['guest_name']?.toString() ??
                                 'Acompanhante',
                           ),
-                          onDeleted: canEdit
+                          onDeleted: canEditCompanions
                               ? () => _removeCompanion(companion)
                               : null,
                         ),
                       )
                       .toList(),
                 ),
+              if (_canManage && notes.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('Notas: $notes'),
+              ],
               if (_canManage) ...[
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   runSpacing: 6,
                   children: [
+                    FilledButton.tonalIcon(
+                      onPressed: () => _toggleCheckIn(registration),
+                      icon: Icon(
+                        checkedInAt == null
+                            ? Icons.how_to_reg_outlined
+                            : Icons.undo_outlined,
+                        size: 18,
+                      ),
+                      label: Text(
+                        checkedInAt == null ? 'Check-in' : 'Anular check-in',
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _editRegistration(registration),
+                      icon: const Icon(Icons.edit_note_outlined, size: 18),
+                      label: const Text('Estado / notas'),
+                    ),
                     OutlinedButton.icon(
                       onPressed: () => _addCompanion(registration),
                       icon: const Icon(Icons.person_add_alt_outlined, size: 18),
@@ -1414,15 +1633,15 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
   }
 
   Widget _metric(String label, String value) => SizedBox(
-    width: 130,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.labelLarge),
-        Text(value, style: Theme.of(context).textTheme.titleLarge),
-      ],
-    ),
-  );
+        width: 130,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: Theme.of(context).textTheme.labelLarge),
+            Text(value, style: Theme.of(context).textTheme.titleLarge),
+          ],
+        ),
+      );
 
   Widget _section(String title, List<Widget> children, {Widget? action}) =>
       Card(
@@ -1539,17 +1758,28 @@ List<Map<String, dynamic>> _companions(Map<String, dynamic> registration) {
   return const <Map<String, dynamic>>[];
 }
 
+String _normalizeRegistrationStatus(Object? value) =>
+    switch (value?.toString()) {
+      'pending' => 'pending',
+      _ => 'confirmed',
+    };
+
+String _registrationStatusLabel(Object? value) => switch (value?.toString()) {
+      'pending' => 'Pendente',
+      _ => 'Confirmado',
+    };
+
 String _normalizeEventKind(String? value) => switch (value) {
-  'ride' => 'ride',
-  'rock_ride_in' => 'rock_ride_in',
-  _ => 'general',
-};
+      'ride' => 'ride',
+      'rock_ride_in' => 'rock_ride_in',
+      _ => 'general',
+    };
 
 String _eventKindLabel(Object? value) => switch (value?.toString()) {
-  'ride' => 'Passeio',
-  'rock_ride_in' => 'Rock & Ride In',
-  _ => 'Evento',
-};
+      'ride' => 'Passeio',
+      'rock_ride_in' => 'Rock & Ride In',
+      _ => 'Evento',
+    };
 
 String _normalizeStatus(String? value) {
   return switch (value) {
@@ -1562,13 +1792,13 @@ String _normalizeStatus(String? value) {
 }
 
 String _statusLabel(String? status) => switch (status) {
-  'published' => 'Publicado',
-  'active' => 'Em curso',
-  'completed' => 'Concluído',
-  'cancelled' => 'Cancelado',
-  'anniversary' => 'Aniversário',
-  _ => 'Rascunho',
-};
+      'published' => 'Publicado',
+      'active' => 'Em curso',
+      'completed' => 'Concluído',
+      'cancelled' => 'Cancelado',
+      'anniversary' => 'Aniversário',
+      _ => 'Rascunho',
+    };
 
 String _anniversarySubtitle(Map<String, dynamic> item) {
   final years = int.tryParse(item['anniversary_years']?.toString() ?? '') ?? 0;

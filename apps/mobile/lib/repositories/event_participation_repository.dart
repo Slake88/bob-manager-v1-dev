@@ -238,6 +238,65 @@ class EventParticipationRepository {
     }
   }
 
+  Future<Map<String, dynamic>> updateRegistration({
+    required String eventId,
+    required String registrationId,
+    required String status,
+    required String? notes,
+    required DateTime? checkedInAt,
+  }) async {
+    if (!canManageAll) {
+      throw StateError('Sem permissão para gerir esta inscrição.');
+    }
+
+    final normalizedStatus = status.trim();
+    if (normalizedStatus != 'confirmed' && normalizedStatus != 'pending') {
+      throw ArgumentError('O estado da inscrição não é válido.');
+    }
+    if (normalizedStatus != 'confirmed' && checkedInAt != null) {
+      throw ArgumentError(
+        'Só é possível registar presença numa inscrição confirmada.',
+      );
+    }
+
+    final normalizedNotes = notes?.trim();
+    final payload = <String, dynamic>{
+      'status': normalizedStatus,
+      'notes': normalizedNotes == null || normalizedNotes.isEmpty
+          ? null
+          : normalizedNotes,
+      'checked_in_at': checkedInAt?.toUtc().toIso8601String(),
+    };
+
+    if (AppConfig.demoMode) {
+      final row = await _dataService.getById(
+        'event_participants',
+        registrationId,
+      );
+      if (row == null || row['event_id']?.toString() != eventId) {
+        throw StateError('Inscrição não encontrada neste evento.');
+      }
+      return _dataService.update(
+        'event_participants',
+        registrationId,
+        payload,
+      );
+    }
+
+    try {
+      final response = await _client
+          .from('event_registrations')
+          .update(payload)
+          .eq('id', registrationId)
+          .eq('event_id', eventId)
+          .select()
+          .single();
+      return Map<String, dynamic>.from(response);
+    } on PostgrestException catch (error) {
+      throw StateError(_friendly(error));
+    }
+  }
+
   void _requireView() {
     if (!PermissionPolicy.allows(_role, AppPermission.viewEvents)) {
       throw StateError('Sem permissão para consultar eventos.');
@@ -245,7 +304,8 @@ class EventParticipationRepository {
   }
 
   String _friendly(PostgrestException error) {
-    final text = '${error.code} ${error.message} ${error.details}'.toLowerCase();
+    final text =
+        '${error.code} ${error.message} ${error.details}'.toLowerCase();
     if (text.contains('23505') || text.contains('duplicate key')) {
       if (text.contains('event_registration_guests')) {
         return 'Este acompanhante já está associado a esta inscrição.';
