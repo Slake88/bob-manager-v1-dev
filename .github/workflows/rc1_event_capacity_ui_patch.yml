@@ -1,0 +1,290 @@
+name: RC1 Event Capacity UI Patch
+
+on:
+  push:
+    branches:
+      - rc1-rebuild
+    paths:
+      - .github/workflows/rc1_event_capacity_ui_patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: rc1-rebuild
+
+      - name: Apply capacity UI patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/mobile/lib/screens/events_agenda_v2_screen.dart')
+          text = path.read_text()
+
+          def replace_once(old: str, new: str, label: str):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected 1 match, found {count}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+          """          final checkInCount = data.participants
+              .where((row) => _parseDate(row['checked_in_at']) != null)
+              .length;
+
+          return RefreshIndicator(
+""",
+          """          final checkInCount = data.participants
+              .where((row) => _parseDate(row['checked_in_at']) != null)
+              .length;
+          final capacity = int.tryParse(
+            widget.event['capacity']?.toString() ?? '',
+          );
+          final remainingCapacity =
+              capacity == null ? null : capacity - peopleCount;
+          final capacityFull =
+              remainingCapacity != null && remainingCapacity <= 0;
+
+          return RefreshIndicator(
+""",
+          'capacity state')
+
+          replace_once(
+          """                if (data.currentMember != null && _selfRegistrationOpen)
+                  _selfRegistrationCard(myRegistration),
+""",
+          """                if (data.currentMember != null && _selfRegistrationOpen)
+                  _selfRegistrationCard(
+                    myRegistration,
+                    capacityFull: capacityFull,
+                  ),
+""",
+          'self registration call')
+
+          replace_once(
+          """                  peopleCount: peopleCount,
+                  checkInCount: checkInCount,
+                ),
+""",
+          """                  peopleCount: peopleCount,
+                  checkInCount: checkInCount,
+                  capacity: capacity,
+                  remainingCapacity: remainingCapacity,
+                  capacityFull: capacityFull,
+                ),
+""",
+          'participants call')
+
+          replace_once(
+          """  Widget _selfRegistrationCard(Map<String, dynamic>? registration) {
+""",
+          """  Widget _selfRegistrationCard(
+    Map<String, dynamic>? registration, {
+    required bool capacityFull,
+  }) {
+""",
+          'self registration signature')
+
+          replace_once(
+          """      return Card(
+        child: ListTile(
+          leading: const CircleAvatar(child: Icon(Icons.how_to_reg_outlined)),
+          title: const Text('Queres participar?'),
+          subtitle: const Text(
+            'Podes inscrever-te diretamente, sem aprovação de outro membro.',
+          ),
+          trailing: FilledButton.icon(
+            onPressed: _registerSelf,
+            icon: const Icon(Icons.check),
+            label: const Text('Vou participar'),
+          ),
+        ),
+      );
+""",
+          """      return Card(
+        child: ListTile(
+          leading: const CircleAvatar(child: Icon(Icons.how_to_reg_outlined)),
+          title: Text(capacityFull ? 'Lotação esgotada' : 'Queres participar?'),
+          subtitle: Text(
+            capacityFull
+                ? 'Este evento atingiu a capacidade máxima definida.'
+                : 'Podes inscrever-te diretamente, sem aprovação de outro membro.',
+          ),
+          trailing: FilledButton.icon(
+            onPressed: capacityFull ? null : _registerSelf,
+            icon: const Icon(Icons.check),
+            label: Text(capacityFull ? 'Sem lugares' : 'Vou participar'),
+          ),
+        ),
+      );
+""",
+          'self registration full state')
+
+          replace_once(
+          """            FilledButton.tonalIcon(
+              onPressed: () => _addCompanion(registration),
+              icon: const Icon(Icons.person_add_alt_outlined),
+              label: const Text('Adicionar acompanhante'),
+            ),
+""",
+          """            FilledButton.tonalIcon(
+              onPressed:
+                  capacityFull ? null : () => _addCompanion(registration),
+              icon: const Icon(Icons.person_add_alt_outlined),
+              label: Text(
+                capacityFull ? 'Lotação esgotada' : 'Adicionar acompanhante',
+              ),
+            ),
+""",
+          'self companion full state')
+
+          replace_once(
+          """    required int peopleCount,
+    required int checkInCount,
+  }) {
+""",
+          """    required int peopleCount,
+    required int checkInCount,
+    required int? capacity,
+    required int? remainingCapacity,
+    required bool capacityFull,
+  }) {
+""",
+          'participants signature')
+
+          replace_once(
+          """                      Text(
+                        'Participantes ($peopleCount ${peopleCount == 1 ? 'pessoa' : 'pessoas'})',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(
+                        '${data.participants.length} membro${data.participants.length == 1 ? '' : 's'} inscrito${data.participants.length == 1 ? '' : 's'} • '
+                        '$checkInCount check-in${checkInCount == 1 ? '' : 's'}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+""",
+          """                      Text(
+                        capacity == null
+                            ? 'Participantes ($peopleCount ${peopleCount == 1 ? 'pessoa' : 'pessoas'})'
+                            : 'Participantes ($peopleCount / $capacity pessoas)',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(
+                        '${data.participants.length} membro${data.participants.length == 1 ? '' : 's'} inscrito${data.participants.length == 1 ? '' : 's'} • '
+                        '$checkInCount check-in${checkInCount == 1 ? '' : 's'}'
+                        '${capacity == null ? '' : capacityFull ? ' • Lotação esgotada' : ' • $remainingCapacity ${remainingCapacity == 1 ? 'lugar disponível' : 'lugares disponíveis'}'}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+""",
+          'capacity summary')
+
+          replace_once(
+          """                  IconButton(
+                    tooltip: 'Adicionar participante',
+                    onPressed: () => _addParticipant(data.participants),
+                    icon: const Icon(Icons.person_add_alt_1_outlined),
+                  ),
+""",
+          """                  IconButton(
+                    tooltip: capacityFull
+                        ? 'Lotação esgotada'
+                        : 'Adicionar participante',
+                    onPressed: capacityFull
+                        ? null
+                        : () => _addParticipant(data.participants),
+                    icon: const Icon(Icons.person_add_alt_1_outlined),
+                  ),
+""",
+          'manager add participant state')
+
+          replace_once(
+          """                (registration) => _participantTile(
+                  registration,
+                  currentMemberId: currentMemberId,
+                ),
+""",
+          """                (registration) => _participantTile(
+                  registration,
+                  currentMemberId: currentMemberId,
+                  capacityFull: capacityFull,
+                ),
+""",
+          'participant tile call')
+
+          replace_once(
+          """    Map<String, dynamic> registration, {
+    required String? currentMemberId,
+  }) {
+""",
+          """    Map<String, dynamic> registration, {
+    required String? currentMemberId,
+    required bool capacityFull,
+  }) {
+""",
+          'participant tile signature')
+
+          replace_once(
+          """                    OutlinedButton.icon(
+                      onPressed: () => _addCompanion(registration),
+                      icon: const Icon(Icons.person_add_alt_outlined, size: 18),
+                      label: const Text('Adicionar acompanhante'),
+                    ),
+""",
+          """                    OutlinedButton.icon(
+                      onPressed: capacityFull
+                          ? null
+                          : () => _addCompanion(registration),
+                      icon: const Icon(Icons.person_add_alt_outlined, size: 18),
+                      label: Text(
+                        capacityFull
+                            ? 'Lotação esgotada'
+                            : 'Adicionar acompanhante',
+                      ),
+                    ),
+""",
+          'manager companion state')
+
+          path.write_text(text)
+
+          repo = Path('apps/mobile/lib/repositories/events_repository.dart')
+          repo_text = repo.read_text()
+          old = """String _friendlyEventError(PostgrestException error) {
+  final message = error.message.toLowerCase();
+  if (message.contains('event_status') ||
+"""
+          new = """String _friendlyEventError(PostgrestException error) {
+  final message =
+      '${error.code} ${error.message} ${error.details}'.toLowerCase();
+  if (message.contains('event_capacity_below_occupancy')) {
+    return 'A capacidade não pode ser inferior ao número de pessoas já inscritas no evento.';
+  }
+  if (message.contains('events_capacity_positive_check')) {
+    return 'A capacidade tem de ser um número inteiro superior a zero.';
+  }
+  if (message.contains('event_status') ||
+"""
+          if repo_text.count(old) != 1:
+              raise SystemExit(
+                  f'event error mapping: expected 1 match, found {repo_text.count(old)}')
+          repo.write_text(repo_text.replace(old, new, 1))
+          PY
+
+      - name: Remove temporary workflow
+        run: git rm .github/workflows/rc1_event_capacity_ui_patch.yml
+
+      - name: Commit capacity UX
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/mobile/lib/screens/events_agenda_v2_screen.dart apps/mobile/lib/repositories/events_repository.dart .github/workflows/rc1_event_capacity_ui_patch.yml
+          git diff --cached --check
+          git commit -m "feat(events): surface event capacity state"
+          git push origin HEAD:rc1-rebuild
