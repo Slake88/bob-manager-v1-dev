@@ -306,6 +306,9 @@ class EventParticipationRepository {
   String _friendly(PostgrestException error) {
     final text =
         '${error.code} ${error.message} ${error.details}'.toLowerCase();
+    if (text.contains('event_capacity_reached')) {
+      return 'O evento atingiu a capacidade máxima. Não existem lugares disponíveis.';
+    }
     if (text.contains('23505') || text.contains('duplicate key')) {
       if (text.contains('event_registration_guests')) {
         return 'Este acompanhante já está associado a esta inscrição.';
