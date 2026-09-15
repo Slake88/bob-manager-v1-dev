@@ -543,17 +543,29 @@ class EventsAdvancedRepository {
   Future<Map<String, dynamic>> assignTask({
     required String eventId,
     required String taskId,
-    required String memberId,
+    String? memberId,
+    String? guestId,
   }) async {
     _require(AppPermission.manageEventOperations);
+    final normalizedMemberId = memberId?.trim() ?? '';
+    final normalizedGuestId = guestId?.trim() ?? '';
+    final hasMember = normalizedMemberId.isNotEmpty;
+    final hasGuest = normalizedGuestId.isNotEmpty;
+    if (hasMember == hasGuest) {
+      throw ArgumentError('Seleciona exatamente um voluntário.');
+    }
     try {
       return await _saveEventRow('event_task_assignees', eventId, {
         'task_id': taskId,
-        'member_id': memberId,
+        'member_id': hasMember ? normalizedMemberId : null,
+        'guest_id': hasGuest ? normalizedGuestId : null,
       });
     } on PostgrestException catch (error) {
       if (error.code == '23505') {
         throw StateError('Este voluntário já está atribuído a esta tarefa.');
+      }
+      if (error.code == 'P0001' || error.code == '23514') {
+        throw StateError(error.message);
       }
       rethrow;
     }
@@ -598,18 +610,30 @@ class EventsAdvancedRepository {
   Future<Map<String, dynamic>> assignShift({
     required String eventId,
     required String shiftId,
-    required String memberId,
+    String? memberId,
+    String? guestId,
   }) async {
     _require(AppPermission.manageEventOperations);
+    final normalizedMemberId = memberId?.trim() ?? '';
+    final normalizedGuestId = guestId?.trim() ?? '';
+    final hasMember = normalizedMemberId.isNotEmpty;
+    final hasGuest = normalizedGuestId.isNotEmpty;
+    if (hasMember == hasGuest) {
+      throw ArgumentError('Seleciona exatamente um voluntário.');
+    }
     try {
       return await _saveEventRow('event_shift_members', eventId, {
         'shift_id': shiftId,
-        'member_id': memberId,
+        'member_id': hasMember ? normalizedMemberId : null,
+        'guest_id': hasGuest ? normalizedGuestId : null,
         'status': 'assigned',
       });
     } on PostgrestException catch (error) {
       if (error.code == '23505') {
         throw StateError('Este voluntário já está atribuído a este turno.');
+      }
+      if (error.code == 'P0001' || error.code == '23514') {
+        throw StateError(error.message);
       }
       rethrow;
     }

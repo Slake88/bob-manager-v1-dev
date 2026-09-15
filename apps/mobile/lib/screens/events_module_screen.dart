@@ -2029,14 +2029,45 @@ class _EventOperationsPageState extends State<_EventOperationsPage> {
     return 'Membro';
   }
 
+  String _volunteerSubjectKey(Map<String, dynamic> row) {
+    final guestId = row['guest_id']?.toString().trim() ?? '';
+    if (guestId.isNotEmpty) return 'guest:$guestId';
+    final memberId = row['member_id']?.toString().trim() ?? '';
+    return 'member:$memberId';
+  }
+
+  String _volunteerDisplayName(Map<String, dynamic> row) {
+    final displayName = row['display_name']?.toString().trim() ?? '';
+    if (displayName.isNotEmpty) return displayName;
+    final guestName = row['guest_name']?.toString().trim() ?? '';
+    if (guestName.isNotEmpty) return guestName;
+    final memberName = row['member_name']?.toString().trim() ?? '';
+    if (memberName.isNotEmpty) return memberName;
+    return row['guest_id'] != null ? 'Acompanhante' : 'Membro';
+  }
+
+  String _assignmentDisplayName(
+    Map<String, dynamic> assignment,
+    List<Map<String, dynamic>> volunteers,
+    List<Map<String, dynamic>> members,
+  ) {
+    final key = _volunteerSubjectKey(assignment);
+    for (final volunteer in volunteers) {
+      if (_volunteerSubjectKey(volunteer) == key) {
+        return _volunteerDisplayName(volunteer);
+      }
+    }
+    final memberId = assignment['member_id']?.toString().trim() ?? '';
+    if (memberId.isNotEmpty) return _memberName(memberId, members);
+    return 'Acompanhante';
+  }
+
   Future<Map<String, dynamic>?> _pickVolunteer(
     List<Map<String, dynamic>> volunteers,
-    Set<String> excludedMemberIds,
+    Set<String> excludedSubjectKeys,
   ) async {
     final available = volunteers
-        .where(
-          (row) => !excludedMemberIds.contains(row['member_id']?.toString()),
-        )
+        .where((row) => !excludedSubjectKeys.contains(_volunteerSubjectKey(row)))
         .toList();
     if (available.isEmpty) {
       if (mounted) {
@@ -2060,13 +2091,22 @@ class _EventOperationsPageState extends State<_EventOperationsPage> {
             itemCount: available.length,
             itemBuilder: (context, index) {
               final volunteer = available[index];
+              final isGuest = volunteer['guest_id'] != null;
+              final hostName =
+                  volunteer['host_member_name']?.toString().trim() ?? '';
               return ListTile(
-                leading: const CircleAvatar(
-                  child: Icon(Icons.volunteer_activism_outlined),
+                leading: CircleAvatar(
+                  child: Icon(
+                    isGuest
+                        ? Icons.group_outlined
+                        : Icons.volunteer_activism_outlined,
+                  ),
                 ),
-                title: Text(volunteer['member_name']?.toString() ?? 'Membro'),
+                title: Text(_volunteerDisplayName(volunteer)),
                 subtitle: Text(
-                  volunteer['function_name']?.toString() ?? 'Apoio geral',
+                  isGuest
+                      ? 'Acompanhante${hostName.isEmpty ? '' : ' de $hostName'} • ${volunteer['function_name']?.toString() ?? 'Apoio geral'}'
+                      : volunteer['function_name']?.toString() ?? 'Apoio geral',
                 ),
                 onTap: () => Navigator.pop(dialogContext, volunteer),
               );
@@ -2365,18 +2405,18 @@ class _EventOperationsPageState extends State<_EventOperationsPage> {
     List<Map<String, dynamic>> taskAssignees,
     List<Map<String, dynamic>> volunteers,
   ) async {
-    final assignedIds = taskAssignees
+    final assignedKeys = taskAssignees
         .where((row) => row['task_id']?.toString() == task['id']?.toString())
-        .map((row) => row['member_id']?.toString())
-        .whereType<String>()
+        .map(_volunteerSubjectKey)
         .toSet();
-    final volunteer = await _pickVolunteer(volunteers, assignedIds);
+    final volunteer = await _pickVolunteer(volunteers, assignedKeys);
     if (volunteer == null) return;
     try {
       await widget.repository.assignTask(
         eventId: widget.eventId,
         taskId: task['id'].toString(),
-        memberId: volunteer['member_id'].toString(),
+        memberId: volunteer['member_id']?.toString(),
+        guestId: volunteer['guest_id']?.toString(),
       );
       if (!mounted) return;
       _snack(context, 'Voluntário atribuído à tarefa.');
@@ -2665,18 +2705,18 @@ class _EventOperationsPageState extends State<_EventOperationsPage> {
     List<Map<String, dynamic>> shiftMembers,
     List<Map<String, dynamic>> volunteers,
   ) async {
-    final assignedIds = shiftMembers
+    final assignedKeys = shiftMembers
         .where((row) => row['shift_id']?.toString() == shift['id']?.toString())
-        .map((row) => row['member_id']?.toString())
-        .whereType<String>()
+        .map(_volunteerSubjectKey)
         .toSet();
-    final volunteer = await _pickVolunteer(volunteers, assignedIds);
+    final volunteer = await _pickVolunteer(volunteers, assignedKeys);
     if (volunteer == null) return;
     try {
       await widget.repository.assignShift(
         eventId: widget.eventId,
         shiftId: shift['id'].toString(),
-        memberId: volunteer['member_id'].toString(),
+        memberId: volunteer['member_id']?.toString(),
+        guestId: volunteer['guest_id']?.toString(),
       );
       if (!mounted) return;
       _snack(context, 'Voluntário atribuído ao turno.');
@@ -3640,15 +3680,25 @@ class _EventOperationsPageState extends State<_EventOperationsPage> {
               ),
             )
           else
-            ...volunteers.map(
-              (row) => ListTile(
-                leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-                title: Text(row['member_name']?.toString() ?? 'Membro'),
-                subtitle: Text(
-                  row['function_name']?.toString() ?? 'Apoio geral',
+            ...volunteers.map((row) {
+              final isGuest = row['guest_id'] != null;
+              final hostName = row['host_member_name']?.toString().trim() ?? '';
+              final functionName =
+                  row['function_name']?.toString() ?? 'Apoio geral';
+              return ListTile(
+                leading: CircleAvatar(
+                  child: Icon(
+                    isGuest ? Icons.group_outlined : Icons.person_outline,
+                  ),
                 ),
-              ),
-            ),
+                title: Text(_volunteerDisplayName(row)),
+                subtitle: Text(
+                  isGuest
+                      ? 'Acompanhante${hostName.isEmpty ? '' : ' de $hostName'} • $functionName'
+                      : functionName,
+                ),
+              );
+            }),
         ],
       ),
     );
@@ -3700,7 +3750,7 @@ class _EventOperationsPageState extends State<_EventOperationsPage> {
               return ListTile(
                 leading: const CircleAvatar(child: Icon(Icons.person_outline)),
                 title: Text(
-                  _memberName(assignment['member_id']?.toString(), members),
+                  _assignmentDisplayName(assignment, volunteers, members),
                 ),
                 subtitle: Text(state),
                 trailing: canManage
@@ -3785,7 +3835,7 @@ class _EventOperationsPageState extends State<_EventOperationsPage> {
               (assignment) => ListTile(
                 leading: const CircleAvatar(child: Icon(Icons.person_outline)),
                 title: Text(
-                  _memberName(assignment['member_id']?.toString(), members),
+                  _assignmentDisplayName(assignment, volunteers, members),
                 ),
                 subtitle: Text(_assignmentStatusLabel(assignment['status'])),
                 trailing: canManage

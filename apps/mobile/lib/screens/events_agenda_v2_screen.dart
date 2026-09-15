@@ -1121,10 +1121,61 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
     }
   }
 
-  Future<void> _addVolunteer() async {
+  Future<void> _addVolunteer(_EventDetailV2Data data) async {
     final members = await widget.memberRepository.listMembers();
-    if (!mounted || members.isEmpty) return;
-    String memberId = members.first['id'].toString();
+    if (!mounted) return;
+
+    final existingKeys = data.volunteers.map((row) {
+      final guestId = row['guest_id']?.toString().trim() ?? '';
+      if (guestId.isNotEmpty) return 'guest:$guestId';
+      return 'member:${row['member_id']?.toString() ?? ''}';
+    }).toSet();
+
+    final candidates = <Map<String, dynamic>>[];
+    for (final member in members) {
+      final id = member['id']?.toString() ?? '';
+      if (id.isEmpty || existingKeys.contains('member:$id')) continue;
+      final name = member['full_name']?.toString().trim() ?? '';
+      candidates.add({
+        'key': 'member:$id',
+        'kind': 'member',
+        'id': id,
+        'name': name.isEmpty ? 'Membro' : name,
+        'label': 'Membro',
+      });
+    }
+    for (final registration in data.participants) {
+      final hostName =
+          registration['member_name']?.toString().trim().isNotEmpty == true
+          ? registration['member_name'].toString().trim()
+          : 'participante';
+      for (final companion in _companions(registration)) {
+        final id = companion['id']?.toString() ?? '';
+        if (id.isEmpty || existingKeys.contains('guest:$id')) continue;
+        final name = companion['guest_name']?.toString().trim() ?? '';
+        candidates.add({
+          'key': 'guest:$id',
+          'kind': 'guest',
+          'id': id,
+          'name': name.isEmpty ? 'Acompanhante' : name,
+          'host_name': hostName,
+          'label': 'Acompanhante de $hostName',
+        });
+      }
+    }
+
+    if (candidates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Não existem membros ou acompanhantes disponíveis para adicionar.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    String subjectKey = candidates.first['key'].toString();
     final function = TextEditingController();
     final saved = await showDialog<bool>(
       context: context,
@@ -1136,19 +1187,21 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
-                  initialValue: memberId,
-                  decoration: const InputDecoration(labelText: 'Membro'),
-                  items: members
+                  initialValue: subjectKey,
+                  decoration: const InputDecoration(labelText: 'Pessoa'),
+                  items: candidates
                       .map(
-                        (member) => DropdownMenuItem<String>(
-                          value: member['id'].toString(),
-                          child: Text(member['full_name'].toString()),
+                        (candidate) => DropdownMenuItem<String>(
+                          value: candidate['key'].toString(),
+                          child: Text(
+                            '${candidate['name']} — ${candidate['label']}',
+                          ),
                         ),
                       )
                       .toList(),
                   onChanged: (value) {
                     if (value != null) {
-                      setDialogState(() => memberId = value);
+                      setDialogState(() => subjectKey = value);
                     }
                   },
                 ),
@@ -1167,18 +1220,30 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
             ),
             FilledButton(
               onPressed: () async {
-                final member = members.firstWhere(
-                  (row) => row['id'].toString() == memberId,
+                final candidate = candidates.firstWhere(
+                  (row) => row['key']?.toString() == subjectKey,
                 );
+                final functionName = function.text.trim().isEmpty
+                    ? 'Apoio geral'
+                    : function.text.trim();
                 try {
-                  await widget.repository.addVolunteer(
-                    eventId: widget.event['id'].toString(),
-                    memberId: memberId,
-                    memberName: member['full_name'].toString(),
-                    functionName: function.text.trim().isEmpty
-                        ? 'Apoio geral'
-                        : function.text.trim(),
-                  );
+                  if (candidate['kind'] == 'guest') {
+                    await widget.repository.addGuestVolunteer(
+                      eventId: widget.event['id'].toString(),
+                      guestId: candidate['id'].toString(),
+                      guestName: candidate['name'].toString(),
+                      hostMemberName:
+                          candidate['host_name']?.toString() ?? 'participante',
+                      functionName: functionName,
+                    );
+                  } else {
+                    await widget.repository.addVolunteer(
+                      eventId: widget.event['id'].toString(),
+                      memberId: candidate['id'].toString(),
+                      memberName: candidate['name'].toString(),
+                      functionName: functionName,
+                    );
+                  }
                   if (dialogContext.mounted) {
                     Navigator.pop(dialogContext, true);
                   }
@@ -1197,7 +1262,12 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
       ),
     );
     function.dispose();
-    if (saved == true && mounted) setState(_reload);
+    if (saved == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Voluntário adicionado ao evento.')),
+      );
+      setState(_reload);
+    }
   }
 
   Future<void> _removeVolunteer(Map<String, dynamic> volunteer) async {
@@ -1355,14 +1425,19 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
                             Icons.volunteer_activism_outlined,
                           ),
                           title: Text(
-                            row['member_name']?.toString() ?? 'Membro',
+                            row['display_name']?.toString() ??
+                                row['member_name']?.toString() ??
+                                row['guest_name']?.toString() ??
+                                'Voluntário',
                           ),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                row['function_name']?.toString() ??
-                                    'Apoio geral',
+                                row['guest_id'] != null
+                                    ? 'Acompanhante de ${row['host_member_name']?.toString() ?? 'participante'} • ${row['function_name']?.toString() ?? 'Apoio geral'}'
+                                    : row['function_name']?.toString() ??
+                                        'Apoio geral',
                               ),
                               if (_canManage)
                                 Padding(
@@ -1384,7 +1459,7 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
                   action: _canManage
                       ? IconButton(
                           tooltip: 'Adicionar voluntário',
-                          onPressed: _addVolunteer,
+                          onPressed: () => _addVolunteer(data),
                           icon: const Icon(Icons.add_task_outlined),
                         )
                       : null,

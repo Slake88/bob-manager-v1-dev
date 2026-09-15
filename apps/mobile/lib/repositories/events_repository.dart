@@ -336,15 +336,37 @@ class EventsRepository {
     final response = await _client
         .from('event_volunteers')
         .select(
-          'id,event_id,member_id,function_name,status,created_at,members(full_name)',
+          'id,event_id,member_id,guest_id,function_name,status,created_at,'
+          'members(full_name),'
+          'event_registration_guests(guest_name,event_registrations(member_id,members(full_name)))',
         )
         .eq('event_id', eventId)
         .order('created_at');
     return List<Map<String, dynamic>>.from(response).map((row) {
       final member = row['members'];
+      final guest = row['event_registration_guests'];
+      final registration = guest is Map ? guest['event_registrations'] : null;
+      final hostMember = registration is Map ? registration['members'] : null;
+      final memberName = member is Map
+          ? member['full_name']?.toString().trim()
+          : null;
+      final guestName = guest is Map
+          ? guest['guest_name']?.toString().trim()
+          : null;
+      final hostMemberName = hostMember is Map
+          ? hostMember['full_name']?.toString().trim()
+          : null;
+      final isGuest = row['guest_id'] != null;
+      final displayName = isGuest
+          ? (guestName?.isNotEmpty == true ? guestName! : 'Acompanhante')
+          : (memberName?.isNotEmpty == true ? memberName! : 'Membro');
       return <String, dynamic>{
         ...row,
-        'member_name': member is Map ? member['full_name'] : null,
+        'member_name': memberName,
+        'guest_name': guestName,
+        'host_member_name': hostMemberName,
+        'display_name': displayName,
+        'volunteer_kind': isGuest ? 'guest' : 'member',
       };
     }).toList();
   }
@@ -401,6 +423,72 @@ class EventsRepository {
           error.message.contains('event_volunteers_event_member_unique')) {
         throw StateError(
           'Este membro já está registado como voluntário neste evento.',
+        );
+      }
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> addGuestVolunteer({
+    required String eventId,
+    required String guestId,
+    required String guestName,
+    required String hostMemberName,
+    required String functionName,
+  }) async {
+    _require(AppPermission.manageEventParticipants);
+    final normalizedFunction = functionName.trim();
+    if (normalizedFunction.isEmpty) {
+      throw ArgumentError('Indica a função do voluntário.');
+    }
+    if (AppConfig.demoMode) {
+      final existing = await _dataService.listWhere(
+        'event_volunteers',
+        field: 'event_id',
+        value: eventId,
+      );
+      if (existing.any((row) => row['guest_id']?.toString() == guestId)) {
+        throw StateError(
+          'Este acompanhante já está registado como voluntário neste evento.',
+        );
+      }
+      return _dataService.insert('event_volunteers', {
+        'event_id': eventId,
+        'member_id': null,
+        'guest_id': guestId,
+        'guest_name': guestName,
+        'host_member_name': hostMemberName,
+        'display_name': guestName,
+        'volunteer_kind': 'guest',
+        'function_name': normalizedFunction,
+        'status': 'confirmed',
+      });
+    }
+
+    try {
+      final response = await _client
+          .from('event_volunteers')
+          .insert({
+            'club_id': AppSession.instance.clubId,
+            'event_id': eventId,
+            'guest_id': guestId,
+            'function_name': normalizedFunction,
+            'status': 'confirmed',
+          })
+          .select()
+          .single();
+      return <String, dynamic>{
+        ...Map<String, dynamic>.from(response),
+        'guest_name': guestName,
+        'host_member_name': hostMemberName,
+        'display_name': guestName,
+        'volunteer_kind': 'guest',
+      };
+    } on PostgrestException catch (error) {
+      if (error.code == '23505' ||
+          error.message.contains('event_volunteers_event_guest_unique')) {
+        throw StateError(
+          'Este acompanhante já está registado como voluntário neste evento.',
         );
       }
       rethrow;
