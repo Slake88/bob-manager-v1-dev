@@ -5,15 +5,20 @@ class ModuleDefinition {
 }
 const appModules = <ModuleDefinition>[
  ModuleDefinition('dashboard','Dashboard',Icons.dashboard_outlined,'Resumo do clube e alertas'),
+ ModuleDefinition('activity','Atividade',Icons.dynamic_feed_outlined,'Activity Feed e histórico do clube'),
  ModuleDefinition('members','Membros',Icons.groups_outlined,'Membros, motas, manutenção, patches e Timeline'),
  ModuleDefinition('treasury','Tesouraria',Icons.account_balance_wallet_outlined,'Contas, fundos, movimentos e reembolsos'),
+ ModuleDefinition('financial','Pedidos & Pagamentos',Icons.request_quote_outlined,'Reembolsos, cobranças, comprovativos e liquidações'),
  ModuleDefinition('fees','Quotas',Icons.receipt_long_outlined,'Planos, cobranças, pagamentos e saldos'),
  ModuleDefinition('lottery','Euromilhões',Icons.casino_outlined,'Participantes, chaves, sorteios e prémios'),
  ModuleDefinition('events','Eventos',Icons.event_outlined,'Eventos, passeios e Rock & Ride In'),
- ModuleDefinition('inventory','Inventário',Icons.inventory_2_outlined,'Stock, merchandising, patches e vendas'),
+ ModuleDefinition('weekly_officer','Oficial da Semana',Icons.restaurant_menu_outlined,'Escala de jantares, trocas e histórico'),
+ ModuleDefinition('agenda','Agenda',Icons.calendar_month_outlined,'Calendário, reuniões, aniversários e prazos'),
+ ModuleDefinition('bar','BAR',Icons.local_bar_outlined,'Stock, compras, vendas e consumos do Bar'),
+ ModuleDefinition('inventory','Património & Inventário',Icons.inventory_2_outlined,'Loja, património, movimentos e inventário físico'),
  ModuleDefinition('documents','Documentos',Icons.folder_outlined,'Arquivo, atas, licenças e Cápsula do Tempo'),
  ModuleDefinition('communication','Comunicação',Icons.campaign_outlined,'Comunicados, votações e inquéritos'),
- ModuleDefinition('reports','Relatórios',Icons.assessment_outlined,'PDF, Excel, CSV e importações'),
+ ModuleDefinition('reports','Relatórios',Icons.assessment_outlined,'Centro global de relatórios PDF, Excel e CSV'),
  ModuleDefinition('settings','Configurações',Icons.settings_outlined,'Clube, cargos, permissões e integrações'),
  ModuleDefinition('emergency','Emergência',Icons.emergency_outlined,'Contactos e dados médicos essenciais'),
 ];
