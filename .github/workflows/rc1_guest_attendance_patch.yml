@@ -32,6 +32,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/mobile/lib/repositories/event_participation_repository.dart apps/mobile/lib/screens/events_agenda_v2_screen.dart .github/workflows/rc1_guest_attendance_patch.yml tools/rc1_guest_attendance_patch.py
+          git add apps/mobile/lib/repositories/event_participation_repository.dart apps/mobile/lib/screens/events_agenda_v2_screen.dart
           git commit -m "feat(events): manage companion attendance individually"
           git push origin HEAD:rc1-rebuild
