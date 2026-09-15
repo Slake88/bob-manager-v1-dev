@@ -288,3 +288,5 @@ jobs:
           git diff --cached --check
           git commit -m "feat(events): surface event capacity state"
           git push origin HEAD:rc1-rebuild
+
+# Trigger after the workflow already exists on rc1-rebuild.
