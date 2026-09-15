@@ -69,7 +69,7 @@ class EventParticipationRepository {
         .select(
           'id,event_id,member_id,status,checked_in_at,notes,created_at,'
           'members(full_name,nickname,profile_id),'
-          'event_registration_guests(id,guest_name,created_at)',
+          'event_registration_guests(id,guest_name,status,checked_in_at,notes,created_at)',
         )
         .eq('event_id', eventId)
         .order('created_at');
@@ -222,6 +222,48 @@ class EventParticipationRepository {
     }
   }
 
+  Future<void> updateCompanion({
+    required String eventId,
+    required String companionId,
+    required String status,
+    required String? notes,
+    required DateTime? checkedInAt,
+  }) async {
+    if (!canManageAll) {
+      throw StateError('Sem permissão para gerir este acompanhante.');
+    }
+
+    final normalizedStatus = status.trim();
+    if (normalizedStatus != 'confirmed' && normalizedStatus != 'pending') {
+      throw ArgumentError('O estado do acompanhante não é válido.');
+    }
+    if (normalizedStatus != 'confirmed' && checkedInAt != null) {
+      throw ArgumentError(
+        'Só é possível registar presença num acompanhante confirmado.',
+      );
+    }
+
+    final normalizedNotes = notes?.trim();
+    if (AppConfig.demoMode) return;
+
+    try {
+      await _client.rpc(
+        'update_event_guest_attendance_v1',
+        params: {
+          'p_event': eventId,
+          'p_guest': companionId,
+          'p_status': normalizedStatus,
+          'p_notes': normalizedNotes == null || normalizedNotes.isEmpty
+              ? null
+              : normalizedNotes,
+          'p_checked_in_at': checkedInAt?.toUtc().toIso8601String(),
+        },
+      );
+    } on PostgrestException catch (error) {
+      throw StateError(_friendly(error));
+    }
+  }
+
   Future<void> cancelRegistration(String registrationId) async {
     _requireView();
     if (AppConfig.demoMode) {
@@ -308,6 +350,16 @@ class EventParticipationRepository {
         '${error.code} ${error.message} ${error.details}'.toLowerCase();
     if (text.contains('event_capacity_reached')) {
       return 'O evento atingiu a capacidade máxima. Não existem lugares disponíveis.';
+    }
+    if (text.contains('guest_not_found_for_event') ||
+        text.contains('guest_registration_not_found')) {
+      return 'Acompanhante não encontrado neste evento.';
+    }
+    if (text.contains('guest_checkin_requires_confirmed_status')) {
+      return 'Só é possível registar presença num acompanhante confirmado.';
+    }
+    if (text.contains('guest_status_invalid')) {
+      return 'O estado do acompanhante não é válido.';
     }
     if (text.contains('23505') || text.contains('duplicate key')) {
       if (text.contains('event_registration_guests')) {

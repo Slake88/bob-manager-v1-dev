@@ -1121,6 +1121,177 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
     }
   }
 
+  Future<void> _editCompanion(
+    Map<String, dynamic> companion,
+  ) async {
+    String status = _normalizeRegistrationStatus(companion['status']);
+    final notes = TextEditingController(
+      text: companion['notes']?.toString() ?? '',
+    );
+    DateTime? checkedInAt = _parseDate(companion['checked_in_at']);
+    bool saving = false;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(
+            'Gerir acompanhante — '
+            '${companion['guest_name']?.toString() ?? 'Acompanhante'}',
+          ),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: status,
+                    decoration: const InputDecoration(
+                      labelText: 'Estado',
+                      prefixIcon: Icon(Icons.fact_check_outlined),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'confirmed',
+                        child: Text('Confirmado'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'pending',
+                        child: Text('Pendente'),
+                      ),
+                    ],
+                    onChanged: saving
+                        ? null
+                        : (value) {
+                            if (value == null) return;
+                            setDialogState(() {
+                              status = value;
+                              if (status != 'confirmed') {
+                                checkedInAt = null;
+                              }
+                            });
+                          },
+                  ),
+                  const SizedBox(height: 10),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Check-in / presença'),
+                    subtitle: Text(
+                      checkedInAt == null
+                          ? 'Presença ainda não registada'
+                          : 'Registado em ${_dateTimePt(checkedInAt)}',
+                    ),
+                    value: checkedInAt != null,
+                    onChanged: saving || status != 'confirmed'
+                        ? null
+                        : (value) {
+                            setDialogState(() {
+                              checkedInAt = value ? DateTime.now() : null;
+                            });
+                          },
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: notes,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      labelText: 'Notas operacionais (opcional)',
+                      prefixIcon: Icon(Icons.notes_outlined),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed:
+                  saving ? null : () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton.icon(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      setDialogState(() => saving = true);
+                      try {
+                        await _participation.updateCompanion(
+                          eventId: widget.event['id'].toString(),
+                          companionId: companion['id'].toString(),
+                          status: status,
+                          notes: notes.text,
+                          checkedInAt: checkedInAt,
+                        );
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext, true);
+                        }
+                      } catch (error) {
+                        if (dialogContext.mounted) {
+                          ScaffoldMessenger.of(dialogContext).showSnackBar(
+                            SnackBar(content: Text(_friendlyError(error))),
+                          );
+                          setDialogState(() => saving = false);
+                        }
+                      }
+                    },
+              icon: saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save_outlined),
+              label: Text(saving ? 'A guardar...' : 'Guardar'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    notes.dispose();
+    if (saved == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Acompanhante atualizado.')),
+      );
+      setState(_reload);
+    }
+  }
+
+  Future<void> _toggleCompanionCheckIn(
+    Map<String, dynamic> companion,
+  ) async {
+    final currentCheckIn = _parseDate(companion['checked_in_at']);
+    final registeringPresence = currentCheckIn == null;
+    final currentStatus = _normalizeRegistrationStatus(companion['status']);
+
+    try {
+      await _participation.updateCompanion(
+        eventId: widget.event['id'].toString(),
+        companionId: companion['id'].toString(),
+        status: registeringPresence ? 'confirmed' : currentStatus,
+        notes: companion['notes']?.toString(),
+        checkedInAt: registeringPresence ? DateTime.now() : null,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            registeringPresence
+                ? (currentStatus == 'pending'
+                    ? 'Check-in do acompanhante registado e estado confirmado.'
+                    : 'Check-in do acompanhante registado.')
+                : 'Check-in do acompanhante anulado.',
+          ),
+        ),
+      );
+      setState(_reload);
+    } catch (error) {
+      _showError(error);
+    }
+  }
+
   Future<void> _addVolunteer(_EventDetailV2Data data) async {
     final members = await widget.memberRepository.listMembers();
     if (!mounted) return;
@@ -1341,9 +1512,18 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
             0,
             (sum, row) => sum + 1 + _companions(row).length,
           );
-          final checkInCount = data.participants
-              .where((row) => _parseDate(row['checked_in_at']) != null)
-              .length;
+          final checkInCount = data.participants.fold<int>(
+            0,
+            (sum, row) =>
+                sum +
+                (_parseDate(row['checked_in_at']) != null ? 1 : 0) +
+                _companions(row)
+                    .where(
+                      (companion) =>
+                          _parseDate(companion['checked_in_at']) != null,
+                    )
+                    .length,
+          );
 
           return RefreshIndicator(
             onRefresh: _refresh,
@@ -1640,25 +1820,128 @@ class _EventDetailV2ScreenState extends State<EventDetailV2Screen> {
               const SizedBox(height: 6),
               if (companions.isEmpty)
                 const Text('Sem acompanhantes')
-              else
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: companions
-                      .map(
-                        (companion) => InputChip(
-                          avatar: const Icon(Icons.group_outlined, size: 16),
-                          label: Text(
-                            companion['guest_name']?.toString() ??
-                                'Acompanhante',
-                          ),
-                          onDeleted: canEditCompanions
-                              ? () => _removeCompanion(companion)
-                              : null,
-                        ),
-                      )
-                      .toList(),
+              else ...[
+                Text(
+                  'Acompanhantes',
+                  style: Theme.of(context).textTheme.labelLarge,
                 ),
+                const SizedBox(height: 4),
+                ...companions.map((companion) {
+                  final companionStatus = _normalizeRegistrationStatus(
+                    companion['status'],
+                  );
+                  final companionCheckIn = _parseDate(
+                    companion['checked_in_at'],
+                  );
+                  final companionNotes =
+                      companion['notes']?.toString().trim() ?? '';
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                        ),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.group_outlined, size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  companion['guest_name']?.toString() ??
+                                      'Acompanhante',
+                                  style: Theme.of(context).textTheme.titleSmall,
+                                ),
+                              ),
+                              if (canEditCompanions)
+                                IconButton(
+                                  tooltip: 'Remover acompanhante',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: () => _removeCompanion(companion),
+                                  icon: const Icon(
+                                    Icons.person_remove_outlined,
+                                    size: 18,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              Chip(
+                                visualDensity: VisualDensity.compact,
+                                avatar: Icon(
+                                  companionStatus == 'confirmed'
+                                      ? Icons.verified_outlined
+                                      : Icons.schedule_outlined,
+                                  size: 16,
+                                ),
+                                label: Text(
+                                  _registrationStatusLabel(companionStatus),
+                                ),
+                              ),
+                              if (companionCheckIn != null)
+                                Chip(
+                                  visualDensity: VisualDensity.compact,
+                                  avatar: const Icon(
+                                    Icons.how_to_reg_outlined,
+                                    size: 16,
+                                  ),
+                                  label: Text(
+                                    'Presente • ${_dateTimePt(companionCheckIn)}',
+                                  ),
+                                ),
+                            ],
+                          ),
+                          if (_canManage && companionNotes.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Text('Notas: $companionNotes'),
+                          ],
+                          if (_canManage) ...[
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 6,
+                              children: [
+                                FilledButton.tonalIcon(
+                                  onPressed: () =>
+                                      _toggleCompanionCheckIn(companion),
+                                  icon: Icon(
+                                    companionCheckIn == null
+                                        ? Icons.how_to_reg_outlined
+                                        : Icons.undo_outlined,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    companionCheckIn == null
+                                        ? 'Check-in'
+                                        : 'Anular check-in',
+                                  ),
+                                ),
+                                OutlinedButton.icon(
+                                  onPressed: () => _editCompanion(companion),
+                                  icon: const Icon(
+                                    Icons.edit_note_outlined,
+                                    size: 18,
+                                  ),
+                                  label: const Text('Estado / notas'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ],
               if (_canManage && notes.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Text('Notas: $notes'),
