@@ -27,8 +27,8 @@ class TreasuryRepository {
   SupabaseClient get _supabase => _client ?? Supabase.instance.client;
   AppRole get currentRole => AppRole.fromValue(AppSession.instance.role);
 
-  bool get canManageAccounts =>
-      PermissionPolicy.allows(currentRole, AppPermission.manageFinancialAccounts);
+  bool get canManageAccounts => PermissionPolicy.allows(
+      currentRole, AppPermission.manageFinancialAccounts);
 
   Future<Map<String, dynamic>> summary() async {
     _require(AppPermission.viewTreasury);
@@ -85,7 +85,8 @@ class TreasuryRepository {
     );
 
     final balances = <String, dynamic>{
-      for (final row in List<Map<String, dynamic>>.from(balanceResponse as List))
+      for (final row
+          in List<Map<String, dynamic>>.from(balanceResponse as List))
         row['id'].toString(): row['balance'],
     };
 
@@ -99,8 +100,8 @@ class TreasuryRepository {
     _require(AppPermission.viewTreasury);
     if (AppConfig.demoMode) {
       final rows = await _dataService.list('cost_centers');
-      rows.sort((a, b) => (a['name']?.toString() ?? '')
-          .compareTo(b['name']?.toString() ?? ''));
+      rows.sort((a, b) =>
+          (a['name']?.toString() ?? '').compareTo(b['name']?.toString() ?? ''));
       return rows;
     }
 
@@ -110,6 +111,26 @@ class TreasuryRepository {
         .eq('club_id', AppSession.instance.clubId)
         .eq('active', true)
         .order('name');
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  Future<List<Map<String, dynamic>>> listEventsForMovements() async {
+    _require(AppPermission.viewTreasury);
+    if (AppConfig.demoMode) {
+      final rows = await _dataService.list('events');
+      rows.sort(
+        (a, b) => (b['starts_at']?.toString() ?? '')
+            .compareTo(a['starts_at']?.toString() ?? ''),
+      );
+      return rows;
+    }
+
+    final response = await _supabase
+        .from('events')
+        .select('id,name,starts_at,status')
+        .eq('club_id', AppSession.instance.clubId)
+        .order('starts_at', ascending: false)
+        .limit(250);
     return List<Map<String, dynamic>>.from(response);
   }
 
@@ -327,6 +348,7 @@ class TreasuryRepository {
     final kind = values['kind']?.toString();
     final accountId = values['account_id']?.toString();
     final costCenterId = values['cost_center_id']?.toString();
+    final eventId = values['event_id']?.toString().trim();
     final amount = _asDouble(values['amount']);
     if (kind != 'income' && kind != 'expense') {
       throw const TreasuryUserException('Tipo de movimento inválido.');
@@ -337,8 +359,7 @@ class TreasuryRepository {
     if (amount <= 0) {
       throw const TreasuryUserException('O valor deve ser superior a zero.');
     }
-    if (kind == 'expense' &&
-        (costCenterId == null || costCenterId.isEmpty)) {
+    if (kind == 'expense' && (costCenterId == null || costCenterId.isEmpty)) {
       throw const TreasuryUserException('Seleciona o centro de custo.');
     }
 
@@ -354,7 +375,8 @@ class TreasuryRepository {
       final accounts = await listAccounts();
       final account = accounts.firstWhere(
         (row) => row['id']?.toString() == accountId,
-        orElse: () => throw const TreasuryUserException('Conta não encontrada.'),
+        orElse: () =>
+            throw const TreasuryUserException('Conta não encontrada.'),
       );
       if (account['allows_negative'] != true &&
           _asDouble(account['balance']) < amount) {
@@ -377,6 +399,7 @@ class TreasuryRepository {
             'description': values['description']?.toString().trim(),
             'amount': amount,
             'cost_center_id': costCenterId,
+            'event_id': eventId == null || eventId.isEmpty ? null : eventId,
             'payment_method': values['payment_method'],
             'notes': values['notes'],
             'created_by': AppSession.instance.profileId,
@@ -400,7 +423,8 @@ class TreasuryRepository {
       'type': row['account_type'],
       'icon': row['icon'] ?? defaults.$1,
       'display_order': row['display_order'] ?? defaults.$2,
-      'allows_negative': row['allows_negative'] ?? name.toLowerCase() == 'caixa',
+      'allows_negative':
+          row['allows_negative'] ?? name.toLowerCase() == 'caixa',
       'protected': row['protected'] ?? defaults.$3,
       'balance': _asDouble(balance),
     };
@@ -445,7 +469,8 @@ class TreasuryRepository {
     if (normalized.contains('conta') && normalized.contains('inativa')) {
       return 'A conta selecionada está inativa.';
     }
-    if (normalized.contains('valor') && normalized.contains('superior a zero')) {
+    if (normalized.contains('valor') &&
+        normalized.contains('superior a zero')) {
       return 'O valor tem de ser superior a zero.';
     }
     if (normalized.contains('permiss')) {

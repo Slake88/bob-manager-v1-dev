@@ -29,11 +29,13 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
       _repository.summary(),
       _repository.listMovements(),
       _repository.listCostCenters(),
+      _repository.listEventsForMovements(),
     ]);
     return _TreasuryViewData(
       summary: Map<String, dynamic>.from(results[0] as Map),
       movements: List<Map<String, dynamic>>.from(results[1] as List),
       costCenters: List<Map<String, dynamic>>.from(results[2] as List),
+      events: List<Map<String, dynamic>>.from(results[3] as List),
     );
   }
 
@@ -57,6 +59,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
   Future<void> _openMovement(
     List<Map<String, dynamic>> accounts,
     List<Map<String, dynamic>> costCenters,
+    List<Map<String, dynamic>> events,
     String kind,
   ) async {
     final changed = await showDialog<bool>(
@@ -65,6 +68,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
         repository: _repository,
         accounts: accounts,
         costCenters: costCenters,
+        events: events,
         kind: kind,
       ),
     );
@@ -182,6 +186,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                               onPressed: () => _openMovement(
                                 accounts,
                                 data.costCenters,
+                                data.events,
                                 'income',
                               ),
                               icon: const Icon(Icons.add_circle_outline),
@@ -191,6 +196,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                               onPressed: () => _openMovement(
                                 accounts,
                                 data.costCenters,
+                                data.events,
                                 'expense',
                               ),
                               icon: const Icon(Icons.remove_circle_outline),
@@ -204,7 +210,8 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                             if (_repository.canManageAccounts)
                               OutlinedButton.icon(
                                 onPressed: _openAccount,
-                                icon: const Icon(Icons.account_balance_wallet_outlined),
+                                icon: const Icon(
+                                    Icons.account_balance_wallet_outlined),
                                 label: const Text('Nova conta'),
                               ),
                           ],
@@ -353,11 +360,13 @@ class _TreasuryViewData {
     required this.summary,
     required this.movements,
     required this.costCenters,
+    required this.events,
   });
 
   final Map<String, dynamic> summary;
   final List<Map<String, dynamic>> movements;
   final List<Map<String, dynamic>> costCenters;
+  final List<Map<String, dynamic>> events;
 }
 
 class _AccountDialog extends StatefulWidget {
@@ -465,9 +474,12 @@ class _AccountDialogState extends State<_AccountDialog> {
                   initialValue: _type,
                   decoration: const InputDecoration(labelText: 'Tipo de conta'),
                   items: const [
-                    DropdownMenuItem(value: 'cash', child: Text('Caixa / Dinheiro')),
-                    DropdownMenuItem(value: 'bank', child: Text('Conta bancária')),
-                    DropdownMenuItem(value: 'fund', child: Text('Conta interna')),
+                    DropdownMenuItem(
+                        value: 'cash', child: Text('Caixa / Dinheiro')),
+                    DropdownMenuItem(
+                        value: 'bank', child: Text('Conta bancária')),
+                    DropdownMenuItem(
+                        value: 'fund', child: Text('Conta interna')),
                     DropdownMenuItem(value: 'reserve', child: Text('Reserva')),
                   ],
                   onChanged: (value) => setState(() => _type = value ?? 'fund'),
@@ -497,7 +509,8 @@ class _AccountDialogState extends State<_AccountDialog> {
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     validator: (value) =>
-                        double.tryParse((value ?? '').replaceAll(',', '.')) == null
+                        double.tryParse((value ?? '').replaceAll(',', '.')) ==
+                                null
                             ? 'Introduz um valor válido.'
                             : null,
                   ),
@@ -535,12 +548,14 @@ class _MovementDialog extends StatefulWidget {
     required this.repository,
     required this.accounts,
     required this.costCenters,
+    required this.events,
     required this.kind,
   });
 
   final TreasuryRepository repository;
   final List<Map<String, dynamic>> accounts;
   final List<Map<String, dynamic>> costCenters;
+  final List<Map<String, dynamic>> events;
   final String kind;
 
   @override
@@ -553,6 +568,7 @@ class _MovementDialogState extends State<_MovementDialog> {
   final TextEditingController _amount = TextEditingController();
   String? _accountId;
   String? _costCenterId;
+  String? _eventId;
   bool _saving = false;
 
   @override
@@ -592,6 +608,7 @@ class _MovementDialogState extends State<_MovementDialog> {
         'account_name': account['name'],
         if (costCenter != null) 'cost_center_id': costCenter['id'],
         if (costCenter != null) 'cost_center_name': costCenter['name'],
+        if (_eventId != null) 'event_id': _eventId,
       });
       if (!mounted) return;
       Navigator.of(context).pop(true);
@@ -658,6 +675,26 @@ class _MovementDialogState extends State<_MovementDialog> {
                       ? 'Campo obrigatório.'
                       : null,
                 ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String?>(
+                  initialValue: _eventId,
+                  decoration: const InputDecoration(
+                    labelText: 'Evento (opcional)',
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Sem evento associado'),
+                    ),
+                    ...widget.events.map(
+                      (event) => DropdownMenuItem<String?>(
+                        value: event['id']?.toString(),
+                        child: Text(event['name']?.toString() ?? 'Evento'),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) => setState(() => _eventId = value),
+                ),
                 if (widget.kind == 'expense') ...[
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
@@ -674,11 +711,9 @@ class _MovementDialogState extends State<_MovementDialog> {
                           ),
                         )
                         .toList(),
-                    onChanged: (value) =>
-                        setState(() => _costCenterId = value),
-                    validator: (value) => value == null
-                        ? 'Seleciona o centro de custo.'
-                        : null,
+                    onChanged: (value) => setState(() => _costCenterId = value),
+                    validator: (value) =>
+                        value == null ? 'Seleciona o centro de custo.' : null,
                   ),
                 ],
               ],
@@ -819,7 +854,8 @@ class _TransferDialogState extends State<_TransferDialog> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _amount,
-                decoration: const InputDecoration(labelText: 'Valor a transferir'),
+                decoration:
+                    const InputDecoration(labelText: 'Valor a transferir'),
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
                 validator: (value) {
