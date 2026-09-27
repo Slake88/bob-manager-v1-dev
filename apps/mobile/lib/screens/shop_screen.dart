@@ -137,10 +137,14 @@ class _ProductsTab extends StatelessWidget {
             spacing: 10,
             runSpacing: 10,
             children: [
-              _Metric('Artigos', products.length.toString(), Icons.inventory_2_outlined),
-              _Metric('Variantes', allVariants.length.toString(), Icons.style_outlined),
-              _Metric('Stock baixo', low.toString(), Icons.warning_amber_outlined),
-              _Metric('Sem stock', empty.toString(), Icons.remove_shopping_cart_outlined),
+              _Metric('Artigos', products.length.toString(),
+                  Icons.inventory_2_outlined),
+              _Metric('Variantes', allVariants.length.toString(),
+                  Icons.style_outlined),
+              _Metric(
+                  'Stock baixo', low.toString(), Icons.warning_amber_outlined),
+              _Metric('Sem stock', empty.toString(),
+                  Icons.remove_shopping_cart_outlined),
             ],
           ),
           const SizedBox(height: 16),
@@ -390,43 +394,136 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   Future<void> _reserve(Map<String, dynamic> variant) async {
-    final controller = TextEditingController(text: '1');
-    final quantity = await showDialog<double>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Reservar ${variant['name']}'),
-        content: TextField(
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(
-            labelText: 'Quantidade',
-            helperText: 'Disponível: ${_number(_available(variant))}',
-          ),
+    List<Map<String, dynamic>> stock;
+    try {
+      stock = await widget.repository.reservableStock(
+        productId: _product['id'].toString(),
+        variantId: variant['id'].toString(),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.toString())));
+      return;
+    }
+
+    if (!mounted) return;
+
+    if (stock.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Não existe stock disponível para reservar.'),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(
-              context,
-              double.tryParse(controller.text.replaceAll(',', '.')),
+      );
+      return;
+    }
+
+    final controller = TextEditingController(text: '1');
+    var selected = 0;
+
+    final result = await showDialog<(String, double)>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          final available = _double(stock[selected]['available_quantity']);
+
+          return AlertDialog(
+            title: Text('Reservar ${variant['name']}'),
+            content: SizedBox(
+              width: 460,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<int>(
+                    initialValue: selected,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Localização',
+                    ),
+                    items: [
+                      for (var index = 0; index < stock.length; index++)
+                        DropdownMenuItem<int>(
+                          value: index,
+                          child: Text(
+                            '${stock[index]['location_name']} · '
+                            '${_number(_double(stock[index]['available_quantity']))} disponível',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        setDialogState(() => selected = value);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: controller,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: 'Quantidade',
+                      helperText: 'Disponível: ${_number(available)}',
+                    ),
+                  ),
+                ],
+              ),
             ),
-            child: const Text('Reservar'),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  final quantity =
+                      double.tryParse(controller.text.replaceAll(',', '.'));
+                  if (quantity == null ||
+                      quantity <= 0 ||
+                      quantity > available) {
+                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Indica uma quantidade válida dentro do stock disponível.',
+                        ),
+                      ),
+                    );
+                    return;
+                  }
+
+                  Navigator.pop(
+                    dialogContext,
+                    (
+                      stock[selected]['location_id'].toString(),
+                      quantity,
+                    ),
+                  );
+                },
+                child: const Text('Reservar'),
+              ),
+            ],
+          );
+        },
       ),
     );
+
     controller.dispose();
-    if (quantity == null) return;
+    if (result == null) return;
+
     try {
       await widget.repository.reserveVariant(
         productId: _product['id'].toString(),
         variantId: variant['id'].toString(),
-        quantity: quantity,
+        locationId: result.$1,
+        quantity: result.$2,
       );
       await _reloadProduct();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Stock reservado com sucesso.')),
+      );
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -787,7 +884,8 @@ class _OrdersTab extends StatelessWidget {
                     .toString(),
                 Icons.pending_actions_outlined,
               ),
-              _Metric('Por receber', _money(outstanding), Icons.payments_outlined),
+              _Metric(
+                  'Por receber', _money(outstanding), Icons.payments_outlined),
             ],
           ),
           const SizedBox(height: 14),
@@ -950,8 +1048,7 @@ class _OrderCard extends StatelessWidget {
                       ),
                     )
                     .toList(),
-                onChanged: (value) =>
-                    setState(() => method = value ?? method),
+                onChanged: (value) => setState(() => method = value ?? method),
               ),
             ],
           ),
@@ -1047,9 +1144,7 @@ class _VariantDialogState extends State<_VariantDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text(
-        widget.variant == null
-            ? 'Nova variante / tamanho'
-            : 'Editar variante',
+        widget.variant == null ? 'Nova variante / tamanho' : 'Editar variante',
       ),
       content: SingleChildScrollView(
         child: Column(
@@ -1173,7 +1268,8 @@ class _OrderDialogState extends State<_OrderDialog> {
   @override
   Widget build(BuildContext context) {
     final total = _parse(_quantity.text) * _parse(_price.text);
-    final variantName = widget.variant == null ? '' : ' / ${widget.variant!['name']}';
+    final variantName =
+        widget.variant == null ? '' : ' / ${widget.variant!['name']}';
 
     return AlertDialog(
       title: Text('Encomendar — ${widget.product['name']}$variantName'),
@@ -1446,8 +1542,7 @@ double _double(Object? value) => value is num
     ? value.toDouble()
     : double.tryParse(value?.toString().replaceAll(',', '.') ?? '') ?? 0;
 
-double _parse(String value) =>
-    double.tryParse(value.replaceAll(',', '.')) ?? 0;
+double _parse(String value) => double.tryParse(value.replaceAll(',', '.')) ?? 0;
 
 String _number(Object? value) {
   final number = _double(value);

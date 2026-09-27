@@ -21,7 +21,8 @@ class ShopRepository {
     _require(AppPermission.viewInventory);
     final response = await _client
         .from('products')
-        .select('id,name,sku,category,description,supplier,cost,sale_price,minimum_stock,current_stock,reserved_stock,photo_path,institutional_delivery,active,product_variants(id,name,sku,attributes,current_stock,reserved_stock,minimum_stock,cost,sale_price,photo_path,active)')
+        .select(
+            'id,name,sku,category,description,supplier,cost,sale_price,minimum_stock,current_stock,reserved_stock,photo_path,institutional_delivery,active,product_variants(id,name,sku,attributes,current_stock,reserved_stock,minimum_stock,cost,sale_price,photo_path,active)')
         .eq('club_id', _clubId)
         .eq('inventory_area', 'shop')
         .eq('active', true)
@@ -43,7 +44,8 @@ class ShopRepository {
     _require(AppPermission.viewInventory);
     final response = await _client
         .from('shop_orders')
-        .select('id,status,total_amount,paid_amount,notes,external_name,external_contact,created_at,member_id,members(full_name),shop_order_items(id,quantity,unit_price,product_id,variant_id,products(name),product_variants(name))')
+        .select(
+            'id,status,total_amount,paid_amount,notes,external_name,external_contact,created_at,member_id,members(full_name),shop_order_items(id,quantity,unit_price,product_id,variant_id,products(name),product_variants(name))')
         .eq('club_id', _clubId)
         .neq('status', 'cancelled')
         .order('created_at', ascending: false);
@@ -79,7 +81,8 @@ class ShopRepository {
       'active': true,
     };
     if (id == null) {
-      final response = await _client.from('products').insert(values).select().single();
+      final response =
+          await _client.from('products').insert(values).select().single();
       final product = Map<String, dynamic>.from(response);
       await _ensureDefaultVisibility(product['id'].toString(), salePrice);
       return product;
@@ -94,7 +97,8 @@ class ShopRepository {
     return Map<String, dynamic>.from(response);
   }
 
-  Future<void> _ensureDefaultVisibility(String productId, double salePrice) async {
+  Future<void> _ensureDefaultVisibility(
+      String productId, double salePrice) async {
     for (final audience in const ['public', 'prospect', 'full_color']) {
       await _client.from('inventory_visibility').upsert({
         'club_id': _clubId,
@@ -144,8 +148,14 @@ class ShopRepository {
         .select('audience,price')
         .eq('product_id', productId);
     return {
-      'visibility': {for (final row in visibility) row['audience'].toString(): row['allowed'] == true},
-      'prices': {for (final row in prices) row['audience'].toString(): _double(row['price'])},
+      'visibility': {
+        for (final row in visibility)
+          row['audience'].toString(): row['allowed'] == true
+      },
+      'prices': {
+        for (final row in prices)
+          row['audience'].toString(): _double(row['price'])
+      },
     };
   }
 
@@ -178,20 +188,51 @@ class ShopRepository {
     }
   }
 
-  Future<void> reserveVariant({
+  Future<List<Map<String, dynamic>>> reservableStock({
     required String productId,
     required String variantId,
+  }) async {
+    _require(AppPermission.viewInventory);
+    final response = await _client.rpc(
+      'inventory_stock_by_location_v1',
+      params: {'target_club': _clubId},
+    );
+    final rows = List<Map<String, dynamic>>.from(response as List);
+    return rows
+        .where(
+          (row) =>
+              row['product_id']?.toString() == productId &&
+              row['variant_id']?.toString() == variantId &&
+              _double(row['available_quantity']) > 0,
+        )
+        .toList();
+  }
+
+  Future<String> reserveVariant({
+    required String productId,
+    required String variantId,
+    required String locationId,
     required double quantity,
     String notes = '',
   }) async {
     _require(AppPermission.manageMerchandising);
-    await _client.rpc('reserve_shop_variant_v1', params: {
-      'target_club': _clubId,
-      'p_product': productId,
-      'p_variant': variantId,
-      'p_quantity': quantity,
-      'p_notes': notes,
-    });
+    if (quantity <= 0) {
+      throw ArgumentError('A quantidade deve ser superior a zero.');
+    }
+
+    final response = await _client.rpc(
+      'inventory_reservation_create_v1',
+      params: {
+        'target_club': _clubId,
+        'p_product': productId,
+        'p_variant': variantId,
+        'p_location': locationId,
+        'p_quantity': quantity,
+        'p_member': null,
+        'p_notes': notes.trim().isEmpty ? null : notes.trim(),
+      },
+    );
+    return response.toString();
   }
 
   Future<String> createOrder({
@@ -236,7 +277,8 @@ class ShopRepository {
     _require(AppPermission.manageMerchandising);
     await _client
         .from('shop_orders')
-        .update({'status': status, 'updated_at': DateTime.now().toIso8601String()})
+        .update(
+            {'status': status, 'updated_at': DateTime.now().toIso8601String()})
         .eq('id', orderId)
         .eq('club_id', _clubId);
   }
@@ -261,21 +303,21 @@ class ShopRepository {
     final thumbnailPath = '$basePath/thumb_$timestamp.jpg';
 
     await _client.storage.from('inventory-media').uploadBinary(
-      path,
-      result.optimized,
-      fileOptions: const FileOptions(
-        contentType: 'image/jpeg',
-        upsert: false,
-      ),
-    );
+          path,
+          result.optimized,
+          fileOptions: const FileOptions(
+            contentType: 'image/jpeg',
+            upsert: false,
+          ),
+        );
     await _client.storage.from('inventory-media').uploadBinary(
-      thumbnailPath,
-      result.thumbnail,
-      fileOptions: const FileOptions(
-        contentType: 'image/jpeg',
-        upsert: false,
-      ),
-    );
+          thumbnailPath,
+          result.thumbnail,
+          fileOptions: const FileOptions(
+            contentType: 'image/jpeg',
+            upsert: false,
+          ),
+        );
 
     final current = await _client
         .from('products')
