@@ -12,6 +12,7 @@ class InventoryModuleScreen extends StatefulWidget {
 
 class _InventoryModuleScreenState extends State<InventoryModuleScreen> {
   int _index = 0;
+  int _advancedRevision = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +39,13 @@ class _InventoryModuleScreenState extends State<InventoryModuleScreen> {
                 ],
                 selected: {_index},
                 onSelectionChanged: (values) {
-                  setState(() => _index = values.first);
+                  final nextIndex = values.first;
+                  setState(() {
+                    if (nextIndex == 1 && _index != 1) {
+                      _advancedRevision++;
+                    }
+                    _index = nextIndex;
+                  });
                 },
               ),
             ),
@@ -47,9 +54,11 @@ class _InventoryModuleScreenState extends State<InventoryModuleScreen> {
         Expanded(
           child: IndexedStack(
             index: _index,
-            children: const [
-              InventoryHubScreen(),
-              InventoryAdvancedScreen(),
+            children: [
+              const InventoryHubScreen(),
+              InventoryAdvancedScreen(
+                key: ValueKey(_advancedRevision),
+              ),
             ],
           ),
         ),
