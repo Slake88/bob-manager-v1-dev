@@ -14,7 +14,9 @@ import 'shop_management_screen.dart';
 import 'shop_screen.dart';
 
 class InventoryHubScreen extends StatefulWidget {
-  const InventoryHubScreen({super.key});
+  const InventoryHubScreen({super.key, this.revision = 0});
+
+  final int revision;
 
   @override
   State<InventoryHubScreen> createState() => _InventoryHubScreenState();
@@ -29,6 +31,14 @@ class _InventoryHubScreenState extends State<InventoryHubScreen> {
   void initState() {
     super.initState();
     _future = _repository.summary();
+  }
+
+  @override
+  void didUpdateWidget(covariant InventoryHubScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.revision != widget.revision) {
+      _future = _repository.summary();
+    }
   }
 
   void _reload() => setState(() => _future = _repository.summary());
@@ -76,7 +86,7 @@ class _InventoryHubScreenState extends State<InventoryHubScreen> {
                         description:
                             'Artigos, variantes, encomendas e gestão de merchandising usam dados reais do clube.',
                       )
-                    : const ShopScreen(),
+                    : ShopScreen(key: ValueKey(widget.revision)),
                 demo
                     ? const _InventoryDemoPreview(
                         title: 'Fotos de produtos',
