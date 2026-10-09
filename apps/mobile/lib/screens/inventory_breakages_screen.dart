@@ -369,7 +369,18 @@ String? _relationValue(Map<String, dynamic> row, String key, String field) {
 String _qty(double value) =>
     value == value.roundToDouble() ? value.toInt().toString() : value.toStringAsFixed(2);
 
-String _friendly(Object error) => error
-    .toString()
-    .replaceFirst('Exception: ', '')
-    .replaceFirst('Bad state: ', '');
+String _friendly(Object error) {
+  final message = error.toString();
+
+  if (message.contains('Reserva inválida para o stock do local.')) {
+    return 'Não é possível retirar esta quantidade porque parte do stock está reservado.';
+  }
+
+  if (message.contains('Stock insuficiente no local selecionado.')) {
+    return 'Não existe stock suficiente neste local para retirar essa quantidade.';
+  }
+
+  return message
+      .replaceFirst('Exception: ', '')
+      .replaceFirst('Bad state: ', '');
+}
