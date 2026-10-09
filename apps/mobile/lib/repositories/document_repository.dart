@@ -179,14 +179,14 @@ class DocumentRepository {
       // Compatibility with databases created before document versioning.
     }
 
+    if (paths.isNotEmpty) {
+      await _client.storage.from(bucketName).remove(paths.toList());
+    }
     await _client
         .from('documents')
         .delete()
         .eq('id', id)
         .eq('club_id', AppSession.instance.clubId);
-    if (paths.isNotEmpty) {
-      await _client.storage.from(bucketName).remove(paths.toList());
-    }
   }
 
   Map<String, dynamic> _databasePayload(Map<String, dynamic> values) {
