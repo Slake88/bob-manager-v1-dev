@@ -35,7 +35,9 @@ class _CommunicationScreenState extends State<CommunicationScreen> {
       MaterialPageRoute(
         builder: (_) => EntityFormScreen(
           definition: communicationDefinition,
-          initialValues: row,
+          initialValues: row == null
+              ? {'audience': 'Todos'}
+              : {...row, 'audience': _audienceLabel(row['audience'])},
           onSave: (values, id) async {
             await _repository.saveAnnouncement(values, announcementId: id);
           },
