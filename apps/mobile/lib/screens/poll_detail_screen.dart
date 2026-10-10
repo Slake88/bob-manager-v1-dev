@@ -37,7 +37,13 @@ class _PollDetailScreenState extends State<PollDetailScreen> {
     if (_selected.isEmpty && values[1].isNotEmpty) {
       _selected.addAll(values[1].map((row) => row['option_id'].toString()));
     }
+    final status = widget.poll['status'];
+    final participation = widget.repository.canManage &&
+            (status == 'published' || status == 'closed')
+        ? await widget.repository.participation(widget.poll['id'].toString())
+        : null;
     return _PollDetailData(
+      participation: participation,
       options: values[0],
       ownVotes: values[1],
       results: values[2],
@@ -309,6 +315,10 @@ class _PollDetailScreenState extends State<PollDetailScreen> {
                   ),
               ],
               const Divider(height: 30),
+              if (widget.repository.canManage && data.participation != null) ...[
+                _ParticipationSummary(participation: data.participation!),
+                const Divider(height: 30),
+              ],
               Text(
                 'Resultados',
                 style: Theme.of(context).textTheme.titleMedium,
@@ -409,11 +419,45 @@ class _PollDetailData {
     required this.options,
     required this.ownVotes,
     required this.results,
+    this.participation,
   });
 
+  final PollParticipation? participation;
   final List<Map<String, dynamic>> options;
   final List<Map<String, dynamic>> ownVotes;
   final List<Map<String, dynamic>> results;
+}
+
+class _ParticipationSummary extends StatelessWidget {
+  const _ParticipationSummary({required this.participation});
+
+  final PollParticipation participation;
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = participation.participationPercent.toStringAsFixed(0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Participação', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 8),
+        if (participation.eligibleCount == 0) ...[
+          const Text('0 eleitores elegíveis'),
+          const Text('Participação: 0%'),
+        ] else ...[
+          Text(
+            '${participation.votedCount} de ${participation.eligibleCount} '
+            'votaram · $percent%',
+          ),
+          Text(
+            participation.remainingCount == 0
+                ? 'Todos os eleitores elegíveis já votaram.'
+                : 'Falta votar: ${participation.remainingCount}',
+          ),
+        ],
+      ],
+    );
+  }
 }
 
 class _VoteOption extends StatelessWidget {

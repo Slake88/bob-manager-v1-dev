@@ -5,8 +5,54 @@ import '../core/app_role.dart';
 import '../core/app_session.dart';
 import '../core/permissions.dart';
 
+class PollParticipation {
+  const PollParticipation({
+    required this.eligibleCount,
+    required this.votedCount,
+    required this.remainingCount,
+    required this.participationPercent,
+  });
+
+  final int eligibleCount;
+  final int votedCount;
+  final int remainingCount;
+  final double participationPercent;
+
+  factory PollParticipation.fromRow(Map<String, dynamic> row) =>
+      PollParticipation(
+        eligibleCount: int.parse(row['eligible_count'].toString()),
+        votedCount: int.parse(row['voted_count'].toString()),
+        remainingCount: int.parse(row['remaining_count'].toString()),
+        participationPercent:
+            double.parse(row['participation_percent'].toString()),
+      );
+}
+
+// Dados internos da simulação; a consulta de participação só devolve agregados.
+class PollDemoElector {
+  const PollDemoElector({
+    required this.clubId,
+    required this.profileId,
+    required this.role,
+    required this.canViewCommunication,
+    this.active = true,
+  });
+
+  final String clubId;
+  final String profileId;
+  final AppRole role;
+  final bool canViewCommunication;
+  final bool active;
+}
+
 class PollsRepository {
-  PollsRepository({SupabaseClient? client}) : _client = client;
+  PollsRepository({
+    SupabaseClient? client,
+    Iterable<PollDemoElector>? demoElectors,
+  })  : _client = client,
+        _demoElectors = demoElectors;
+
+  final Iterable<PollDemoElector>? _demoElectors;
 
   final SupabaseClient? _client;
   SupabaseClient get _supabase => _client ?? Supabase.instance.client;
@@ -110,6 +156,62 @@ class PollsRepository {
         .eq('club_id', AppSession.instance.clubId)
         .eq('poll_id', pollId);
     return List<Map<String, dynamic>>.from(response);
+  }
+
+  Future<PollParticipation> participation(String pollId) async {
+    _requireManage();
+    if (isDemo) {
+      final clubId = AppSession.instance.clubId;
+      if (!_demoPolls.any(
+        (poll) => poll['id'] == pollId && poll['club_id'] == clubId,
+      )) {
+        throw StateError('Votação não encontrada.');
+      }
+      // Sem um eleitorado fornecido, simula apenas a membership da sessão.
+      final electors = _demoElectors ??
+          [
+            PollDemoElector(
+              clubId: clubId,
+              profileId: _profileId,
+              role: AppSession.instance.currentRole,
+              canViewCommunication: canView,
+            ),
+          ];
+      final eligible = electors
+          .where((elector) =>
+              elector.clubId == clubId &&
+              elector.profileId.isNotEmpty &&
+              elector.active &&
+              elector.role != AppRole.prospect &&
+              elector.role != AppRole.unknown &&
+              elector.canViewCommunication)
+          .map((elector) => elector.profileId)
+          .toSet();
+      final voted = _demoVotes
+          .where((vote) =>
+              vote['club_id'] == clubId &&
+              vote['poll_id'] == pollId &&
+              eligible.contains(vote['profile_id']))
+          .map((vote) => vote['profile_id'])
+          .toSet()
+          .length;
+      return PollParticipation(
+        eligibleCount: eligible.length,
+        votedCount: voted,
+        remainingCount: eligible.length - voted,
+        participationPercent:
+            eligible.isEmpty ? 0 : voted / eligible.length * 100,
+      );
+    }
+    final response = await _supabase.rpc(
+      'poll_participation_v1',
+      params: {
+        'target_club': AppSession.instance.clubId,
+        'p_poll': pollId,
+      },
+    );
+    final rows = List<Map<String, dynamic>>.from(response as List);
+    return PollParticipation.fromRow(rows.single);
   }
 
   Future<String> saveDraft({
