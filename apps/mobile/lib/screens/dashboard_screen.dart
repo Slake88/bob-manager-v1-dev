@@ -1,17 +1,57 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../models/dashboard_indicator_detail.dart';
 import '../repositories/dashboard_repository.dart';
+import '../widgets/dashboard_indicator_detail_dialog.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key, this.repository});
 
   final DashboardRepository? repository;
 
   @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  late DashboardRepository _repository;
+  late Future<Map<String, dynamic>> _summary;
+
+  @override
+  void initState() {
+    super.initState();
+    _repository = widget.repository ?? DashboardRepository();
+    _summary = _repository.summary();
+  }
+
+  @override
+  void didUpdateWidget(covariant DashboardScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.repository != widget.repository) {
+      _repository = widget.repository ?? DashboardRepository();
+      _summary = _repository.summary();
+    }
+  }
+
+  Future<void> _open(DashboardIndicator indicator) async {
+    await DashboardIndicatorDetailDialog.show(
+      context,
+      indicator: indicator,
+      repository: _repository,
+    );
+    if (mounted) {
+      final refreshed = _repository.summary();
+      setState(() {
+        _summary = refreshed;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, dynamic>>(
-      future: (repository ?? DashboardRepository()).summary(),
+      future: _summary,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text('Erro: ${snapshot.error}'));
@@ -23,17 +63,49 @@ class DashboardScreen extends StatelessWidget {
         final data = snapshot.data!;
         final canViewFinancial = data['can_view_financial'] == true;
         final euro = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
-        final cards = <(String, String, IconData)>[
-          ('Membros ativos', '${data['members']}', Icons.groups_outlined),
-          ('Prospects', '${data['prospects']}', Icons.shield_outlined),
+        final cards = <(DashboardIndicator, String, IconData)>[
+          (
+            DashboardIndicator.members,
+            '${data['members']}',
+            Icons.groups_outlined
+          ),
+          (
+            DashboardIndicator.prospects,
+            '${data['prospects']}',
+            Icons.shield_outlined
+          ),
           if (canViewFinancial) ...[
-            ('Saldo total', euro.format(data['total_balance']), Icons.account_balance_wallet_outlined),
-            ('Quotas pendentes', euro.format(data['fee_outstanding']), Icons.receipt_long_outlined),
+            (
+              DashboardIndicator.totalBalance,
+              euro.format(data['total_balance']),
+              Icons.account_balance_wallet_outlined
+            ),
+            (
+              DashboardIndicator.feeOutstanding,
+              euro.format(data['fee_outstanding']),
+              Icons.receipt_long_outlined
+            ),
           ],
-          ('Eventos abertos', '${data['open_events']}', Icons.event_outlined),
-          ('Stock baixo', '${data['low_stock']}', Icons.inventory_2_outlined),
-          ('Documentos a expirar', '${data['expiring_documents']}', Icons.event_busy_outlined),
-          ('Aprovações pendentes', '${data['pending_approvals']}', Icons.approval_outlined),
+          (
+            DashboardIndicator.openEvents,
+            '${data['open_events']}',
+            Icons.event_outlined
+          ),
+          (
+            DashboardIndicator.lowStock,
+            '${data['low_stock']}',
+            Icons.inventory_2_outlined
+          ),
+          (
+            DashboardIndicator.expiringDocuments,
+            '${data['expiring_documents']}',
+            Icons.event_busy_outlined
+          ),
+          (
+            DashboardIndicator.pendingApprovals,
+            '${data['pending_approvals']}',
+            Icons.approval_outlined
+          ),
         ];
 
         final monthlyResult = canViewFinancial
@@ -57,11 +129,16 @@ class DashboardScreen extends StatelessWidget {
               children: cards
                   .map(
                     (item) => SizedBox(
-                      width: 240,
+                      width: MediaQuery.sizeOf(context).width < 272
+                          ? MediaQuery.sizeOf(context).width - 32
+                          : 240,
                       child: Card(
                         child: ListTile(
                           leading: CircleAvatar(child: Icon(item.$3)),
-                          title: Text(item.$1),
+                          title: Text(item.$1.title),
+                          key: ValueKey('dashboard-card-${item.$1.key}'),
+                          mouseCursor: SystemMouseCursors.click,
+                          onTap: () => _open(item.$1),
                           subtitle: Text(
                             item.$2,
                             style: const TextStyle(
@@ -83,11 +160,15 @@ class DashboardScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Resultado do mês', style: Theme.of(context).textTheme.titleMedium),
+                      Text('Resultado do mês',
+                          style: Theme.of(context).textTheme.titleMedium),
                       const SizedBox(height: 8),
                       Text(
                         euro.format(monthlyResult),
-                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineMedium
+                            ?.copyWith(
                               fontWeight: FontWeight.w900,
                             ),
                       ),

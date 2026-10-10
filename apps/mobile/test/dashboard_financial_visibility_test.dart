@@ -91,6 +91,24 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+      'summary não autorizado aceita os quatro valores financeiros NULL',
+      (tester) async {
+    AppSession.instance.role = 'member';
+    final data = summary(canViewFinancial: false);
+    for (final field in [
+      'total_balance',
+      'fee_outstanding',
+      'monthly_income',
+      'monthly_expense'
+    ]) {
+      data[field] = null;
+    }
+    await showDashboard(tester, data);
+    expectFinancialVisibility(false);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final flag in [false, null]) {
     testWidgets('flag $flag oculta finanças sem exigir valores financeiros',
         (tester) async {
