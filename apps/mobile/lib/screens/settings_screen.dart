@@ -224,8 +224,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final entity = _auditEntity(row['entity_type']);
     final action = _auditAction(row['action']);
     final entityId = row['entity_id']?.toString();
-    final before = _auditJson(row['before_data']);
-    final after = _auditJson(row['after_data']);
+    final beforeData = row['before_data'];
+    final afterData = row['after_data'];
+    final clubSettings = row['entity_type']?.toString() == 'club_settings';
+    final before = _auditFields(beforeData, clubSettings: clubSettings);
+    final after = _auditFields(afterData, clubSettings: clubSettings);
 
     await showDialog<void>(
       context: context,
@@ -256,23 +259,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: const Text('ID do registo'),
                     subtitle: SelectableText(entityId),
                   ),
-                if (before != null) ...[
+                if (beforeData != null) ...[
                   const SizedBox(height: 8),
                   Text(
                     'Antes',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 6),
-                  SelectableText(before),
+                  if (before.isEmpty)
+                    const Text('Sem campos funcionais.')
+                  else
+                    ...before.map(
+                      (field) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: SelectableText('${field.key}: ${field.value}'),
+                      ),
+                    ),
                 ],
-                if (after != null) ...[
+                if (afterData != null) ...[
                   const SizedBox(height: 16),
                   Text(
                     'Depois',
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 6),
-                  SelectableText(after),
+                  if (after.isEmpty)
+                    const Text('Sem campos funcionais.')
+                  else
+                    ...after.map(
+                      (field) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: SelectableText('${field.key}: ${field.value}'),
+                      ),
+                    ),
                 ],
               ],
             ),
@@ -503,11 +522,69 @@ String _auditEntity(Object? value) {
   return '${normalized[0].toUpperCase()}${normalized.substring(1)}';
 }
 
-String? _auditJson(Object? value) {
-  if (value == null) return null;
-  try {
-    return const JsonEncoder.withIndent('  ').convert(value);
-  } catch (_) {
-    return value.toString();
+const _auditTechnicalFields = {
+  'id',
+  'club_id',
+  'created_at',
+  'updated_at',
+  'created_by',
+  'updated_by',
+};
+
+List<MapEntry<String, String>> _auditFields(
+  Object? value, {
+  required bool clubSettings,
+}) {
+  Object? decoded = value;
+  if (value is String) {
+    try {
+      decoded = jsonDecode(value);
+    } catch (_) {
+      return const [];
+    }
   }
+  if (decoded is! Map) return const [];
+
+  final fields = <MapEntry<String, String>>[];
+  for (final entry in decoded.entries) {
+    final key = entry.key.toString();
+    final normalizedKey = key.toLowerCase();
+    if (_auditTechnicalFields.contains(normalizedKey)) continue;
+    if (clubSettings && key != 'key' && key != 'value') continue;
+
+    final label = clubSettings
+        ? (key == 'key' ? 'Chave' : 'Valor')
+        : _auditFieldLabel(key);
+    fields.add(MapEntry(label, _auditValue(entry.value)));
+  }
+  return fields;
+}
+
+String _auditFieldLabel(String value) {
+  final label = value.replaceAll('_', ' ');
+  if (label.isEmpty) return label;
+  return '${label[0].toUpperCase()}${label.substring(1)}';
+}
+
+String _auditValue(Object? value) {
+  if (value == null) return '—';
+  if (value is Map) {
+    final fields = value.entries
+        .where(
+          (entry) =>
+              !_auditTechnicalFields.contains(entry.key.toString().toLowerCase()),
+        )
+        .map(
+          (entry) =>
+              '${_auditFieldLabel(entry.key.toString())}: ${_auditValue(entry.value)}',
+        )
+        .toList();
+    return fields.isEmpty ? '—' : fields.join(', ');
+  }
+  if (value is Iterable) {
+    final items = value.map(_auditValue).where((item) => item != '—').toList();
+    return items.isEmpty ? '—' : items.join(', ');
+  }
+  if (value is bool) return value ? 'Sim' : 'Não';
+  return value.toString();
 }
