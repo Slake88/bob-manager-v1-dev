@@ -1,7 +1,8 @@
 -- LOCAL ONLY. Run against a disposable bob_dinner_test PostgreSQL database:
 -- 1. fixtures/weekly_dinner_finance_bootstrap.sql
--- 2. migrations/20261010195647_rc1_weekly_dinner_finance.sql
--- 3. this script (psql -v ON_ERROR_STOP=1 -f ...).
+-- 2. migrations/20261010210110_rc1_weekly_dinner_finance.sql
+-- 3. migrations/20261010215140_rc1_bar_dinner_choices_proximity.sql
+-- 4. this script (psql -v ON_ERROR_STOP=1 -f ...).
 -- The bootstrap imports committed V2/audit code; unrelated integrations are
 -- fixture dependencies. This does not replace a full local Supabase reset.
 -- Every application fixture is rolled back. Never run on production.
@@ -265,10 +266,52 @@ do $$ declare c uuid:=current_setting('dinner_test.club')::uuid; d uuid:=current
   perform pg_temp.assert_true((select count(*)>0 from public.bar_sale_items where club_id=c),'operational sale lines remain readable');
 end $$;
 reset role;
+-- Isolated club: ordering fixtures are relative to the transaction's date,
+-- independent of the calendar and of the financial test dinners above.
+do $$ declare c uuid:=gen_random_uuid(); actor uuid:=current_setting('dinner_test.manager')::uuid;
+  today uuid:=gen_random_uuid(); future_near uuid:=gen_random_uuid(); past_near uuid:=gen_random_uuid();
+  future_far uuid:=gen_random_uuid(); past_far uuid:=gen_random_uuid(); financially_closed uuid:=gen_random_uuid();
+begin
+  insert into public.clubs(id,name) values(c,'Dinner choices ordering fixture');
+  insert into public.fixture_permissions values(actor,c,'viewBar');
+  insert into public.weekly_dinners(id,club_id,dinner_date,dish,status) values
+    (future_far,c,current_date+10,'Future +10','planned'),
+    (past_near,c,current_date-2,'Past -2','planned'),
+    (today,c,current_date,'Today','planned'),
+    (future_near,c,current_date+2,'Future +2','planned'),
+    (past_far,c,current_date-10,'Past -10','planned'),
+    (gen_random_uuid(),c,current_date+1,'Cancelled','cancelled'),
+    (gen_random_uuid(),c,current_date-1,'Operationally closed','closed'),
+    (financially_closed,c,current_date+3,'Financially closed','planned');
+  insert into public.weekly_dinner_finances(club_id,dinner_id,financial_status,snapshot,closed_at,closed_by)
+    values(c,financially_closed,'closed','{}'::jsonb,now(),actor);
+  perform set_config('dinner_test.choices_club',c::text,true);
+  perform set_config('dinner_test.choices_expected',array[today,future_near,past_near,future_far,past_far]::text,true);
+end $$;
+select set_config('request.jwt.claim.sub',current_setting('dinner_test.manager'),true);
+set local role authenticated;
+do $$ declare actual uuid[]; c uuid:=current_setting('dinner_test.choices_club')::uuid; begin
+  select array_agg(choice.id order by choice.ordinality) into actual
+    from public.bar_weekly_dinner_choices_v1(c) with ordinality as choice;
+  perform pg_temp.assert_true(actual=current_setting('dinner_test.choices_expected')::uuid[],
+    'today first; +2 before +10; future before past at equal distance; both past and future retained; all closed/cancelled excluded');
+  perform pg_temp.assert_true(has_function_privilege('authenticated','public.bar_weekly_dinner_choices_v1(uuid)','execute'),
+    'authenticated retains selector EXECUTE');
+  perform pg_temp.assert_true(not has_function_privilege('anon','public.bar_weekly_dinner_choices_v1(uuid)','execute'),
+    'anon cannot execute selector');
+  perform pg_temp.assert_true(not exists(
+    select 1 from pg_proc p cross join lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
+      where p.oid='public.bar_weekly_dinner_choices_v1(uuid)'::regprocedure and a.grantee=0 and a.privilege_type='EXECUTE'),
+    'PUBLIC has no selector EXECUTE');
+  perform pg_temp.must_fail(format('select * from public.bar_weekly_dinner_choices_v1(%L)',current_setting('dinner_test.foreign_club')),
+    'selector still rejects unauthorized clubs');
+end $$;
+reset role;
 select set_config('request.jwt.claim.sub','',true);
 set local role authenticated;
 do $$ begin
   perform pg_temp.must_fail(format('select public.weekly_dinner_finance_v1(%L,%L)',current_setting('dinner_test.club'),current_setting('dinner_test.dinner')),'null auth rejected');
+  perform pg_temp.must_fail(format('select * from public.bar_weekly_dinner_choices_v1(%L)',current_setting('dinner_test.choices_club')),'selector rejects null auth');
 end $$;
 reset role;
 rollback;
