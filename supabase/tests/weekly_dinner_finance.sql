@@ -1,7 +1,7 @@
 -- LOCAL ONLY. Run against a disposable bob_dinner_test PostgreSQL database:
 -- 1. fixtures/weekly_dinner_finance_bootstrap.sql
 -- 2. migrations/20261010210110_rc1_weekly_dinner_finance.sql
--- 3. migrations/20261010215140_rc1_bar_dinner_choices_proximity.sql
+-- 3. migrations/20261010215624_rc1_bar_dinner_choices_proximity.sql
 -- 4. this script (psql -v ON_ERROR_STOP=1 -f ...).
 -- The bootstrap imports committed V2/audit code; unrelated integrations are
 -- fixture dependencies. This does not replace a full local Supabase reset.
