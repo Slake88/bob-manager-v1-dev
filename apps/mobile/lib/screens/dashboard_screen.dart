@@ -4,12 +4,14 @@ import 'package:intl/intl.dart';
 import '../repositories/dashboard_repository.dart';
 
 class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key});
+  const DashboardScreen({super.key, this.repository});
+
+  final DashboardRepository? repository;
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, dynamic>>(
-      future: DashboardRepository().summary(),
+      future: (repository ?? DashboardRepository()).summary(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text('Erro: ${snapshot.error}'));
@@ -19,20 +21,25 @@ class DashboardScreen extends StatelessWidget {
         }
 
         final data = snapshot.data!;
+        final canViewFinancial = data['can_view_financial'] == true;
         final euro = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
         final cards = <(String, String, IconData)>[
           ('Membros ativos', '${data['members']}', Icons.groups_outlined),
           ('Prospects', '${data['prospects']}', Icons.shield_outlined),
-          ('Saldo total', euro.format(data['total_balance']), Icons.account_balance_wallet_outlined),
-          ('Quotas pendentes', euro.format(data['fee_outstanding']), Icons.receipt_long_outlined),
+          if (canViewFinancial) ...[
+            ('Saldo total', euro.format(data['total_balance']), Icons.account_balance_wallet_outlined),
+            ('Quotas pendentes', euro.format(data['fee_outstanding']), Icons.receipt_long_outlined),
+          ],
           ('Eventos abertos', '${data['open_events']}', Icons.event_outlined),
           ('Stock baixo', '${data['low_stock']}', Icons.inventory_2_outlined),
           ('Documentos a expirar', '${data['expiring_documents']}', Icons.event_busy_outlined),
           ('Aprovações pendentes', '${data['pending_approvals']}', Icons.approval_outlined),
         ];
 
-        final monthlyResult = (data['monthly_income'] as num).toDouble() -
-            (data['monthly_expense'] as num).toDouble();
+        final monthlyResult = canViewFinancial
+            ? (data['monthly_income'] as num).toDouble() -
+                (data['monthly_expense'] as num).toDouble()
+            : 0.0;
 
         return ListView(
           padding: const EdgeInsets.all(16),
@@ -68,29 +75,31 @@ class DashboardScreen extends StatelessWidget {
                   )
                   .toList(),
             ),
-            const SizedBox(height: 20),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Resultado do mês', style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 8),
-                    Text(
-                      euro.format(monthlyResult),
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
-                    ),
-                    Text(
-                      'Receitas: ${euro.format(data['monthly_income'])} · Despesas: ${euro.format(data['monthly_expense'])}',
-                    ),
-                  ],
+            if (canViewFinancial) ...[
+              const SizedBox(height: 20),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Resultado do mês', style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 8),
+                      Text(
+                        euro.format(monthlyResult),
+                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                      Text(
+                        'Receitas: ${euro.format(data['monthly_income'])} · Despesas: ${euro.format(data['monthly_expense'])}',
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
+            ],
             Card(
               child: ListTile(
                 leading: const Icon(Icons.notifications_active_outlined),
