@@ -1,6 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/app_session.dart';
+import '../core/app_config.dart';
+import '../services/data_service.dart';
+import 'bar_sales_repository.dart';
 import '../core/permissions.dart';
 
 class BarRepository {
@@ -15,6 +18,7 @@ class BarRepository {
 
   Future<List<Map<String, dynamic>>> products() async {
     _require(AppPermission.viewBar);
+    if (AppConfig.demoMode) return BarSalesRepository().products();
     final response = await _client
         .from('products')
         .select(
@@ -52,6 +56,7 @@ class BarRepository {
 
   Future<List<Map<String, dynamic>>> events() async {
     _require(AppPermission.viewBar);
+    if (AppConfig.demoMode) return BarSalesRepository().events();
     final response = await _client
         .from('events')
         .select('id,name,starts_at,status')
@@ -63,6 +68,11 @@ class BarRepository {
 
   Future<List<Map<String, dynamic>>> treasuryAccounts() async {
     _require(AppPermission.selectBarFinancialAccount);
+    if (AppConfig.demoMode) {
+      return (await DataService.instance.list('financial_accounts'))
+          .where((r) => r['club_id'] == null || r['club_id'] == _clubId)
+          .toList();
+    }
     final response = await _client
         .from('treasury_accounts')
         .select('id,name,account_type,icon,allows_negative')
@@ -74,6 +84,11 @@ class BarRepository {
 
   Future<List<Map<String, dynamic>>> operations({int limit = 100}) async {
     _require(AppPermission.viewBar);
+    if (AppConfig.demoMode) {
+      return (await DataService.instance.list('bar_operations'))
+          .where((r) => r['club_id'] == _clubId)
+          .toList();
+    }
     final response = await _client
         .from('bar_operations')
         .select(

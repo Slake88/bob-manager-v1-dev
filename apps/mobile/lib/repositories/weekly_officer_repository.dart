@@ -3,6 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/app_config.dart';
 import '../core/app_session.dart';
 import '../core/weekly_officer_rules.dart';
+import '../services/data_service.dart';
+import 'weekly_dinner_finance_repository.dart';
 
 class WeeklyOfficerRepository {
   WeeklyOfficerRepository({SupabaseClient? client}) : _client = client;
@@ -18,7 +20,10 @@ class WeeklyOfficerRepository {
       );
 
   Future<void> ensureYear(int year) async {
-    if (AppConfig.demoMode) return;
+    if (AppConfig.demoMode) {
+      await WeeklyDinnerFinanceRepository.seedDemo();
+      return;
+    }
     await _supabase.rpc(
       'ensure_weekly_officer_schedule_v1',
       params: {'target_club': _clubId, 'p_year': year},
@@ -39,7 +44,8 @@ class WeeklyOfficerRepository {
     if (AppConfig.demoMode) return const <Map<String, dynamic>>[];
     final response = await _supabase
         .from('members')
-        .select('id,member_number,full_name,nickname,status,primary_role,profile_id')
+        .select(
+            'id,member_number,full_name,nickname,status,primary_role,profile_id')
         .eq('club_id', _clubId)
         .limit(1000);
     final rows = List<Map<String, dynamic>>.from(response);
@@ -65,7 +71,13 @@ class WeeklyOfficerRepository {
   }
 
   Future<List<Map<String, dynamic>>> listDinners(int year) async {
-    if (AppConfig.demoMode) return const <Map<String, dynamic>>[];
+    if (AppConfig.demoMode) {
+      return (await DataService.instance.list('weekly_dinners'))
+          .where((d) =>
+              d['club_id'] == _clubId &&
+              DateTime.parse(d['dinner_date'].toString()).year == year)
+          .toList();
+    }
     final start = '$year-01-01';
     final end = '$year-12-31';
     final response = await _supabase

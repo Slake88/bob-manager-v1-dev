@@ -4,6 +4,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/weekly_officer_rules.dart';
 import '../repositories/weekly_officer_repository.dart';
+import '../repositories/weekly_dinner_finance_repository.dart';
+import '../widgets/weekly_dinner_finance_dialog.dart';
 
 class WeeklyOfficerScreen extends StatefulWidget {
   const WeeklyOfficerScreen({super.key});
@@ -14,7 +16,9 @@ class WeeklyOfficerScreen extends StatefulWidget {
 
 class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
   final WeeklyOfficerRepository _repository = WeeklyOfficerRepository();
+  final _finance = WeeklyDinnerFinanceRepository();
   late int _year;
+  int _financialRevision = 0;
   late Future<_WeeklyOfficerData> _future;
 
   bool get _canManage => _repository.canManage;
@@ -299,6 +303,20 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
                             row['notes'].toString(),
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
+                        if (_finance.canRead)
+                          TextButton.icon(
+                              onPressed: () async {
+                                await WeeklyDinnerFinanceDialog.show(
+                                    context, row, _finance);
+                                if (mounted) {
+                                  setState(() {
+                                    _financialRevision++;
+                                  });
+                                }
+                              },
+                              icon: const Icon(
+                                  Icons.account_balance_wallet_outlined),
+                              label: const Text('Fecho financeiro')),
                         if (assignedToCurrent && data.currentMemberId != null)
                           Padding(
                             padding: const EdgeInsets.only(top: 8),
@@ -696,7 +714,18 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
     }
   }
 
-  Widget _historyTab(_WeeklyOfficerData data) {
+  Widget _historyTab(_WeeklyOfficerData data) => Column(children: [
+        if (_finance.canRead)
+          SizedBox(
+              height: 280,
+              child: WeeklyDinnerFinancialHistory(
+                  key: ValueKey('$_year-$_financialRevision'),
+                  year: _year,
+                  repository: _finance)),
+        Expanded(child: _operationalHistoryTab(data)),
+      ]);
+
+  Widget _operationalHistoryTab(_WeeklyOfficerData data) {
     final counts = data.officialCounts;
     return RefreshIndicator(
       onRefresh: _refresh,

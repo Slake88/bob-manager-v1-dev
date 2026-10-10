@@ -3,18 +3,21 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../repositories/bar_sales_repository.dart';
+import '../widgets/dinner_association_field.dart';
 
 class BarSalesAdvancedScreen extends StatefulWidget {
-  const BarSalesAdvancedScreen({super.key, this.onSaleCompleted});
+  const BarSalesAdvancedScreen(
+      {super.key, this.onSaleCompleted, this.repository});
 
   final VoidCallback? onSaleCompleted;
+  final BarSalesRepository? repository;
 
   @override
   State<BarSalesAdvancedScreen> createState() => _BarSalesAdvancedScreenState();
 }
 
 class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
-  final BarSalesRepository _repository = BarSalesRepository();
+  late final BarSalesRepository _repository;
   final TextEditingController _customer = TextEditingController();
   final TextEditingController _notes = TextEditingController();
   final TextEditingController _search = TextEditingController();
@@ -29,12 +32,15 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
   String _customerType = 'public';
   String? _memberId;
   String? _eventId;
+  String? _dinnerId;
+  bool _dinnerInitialized = false;
   String? _draftSaleId;
   bool _busy = false;
 
   @override
   void initState() {
     super.initState();
+    _repository = widget.repository ?? BarSalesRepository();
     _future = _load();
   }
 
@@ -53,14 +59,35 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
       _repository.events(),
       _repository.treasuryAccounts(),
       _repository.members(),
+      _repository.dinners(),
     ]);
+    final dinners = List<Map<String, dynamic>>.from(values[5] as List);
+    if (!_dinnerInitialized) {
+      _dinnerInitialized = true;
+      _dinnerId = suggestedDinnerForToday(dinners, DateTime.now());
+    } else if (_dinnerId != null && !dinners.any((d) => d['id'] == _dinnerId)) {
+      _dinnerId = null;
+    }
     return _SaleData(
       products: List<Map<String, dynamic>>.from(values[0] as List),
       presets: List<Map<String, dynamic>>.from(values[1] as List),
       events: List<Map<String, dynamic>>.from(values[2] as List),
       accounts: List<Map<String, dynamic>>.from(values[3] as List),
       members: List<Map<String, dynamic>>.from(values[4] as List),
+      dinners: dinners,
     );
+  }
+
+  Future<void> _editPreset([Map<String, dynamic>? preset]) async {
+    final saved = await showDialog<bool>(
+        context: context,
+        builder: (context) =>
+            _DinnerPresetDialog(repository: _repository, preset: preset));
+    if (saved == true && mounted) {
+      setState(() {
+        _future = _load();
+      });
+    }
   }
 
   void _message(String text) {
@@ -79,6 +106,7 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
       customerType: _customerType,
       memberId: _memberId,
       eventId: _eventId,
+      weeklyDinnerId: _dinnerId,
       notes: _notes.text,
     );
     if (mounted) {
@@ -233,6 +261,8 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
       _attachments.clear();
       _draftSaleId = null;
       _eventId = null;
+      _dinnerId = null;
+      _dinnerInitialized = false;
       _mode = 'manual';
       _customerType = 'public';
       _memberId = null;
@@ -396,6 +426,7 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
         accountId: payment.accountId,
         customerLabel: _customer.text,
         eventId: _eventId,
+        weeklyDinnerId: _dinnerId,
         notes: _notes.text,
       );
       if (!mounted) return;
@@ -462,8 +493,10 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
         final products = data.products.where((product) {
           if (_double(product['current_stock']) <= 0) return false;
           if (query.isEmpty) return true;
-          return (product['name']?.toString().toLowerCase() ?? '').contains(query) ||
-              (product['category']?.toString().toLowerCase() ?? '').contains(query);
+          return (product['name']?.toString().toLowerCase() ?? '')
+                  .contains(query) ||
+              (product['category']?.toString().toLowerCase() ?? '')
+                  .contains(query);
         }).toList();
 
         return Column(
@@ -567,6 +600,16 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
                             }),
                   ),
                   const SizedBox(height: 12),
+                  DinnerAssociationField(
+                      dinners: data.dinners,
+                      value: _dinnerId,
+                      onChanged: _busy
+                          ? null
+                          : (value) => setState(() {
+                                _dinnerId = value;
+                                _dinnerInitialized = true;
+                              })),
+                  const SizedBox(height: 12),
                   DropdownButtonFormField<String?>(
                     initialValue: _eventId,
                     isExpanded: true,
@@ -611,7 +654,8 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
                                 ),
                               ),
                               FilledButton.tonalIcon(
-                                onPressed: _busy ? null : () => _pickCards(data),
+                                onPressed:
+                                    _busy ? null : () => _pickCards(data),
                                 icon: const Icon(Icons.add_a_photo_outlined),
                                 label: const Text('Fotos'),
                               ),
@@ -631,9 +675,11 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
                               children: [
                                 for (final attachment in _attachments)
                                   Chip(
-                                    avatar: const Icon(Icons.image_outlined, size: 18),
+                                    avatar: const Icon(Icons.image_outlined,
+                                        size: 18),
                                     label: Text(
-                                      attachment['original_file_name']?.toString() ??
+                                      attachment['original_file_name']
+                                              ?.toString() ??
                                           'Fotografia',
                                     ),
                                   ),
@@ -650,9 +696,10 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
                       Expanded(
                         child: Text(
                           'Artigos',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w900,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                  ),
                         ),
                       ),
                       Chip(
@@ -663,7 +710,9 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
                           size: 18,
                         ),
                         label: Text(
-                          _customerType == 'member' ? 'Preço membro' : 'Preço público',
+                          _customerType == 'member'
+                              ? 'Preço membro'
+                              : 'Preço público',
                         ),
                       ),
                     ],
@@ -684,7 +733,8 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
                     const Card(
                       child: ListTile(
                         leading: Icon(Icons.inventory_2_outlined),
-                        title: Text('Sem artigos com stock para esta pesquisa.'),
+                        title:
+                            Text('Sem artigos com stock para esta pesquisa.'),
                       ),
                     )
                   else
@@ -709,11 +759,23 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
                           ),
                     ),
                     const SizedBox(height: 8),
+                    if (_repository.canManage)
+                      Wrap(spacing: 8, children: [
+                        TextButton(
+                            onPressed: () => _editPreset(),
+                            child: const Text('Criar preset')),
+                        for (final preset in data.presets)
+                          TextButton(
+                              onPressed: () => _editPreset(preset),
+                              child: Text('Editar ${preset['name']}')),
+                      ]),
                     for (final preset in data.presets)
                       _SimpleQuantityCard(
                         title: preset['name']?.toString() ?? 'Item',
-                        subtitle: _money(preset['unit_price']),
-                        quantity: _presetQuantities[preset['id']?.toString()] ?? 0,
+                        subtitle:
+                            '${_money(preset['unit_price'])}${preset['counts_as_dinner_meal'] == true ? ' · Refeição de jantar' : ' · Fora do cálculo do jantar'}',
+                        quantity:
+                            _presetQuantities[preset['id']?.toString()] ?? 0,
                         lineTotal:
                             (_presetQuantities[preset['id']?.toString()] ?? 0) *
                                 _double(preset['unit_price']),
@@ -733,9 +795,10 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
                       Expanded(
                         child: Text(
                           'Outros',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w900,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                  ),
                         ),
                       ),
                       OutlinedButton.icon(
@@ -799,7 +862,10 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
                             const Text('Total a pagar'),
                             Text(
                               _money(total),
-                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineSmall
+                                  ?.copyWith(
                                     fontWeight: FontWeight.w900,
                                   ),
                             ),
@@ -807,11 +873,13 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
                         ),
                       ),
                       FilledButton.icon(
-                        onPressed: _busy || total <= 0 ? null : () => _complete(data),
+                        onPressed:
+                            _busy || total <= 0 ? null : () => _complete(data),
                         icon: _busy
                             ? const SizedBox.square(
                                 dimension: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.payments_outlined),
                         label: const Text('Pagamento'),
@@ -927,7 +995,8 @@ class _SaleOptionRow extends StatelessWidget {
       padding: const EdgeInsets.only(top: 8),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+          border:
+              Border.all(color: Theme.of(context).colorScheme.outlineVariant),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Padding(
@@ -942,7 +1011,8 @@ class _SaleOptionRow extends StatelessWidget {
                       option['name']?.toString() ?? 'Forma',
                       style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
-                    Text('${_number(stockPerSale)} $stockUnit · ${_money(price)}'),
+                    Text(
+                        '${_number(stockPerSale)} $stockUnit · ${_money(price)}'),
                     if (quantity > 0)
                       Text('Subtotal ${_money(quantity * price)}'),
                   ],
@@ -1061,7 +1131,8 @@ class _OtherSaleLineDialogState extends State<_OtherSaleLineDialog> {
             const SizedBox(height: 12),
             TextField(
               controller: _quantity,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 labelText: 'Quantidade',
                 border: OutlineInputBorder(),
@@ -1070,7 +1141,8 @@ class _OtherSaleLineDialogState extends State<_OtherSaleLineDialog> {
             const SizedBox(height: 12),
             TextField(
               controller: _price,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 labelText: 'Preço unitário (€)',
                 border: OutlineInputBorder(),
@@ -1132,8 +1204,9 @@ class _PaymentDialogState extends State<_PaymentDialog> {
       final caixa = widget.accounts.where(
         (account) => account['name']?.toString().toLowerCase() == 'caixa',
       );
-      _accountId = (caixa.isNotEmpty ? caixa.first : widget.accounts.first)['id']
-          ?.toString();
+      _accountId =
+          (caixa.isNotEmpty ? caixa.first : widget.accounts.first)['id']
+              ?.toString();
     }
   }
 
@@ -1234,6 +1307,7 @@ class _SaleData {
     required this.events,
     required this.accounts,
     required this.members,
+    required this.dinners,
   });
 
   final List<Map<String, dynamic>> products;
@@ -1241,6 +1315,7 @@ class _SaleData {
   final List<Map<String, dynamic>> events;
   final List<Map<String, dynamic>> accounts;
   final List<Map<String, dynamic>> members;
+  final List<Map<String, dynamic>> dinners;
 }
 
 class _OtherSaleLine {
@@ -1302,3 +1377,92 @@ String _friendly(Object error) => error
     .replaceFirst('StateError: ', '')
     .replaceFirst('Invalid argument(s): ', '')
     .replaceFirst('PostgrestException(message: ', '');
+
+class _DinnerPresetDialog extends StatefulWidget {
+  const _DinnerPresetDialog({required this.repository, this.preset});
+  final BarSalesRepository repository;
+  final Map<String, dynamic>? preset;
+  @override
+  State<_DinnerPresetDialog> createState() => _DinnerPresetDialogState();
+}
+
+class _DinnerPresetDialogState extends State<_DinnerPresetDialog> {
+  late final TextEditingController _name, _price;
+  late bool _meal;
+  bool _busy = false;
+  String? _error;
+  @override
+  void initState() {
+    super.initState();
+    _name =
+        TextEditingController(text: widget.preset?['name']?.toString() ?? '');
+    _price = TextEditingController(
+        text: widget.preset?['unit_price']?.toString() ?? '0');
+    _meal = widget.preset?['counts_as_dinner_meal'] == true;
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _price.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.repository.savePreset(
+          id: widget.preset?['id']?.toString(),
+          name: _name.text,
+          price: double.parse(_price.text.replaceAll(',', '.')),
+          countsAsDinnerMeal: _meal);
+      if (mounted) Navigator.pop(context, true);
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _error = '$error';
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: const Text('Preset BAR'),
+        content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(
+                  controller: _name,
+                  enabled: !_busy,
+                  decoration: const InputDecoration(labelText: 'Nome')),
+              TextField(
+                  controller: _price,
+                  enabled: !_busy,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Preço')),
+              CheckboxListTile(
+                  value: _meal,
+                  title: const Text('Conta como refeição de jantar'),
+                  onChanged: _busy
+                      ? null
+                      : (v) => setState(() {
+                            _meal = v!;
+                          })),
+              if (_error != null) Text(_error!),
+            ]))),
+        actions: [
+          TextButton(
+              onPressed: _busy ? null : () => Navigator.pop(context, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: _busy ? null : _save, child: const Text('Guardar'))
+        ],
+      );
+}
