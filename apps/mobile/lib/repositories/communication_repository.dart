@@ -103,8 +103,8 @@ class CommunicationRepository {
       'body': body,
       'priority': _normalizePriority(values['priority']),
       'audience': _normalizeAudience(values['audience']),
-      'published_at': publishedAt.toIso8601String(),
-      'expires_at': expiresAt?.toIso8601String(),
+      'published_at': publishedAt.toUtc().toIso8601String(),
+      'expires_at': expiresAt?.toUtc().toIso8601String(),
       'requires_acknowledgement':
           values['requires_acknowledgement'] == true,
       'updated_at': DateTime.now().toIso8601String(),
