@@ -6,6 +6,118 @@ import '../core/app_session.dart';
 import '../core/permissions.dart';
 import '../services/data_service.dart';
 
+class AuditLogFilters {
+  const AuditLogFilters({
+    this.dateFrom,
+    this.dateTo,
+    this.entityTypes,
+    this.excludeEntityTypes = false,
+    this.action,
+    this.actorQuery,
+    this.search,
+    this.entityId,
+  });
+
+  final DateTime? dateFrom;
+  final DateTime? dateTo;
+  final List<String>? entityTypes;
+  final bool excludeEntityTypes;
+  final String? action;
+  final String? actorQuery;
+  final String? search;
+  final String? entityId;
+
+  Map<String, dynamic> toRpcParams({
+    AuditLogCursor? cursor,
+    int limit = 50,
+  }) {
+    final normalizedTypes = entityTypes
+        ?.map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList();
+    return {
+      'p_created_from': _auditDateStartUtc(dateFrom)?.toIso8601String(),
+      'p_created_before': _auditDayAfterUtc(dateTo)?.toIso8601String(),
+      'p_entity_types': normalizedTypes?.isEmpty == true ? null : normalizedTypes,
+      'p_exclude_entity_types': excludeEntityTypes,
+      'p_action': _auditOptionalText(action),
+      'p_actor_query': _auditOptionalText(actorQuery),
+      'p_search': _auditOptionalText(search),
+      'p_entity_id': _auditOptionalText(entityId),
+      'p_cursor_created_at': cursor?.createdAt.toUtc().toIso8601String(),
+      'p_cursor_id': cursor?.id,
+      'p_limit': limit.clamp(1, 50),
+    };
+  }
+}
+
+class AuditLogCursor {
+  const AuditLogCursor({required this.createdAt, required this.id});
+
+  final DateTime createdAt;
+  final int id;
+
+  factory AuditLogCursor.fromRow(Map<String, dynamic> row) {
+    final createdAt = DateTime.tryParse(row['created_at']?.toString() ?? '');
+    final id = int.tryParse(row['id']?.toString() ?? '');
+    if (createdAt == null || id == null) {
+      throw const FormatException('Registo de auditoria sem cursor válido.');
+    }
+    return AuditLogCursor(createdAt: createdAt.toUtc(), id: id);
+  }
+}
+
+class AuditLogPage {
+  const AuditLogPage({
+    required this.rows,
+    required this.hasMore,
+    this.nextCursor,
+  });
+
+  final List<Map<String, dynamic>> rows;
+  final bool hasMore;
+  final AuditLogCursor? nextCursor;
+
+  factory AuditLogPage.fromRows(
+    List<Map<String, dynamic>> source, {
+    required int limit,
+  }) {
+    final safeLimit = limit.clamp(1, 50);
+    final hasMore = source.length > safeLimit;
+    final rows = source.take(safeLimit).map(_withAuditActor).toList();
+    return AuditLogPage(
+      rows: rows,
+      hasMore: hasMore,
+      nextCursor: hasMore && rows.isNotEmpty
+          ? AuditLogCursor.fromRow(rows.last)
+          : null,
+    );
+  }
+}
+
+DateTime? _auditDateStartUtc(DateTime? value) => value == null
+    ? null
+    : DateTime(value.year, value.month, value.day).toUtc();
+
+DateTime? _auditDayAfterUtc(DateTime? value) => value == null
+    ? null
+    : DateTime(value.year, value.month, value.day + 1).toUtc();
+
+String? _auditOptionalText(String? value) {
+  final normalized = value?.trim() ?? '';
+  return normalized.isEmpty ? null : normalized;
+}
+
+Map<String, dynamic> _withAuditActor(Map<String, dynamic> row) => {
+      ...row,
+      'actor': {
+        'full_name': row['actor_name'] ?? (row['actor'] as Map?)?['full_name'],
+        'email': row['actor_email'] ?? (row['actor'] as Map?)?['email'],
+      },
+      'description':
+          '${row['action'] ?? 'Alteração'} — ${row['entity_type'] ?? 'registo'}',
+    };
+
 class AdminRepository {
   AdminRepository({DataService? dataService})
       : _dataService = dataService ?? DataService.instance;
@@ -104,6 +216,123 @@ class AdminRepository {
             '${row['action'] ?? 'Alteração'} — ${row['entity_type'] ?? 'registo'}',
       };
     }).toList();
+  }
+
+  Future<AuditLogPage> listAuditLogPage({
+    AuditLogFilters filters = const AuditLogFilters(),
+    AuditLogCursor? cursor,
+    int limit = 50,
+  }) async {
+    _require(AppPermission.manageSettings);
+    final safeLimit = limit.clamp(1, 50);
+
+    if (AppConfig.demoMode) {
+      final rows = await _dataService.list('audit_log', limit: 500);
+      final sorted = rows.where((row) => _matchesAuditFilters(row, filters))
+          .toList()
+        ..sort(_compareAuditRowsNewestFirst);
+      final afterCursor = cursor == null
+          ? sorted
+          : sorted.where((row) => _isAfterAuditCursor(row, cursor)).toList();
+      return AuditLogPage.fromRows(
+        afterCursor.take(safeLimit + 1).toList(),
+        limit: safeLimit,
+      );
+    }
+
+    final response = await _client.rpc(
+      'list_audit_log_page_v1',
+      params: {
+        'target_club': AppSession.instance.clubId,
+        ...filters.toRpcParams(cursor: cursor, limit: safeLimit),
+      },
+    );
+    final rows = List<Map<String, dynamic>>.from(response as List);
+    return AuditLogPage.fromRows(rows, limit: safeLimit);
+  }
+
+  bool _matchesAuditFilters(
+    Map<String, dynamic> row,
+    AuditLogFilters filters,
+  ) {
+    final entityType = row['entity_type']?.toString();
+    if (filters.entityTypes case final types? when types.isNotEmpty) {
+      final contains = entityType != null && types.contains(entityType);
+      if (filters.excludeEntityTypes ? contains : !contains) return false;
+    }
+
+    final action = _auditOptionalText(filters.action);
+    if (action != null && row['action']?.toString() != action) return false;
+
+    final entityId = _auditOptionalText(filters.entityId)?.toLowerCase();
+    if (entityId != null &&
+        !(row['entity_id']?.toString().toLowerCase() ?? '').contains(entityId)) {
+      return false;
+    }
+
+    final createdAt = DateTime.tryParse(row['created_at']?.toString() ?? '');
+    if (filters.dateFrom != null &&
+        (createdAt == null ||
+            createdAt.isBefore(_auditDateStartUtc(filters.dateFrom)!))) {
+      return false;
+    }
+    if (filters.dateTo != null &&
+        (createdAt == null ||
+            !createdAt.isBefore(_auditDayAfterUtc(filters.dateTo)!))) {
+      return false;
+    }
+
+    final actor = row['actor'] as Map?;
+    final actorMetadata = [
+      row['actor_name'],
+      row['actor_email'],
+      actor?['full_name'],
+      actor?['email'],
+      row['actor_id'],
+    ].whereType<Object>().join(' ').toLowerCase();
+    final metadata = [
+      row['actor_name'],
+      row['actor_email'],
+      actor?['full_name'],
+      actor?['email'],
+      row['entity_type'],
+      row['action'],
+      row['entity_id'],
+      row['actor_id'],
+    ].whereType<Object>().join(' ').toLowerCase();
+    final actorQuery = _auditOptionalText(filters.actorQuery)?.toLowerCase();
+    final search = _auditOptionalText(filters.search)?.toLowerCase();
+    if (actorQuery != null && !actorMetadata.contains(actorQuery)) {
+      return false;
+    }
+    if (search != null && !metadata.contains(search)) return false;
+    return true;
+  }
+
+  int _compareAuditRowsNewestFirst(
+    Map<String, dynamic> left,
+    Map<String, dynamic> right,
+  ) {
+    final leftDate = DateTime.tryParse(left['created_at']?.toString() ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+    final rightDate =
+        DateTime.tryParse(right['created_at']?.toString() ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0);
+    final byDate = rightDate.compareTo(leftDate);
+    if (byDate != 0) return byDate;
+    return (int.tryParse(right['id']?.toString() ?? '') ?? 0)
+        .compareTo(int.tryParse(left['id']?.toString() ?? '') ?? 0);
+  }
+
+  bool _isAfterAuditCursor(
+    Map<String, dynamic> row,
+    AuditLogCursor cursor,
+  ) {
+    final createdAt = DateTime.tryParse(row['created_at']?.toString() ?? '');
+    final id = int.tryParse(row['id']?.toString() ?? '');
+    if (createdAt == null || id == null) return false;
+    return createdAt.isBefore(cursor.createdAt) ||
+        (createdAt.isAtSameMomentAs(cursor.createdAt) && id < cursor.id);
   }
 
   void _require(AppPermission permission) {
