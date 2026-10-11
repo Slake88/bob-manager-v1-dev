@@ -370,8 +370,7 @@ class WeeklyDinnerFinanceRepository {
               !dinnerStockPurchase(t['source_type']))
           .toList(),
       'sales': (await _list('bar_sales'))
-          .where((r) =>
-              r['status'] == 'completed' && r['weekly_dinner_id'] == null)
+          .where((r) => r['status'] == 'completed')
           .toList()
     };
   }

@@ -44,6 +44,8 @@ class PanelRepo extends WeeklyDinnerFinanceRepository {
   Future<WeeklyDinnerFinance>? response;
   int reads = 0;
   bool allowed = true;
+  Map<String, dynamic> correctionChoices = const {'sales': []};
+  final corrections = <({String dinner, String sale, bool remove})>[];
   WeeklyDinnerFinance value = WeeklyDinnerFinance.calculate(
       lines: lines,
       expenses: expenses,
@@ -59,6 +61,14 @@ class PanelRepo extends WeeklyDinnerFinanceRepository {
       return Future.error(StateError('Sem autorização financeira.'));
     }
     return response ?? Future.value(value);
+  }
+
+  @override
+  Future<Map<String, dynamic>> choices(String id) async => correctionChoices;
+
+  @override
+  Future<void> assignSale(String id, String sale, {bool remove = false}) async {
+    corrections.add((dinner: id, sale: sale, remove: remove));
   }
 }
 
@@ -528,7 +538,34 @@ void main() {
     await tester.tap(find.text('Repetir'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Sem fecho financeiro'), findsWidgets);
+    expect(find.text('Associar venda existente'), findsNothing);
+    expect(find.text('Corrigir associação de venda'), findsOneWidget);
     expect(repository.reads, 2);
+  });
+  testWidgets('sale correction is clearly administrative and confirmed',
+      (tester) async {
+    final repository = PanelRepo()
+      ..correctionChoices = {
+        'sales': [
+          {
+            'id': 'sale-1',
+            'customer_label': 'Venda esquecida',
+            'total_amount': 12,
+            'weekly_dinner_id': null
+          }
+        ]
+      };
+    await panel(tester, repository);
+    await tester.tap(find.text('Corrigir associação de venda'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Correção administrativa.'), findsOneWidget);
+    await tester.tap(find.textContaining('Venda esquecida'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirmar'));
+    await tester.pumpAndSettle();
+    expect(repository.corrections,
+        [(dinner: 'dinner', sale: 'sale-1', remove: false)]);
+    expect(tester.takeException(), isNull);
   });
   testWidgets(
       'Oficial member retains operational dinner but has no financial actions/history',

@@ -125,11 +125,11 @@ class _DinnerFinanceState extends State<WeeklyDinnerFinanceDialog> {
               onChanged: (_) => setState(() {}),
               decoration: InputDecoration(
                   labelText: label, border: const OutlineInputBorder())));
-  Future<void> _choose(bool expense) async {
+  Future<void> _chooseExpense() async {
     try {
       final choices = await widget.repository.choices(id);
       if (!mounted || !_sameSession) return;
-      final rows = (choices[expense ? 'expenses' : 'sales'] as List)
+      final rows = (choices['expenses'] as List)
           .map((row) => Map<String, dynamic>.from(row as Map))
           .toList();
       var kind = 'food';
@@ -137,28 +137,22 @@ class _DinnerFinanceState extends State<WeeklyDinnerFinanceDialog> {
           context: context,
           builder: (context) => StatefulBuilder(
               builder: (context, setState) => AlertDialog(
-                      title: Text(expense
-                          ? 'Associar despesa'
-                          : 'Associar venda existente'),
+                      title: const Text('Associar despesa'),
                       content: SizedBox(
                           width: 520,
                           height: 360,
                           child: Column(children: [
-                            if (expense)
-                              DropdownButton<String>(
-                                  value: kind,
-                                  items: const [
-                                    DropdownMenuItem(
-                                        value: 'food',
-                                        child: Text('Comida/preparação')),
-                                    DropdownMenuItem(
-                                        value: 'other',
-                                        child: Text('Outros custos'))
-                                  ],
-                                  onChanged: (v) => setState(() => kind = v!)),
-                            if (!expense)
-                              const Text(
-                                  'Associação explícita; a data nunca associa vendas automaticamente.'),
+                            DropdownButton<String>(
+                                value: kind,
+                                items: const [
+                                  DropdownMenuItem(
+                                      value: 'food',
+                                      child: Text('Comida/preparação')),
+                                  DropdownMenuItem(
+                                      value: 'other',
+                                      child: Text('Outros custos'))
+                                ],
+                                onChanged: (v) => setState(() => kind = v!)),
                             Expanded(
                                 child: rows.isEmpty
                                     ? const Center(
@@ -170,7 +164,7 @@ class _DinnerFinanceState extends State<WeeklyDinnerFinanceDialog> {
                                                 title: Text(
                                                     '${row['description'] ?? row['customer_label'] ?? 'Venda'}'),
                                                 subtitle: Text(
-                                                    '${_dinnerDatePT(row['transaction_date'] ?? row['completed_at'], time: !expense)} · ${_money.format(row['amount'] ?? row['total_amount'] ?? 0)}'),
+                                                    '${_dinnerDatePT(row['transaction_date'])} · ${_money.format(row['amount'] ?? 0)}'),
                                                 onTap: () => Navigator.pop(
                                                     context, row)))
                                             .toList())),
@@ -182,13 +176,81 @@ class _DinnerFinanceState extends State<WeeklyDinnerFinanceDialog> {
                       ])));
       if (selected == null) return;
       await _act(() async {
-        if (expense) {
-          await widget.repository
-              .linkExpense(id, selected['id'].toString(), kind);
-        } else {
-          await widget.repository.assignSale(id, selected['id'].toString());
-        }
+        await widget.repository
+            .linkExpense(id, selected['id'].toString(), kind);
       });
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error')));
+      }
+    }
+  }
+
+  Future<void> _correctSaleAssociation() async {
+    try {
+      final choices = await widget.repository.choices(id);
+      if (!mounted || !_sameSession) return;
+      final sales = (choices['sales'] as List)
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .toList();
+      final selected = await showDialog<Map<String, dynamic>>(
+          context: context,
+          builder: (context) => AlertDialog(
+                title: const Text('Corrigir associação de venda'),
+                content: SizedBox(
+                    width: 520,
+                    height: 360,
+                    child: Column(children: [
+                      const Text(
+                          'Correção administrativa. A venda só conta neste jantar enquanto estiver associada a ele; os fechos afetados têm de estar reabertos.'),
+                      Expanded(
+                          child: sales.isEmpty
+                              ? const Center(
+                                  child: Text('Sem vendas concluídas.'))
+                              : ListView(children: [
+                                  for (final sale in sales)
+                                    ListTile(
+                                      title: Text(
+                                          '${sale['customer_label'] ?? 'Venda BAR'} · ${_money.format(sale['total_amount'] ?? 0)}'),
+                                      subtitle:
+                                          Text(sale['weekly_dinner_id'] == null
+                                              ? 'Sem jantar associado'
+                                              : sale['weekly_dinner_id'] == id
+                                                  ? 'Associada a este jantar'
+                                                  : 'Associada a outro jantar'),
+                                      onTap: () => Navigator.pop(context, sale),
+                                    )
+                                ]))
+                    ])),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancelar'))
+                ],
+              ));
+      if (selected == null) return;
+      final currentDinner = selected['weekly_dinner_id'];
+      final remove = currentDinner != null && currentDinner == id;
+      final action = remove ? 'retirar deste jantar' : 'associar a este jantar';
+      if (!mounted) return;
+      final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+                title: const Text('Confirmar correção administrativa'),
+                content: Text('Queres $action a venda selecionada?'),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancelar')),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Confirmar'))
+                ],
+              ));
+      if (confirmed != true) return;
+      await _act(() => widget.repository
+          .assignSale(id, selected['id'].toString(), remove: remove));
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -298,7 +360,7 @@ class _DinnerFinanceState extends State<WeeklyDinnerFinanceDialog> {
                           : 'Por fechar · cálculo vivo'),
                       if (current.empty)
                         const Text(
-                            'Sem fecho financeiro. Regista custos ou refeições manuais para este jantar.'),
+                            'Sem fecho financeiro. Regista os custos deste jantar ou associa uma venda no BAR.'),
                       if (current.closed)
                         Text(
                             'Fechado em ${_dinnerDatePT(current.data['closed_at'], time: true)} · Revisão ${current.data['revision']}'),
@@ -364,7 +426,7 @@ class _DinnerFinanceState extends State<WeeklyDinnerFinanceDialog> {
                                 : null),
                       if (edit)
                         TextButton(
-                            onPressed: () => _choose(true),
+                            onPressed: _chooseExpense,
                             child:
                                 const Text('Associar despesa da Tesouraria')),
                       const Text(
@@ -388,19 +450,11 @@ class _DinnerFinanceState extends State<WeeklyDinnerFinanceDialog> {
                                 '${sale['customer_label'] ?? 'Venda BAR'}'),
                             subtitle: Text(
                                 '${_money.format(sale['total_amount'] ?? 0)}${sale['completed_at'] == null ? '' : ' · ${_dinnerDatePT(sale['completed_at'], time: true)}'}'),
-                            trailing: edit
-                                ? IconButton(
-                                    tooltip: 'Desassociar venda',
-                                    icon: const Icon(Icons.link_off),
-                                    onPressed: () => _act(() => widget
-                                        .repository
-                                        .assignSale(id, sale['id'].toString(),
-                                            remove: true)))
-                                : null),
+                            trailing: null),
                       if (edit)
                         TextButton(
-                            onPressed: () => _choose(false),
-                            child: const Text('Associar venda existente')),
+                            onPressed: _correctSaleAssociation,
+                            child: const Text('Corrigir associação de venda')),
                       const Divider(),
                       Text('Refeições: ${detail.number('meal_quantity')}'),
                       _amount('Receita refeições', detail.data['meal_revenue']),
