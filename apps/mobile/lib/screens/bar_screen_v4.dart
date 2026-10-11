@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import '../core/app_session.dart';
 import '../core/permissions.dart';
 import '../repositories/bar_repository.dart';
+import '../repositories/bar_sales_repository.dart';
+import '../widgets/bar_sale_history_section.dart';
 import '../repositories/financial_ocr_repository.dart';
 import 'bar_ocr_review_screen.dart';
 import 'bar_product_editor_dialog.dart';
@@ -19,6 +21,7 @@ class BarScreenV4 extends StatefulWidget {
 
 class _BarScreenV4State extends State<BarScreenV4> {
   final BarRepository _repository = BarRepository();
+  final BarSalesRepository _salesRepository = BarSalesRepository();
   final FinancialOcrRepository _ocrRepository = FinancialOcrRepository();
   late Future<_BarData> _future;
 
@@ -37,6 +40,7 @@ class _BarScreenV4State extends State<BarScreenV4> {
       _repository.products(),
       _repository.events(),
       _repository.operations(),
+      _salesRepository.saleHistory(),
       _canSelectAccount
           ? _repository.treasuryAccounts()
           : Future<List<Map<String, dynamic>>>.value(const []),
@@ -45,7 +49,8 @@ class _BarScreenV4State extends State<BarScreenV4> {
         products: List<Map<String, dynamic>>.from(values[0] as List),
         events: List<Map<String, dynamic>>.from(values[1] as List),
         operations: List<Map<String, dynamic>>.from(values[2] as List),
-        accounts: List<Map<String, dynamic>>.from(values[3] as List),
+        sales: List<Map<String, dynamic>>.from(values[3] as List),
+        accounts: List<Map<String, dynamic>>.from(values[4] as List),
       ),
     );
   }
@@ -414,6 +419,13 @@ class _BarScreenV4State extends State<BarScreenV4> {
                         ),
                       ),
                       const SizedBox(height: 8),
+                      BarSaleHistorySection(
+                          sales: data.sales,
+                          repository: _salesRepository,
+                          onChanged: _refresh),
+                      const SizedBox(height: 16),
+                      Text('Movimentos de stock',
+                          style: Theme.of(context).textTheme.titleLarge),
                       if (data.operations.isEmpty)
                         const Card(
                           child: ListTile(
@@ -1031,12 +1043,14 @@ class _BarData {
     required this.products,
     required this.events,
     required this.operations,
+    required this.sales,
     required this.accounts,
   });
 
   final List<Map<String, dynamic>> products;
   final List<Map<String, dynamic>> events;
   final List<Map<String, dynamic>> operations;
+  final List<Map<String, dynamic>> sales;
   final List<Map<String, dynamic>> accounts;
 }
 

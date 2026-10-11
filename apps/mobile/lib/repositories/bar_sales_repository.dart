@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -36,6 +37,221 @@ class BarSalesRepository {
   void _requireManage() {
     if (!canManage) {
       throw StateError('Sem permissão para registar vendas no Bar.');
+    }
+  }
+
+  bool get canReverse =>
+      canManage &&
+      AppSession.instance.can(AppPermission.reverseTreasuryMovement);
+  static final Map<String, Future<void>> _demoReversalLocks = {};
+
+  Future<List<Map<String, dynamic>>> saleHistory({int limit = 100}) async {
+    _requireView();
+    if (!_isDemo) {
+      return List<Map<String, dynamic>>.from(await _client.rpc(
+        'bar_sale_history_v1',
+        params: {'target_club': _clubId, 'p_limit': limit},
+      ) as List);
+    }
+    final items = await _demoList('bar_sale_items');
+    final reversals = await _demoList('bar_sale_reversals');
+    final sales = (await _demoList('bar_sales'))
+        .where((s) => ['completed', 'reversed'].contains(s['status']))
+        .toList()
+      ..sort((a, b) => (b['completed_at']?.toString() ?? '')
+          .compareTo(a['completed_at']?.toString() ?? ''));
+    return sales.take(limit.clamp(1, 250)).map((sale) {
+      final reversal = reversals.where((r) => r['sale_id'] == sale['id']);
+      return <String, dynamic>{
+        ...sale,
+        'bar_sale_items':
+            items.where((i) => i['sale_id'] == sale['id']).toList(),
+        'completed_actor_name': sale['completed_actor_name'],
+        if (reversal.isNotEmpty) ...{
+          'reversal_reason': reversal.first['reason'],
+          'reversed_at': reversal.first['created_at'],
+          'reversed_by': reversal.first['created_by'],
+          'reversed_actor_name': reversal.first['actor_name'],
+        }
+      };
+    }).toList();
+  }
+
+  Future<void> reverseSale(String saleId, String reason) async {
+    _requireView();
+    if (!canReverse) {
+      throw StateError('Sem permissão para anular vendas do BAR.');
+    }
+    if (reason.trim().length < 3) {
+      throw ArgumentError('Indica o motivo da anulação (mínimo 3 caracteres).');
+    }
+    if (!_isDemo) {
+      await _client.rpc('reverse_bar_sale_v1', params: {
+        'target_club': _clubId,
+        'p_sale': saleId,
+        'p_reason': reason.trim(),
+      });
+      return;
+    }
+    final club = _clubId;
+    final actor = AppSession.instance.profileId;
+    final previous = _demoReversalLocks[club];
+    final done = Completer<void>();
+    _demoReversalLocks[club] = done.future;
+    try {
+      if (previous != null) await previous;
+      if (_clubId != club ||
+          AppSession.instance.profileId != actor ||
+          !canReverse) {
+        throw StateError('A sessão mudou.');
+      }
+      await _reverseDemo(saleId, reason.trim());
+    } finally {
+      done.complete();
+      if (identical(_demoReversalLocks[club], done.future)) {
+        _demoReversalLocks.remove(club);
+      }
+    }
+  }
+
+  Future<void> _reverseDemo(String saleId, String reason) async {
+    final sales =
+        (await _demoList('bar_sales')).where((s) => s['id'] == saleId);
+    if (sales.isEmpty ||
+        sales.first['status'] != 'completed' ||
+        (await _demoList('bar_sale_reversals'))
+            .any((r) => r['sale_id'] == saleId)) {
+      throw StateError(
+          'Só é possível anular uma venda concluída ainda não anulada.');
+    }
+    final sale = sales.first;
+    final dinner = sale['weekly_dinner_id'];
+    if (dinner != null &&
+        (await _demoList('weekly_dinner_finances')).any((f) =>
+            f['dinner_id'] == dinner && f['financial_status'] == 'closed')) {
+      throw StateError(
+          'Reabre o fecho financeiro do jantar antes de anular esta venda.');
+    }
+    final transactions = await _demoList('financial_transactions');
+    final originals =
+        transactions.where((t) => t['id'] == sale['treasury_transaction_id']);
+    if (originals.isEmpty ||
+        originals.first['kind'] != 'income' ||
+        originals.first['source_type'] != 'bar_sale' ||
+        originals.first['source_id'] != saleId ||
+        dinnerNumber(originals.first['amount']) !=
+            dinnerNumber(sale['total_amount']) ||
+        transactions
+            .any((t) => t['reversal_of'] == sale['treasury_transaction_id'])) {
+      throw StateError(
+          'O movimento financeiro original não é fiável ou já foi revertido.');
+    }
+    final original = originals.first;
+    final items = (await _demoList('bar_sale_items'))
+        .where((i) => i['sale_id'] == saleId && i['item_kind'] == 'stock')
+        .toList();
+    final products = await _demoList('products');
+    final operations = await _demoList('bar_operations');
+    final restored = <String, double>{};
+    for (final item in items) {
+      final product = item['product_id']?.toString();
+      final consumed = dinnerNumber(item['quantity']) *
+          dinnerNumber(item['stock_quantity_per_unit']);
+      if (product == null ||
+          !products.any((p) => p['id'] == product) ||
+          !consumed.isFinite ||
+          consumed <= 0) {
+        throw StateError('Quantidade de stock histórica não fiável.');
+      }
+      restored[product] = (restored[product] ?? 0) + consumed;
+    }
+    for (final entry in restored.entries) {
+      final consumed = operations
+          .where((o) =>
+              o['sale_id'] == saleId &&
+              o['product_id'] == entry.key &&
+              o['operation_type'] == 'sale')
+          .fold<double>(
+              0, (sum, o) => sum + dinnerNumber(o['consumption_quantity']));
+      if (consumed != entry.value) {
+        throw StateError('Quantidade de stock histórica não fiável.');
+      }
+    }
+    final inserted = <(String, String)>[];
+    final changedProducts = <Map<String, dynamic>>[];
+    Future<Map<String, dynamic>> insert(
+        String table, Map<String, dynamic> data) async {
+      final row = await _data.insert(table, data);
+      inserted.add((table, row['id'].toString()));
+      return row;
+    }
+
+    try {
+      final tx = await insert('financial_transactions', {
+        ...original,
+        'id': null,
+        'created_at': DateTime.now().toUtc().toIso8601String(),
+        'kind': 'expense',
+        'source_type': 'reversal',
+        'source_id': original['id'],
+        'reversal_of': original['id'],
+        'notes': reason,
+        'created_by': AppSession.instance.profileId,
+      });
+      await insert('bar_sale_reversals', {
+        'club_id': _clubId,
+        'sale_id': saleId,
+        'original_transaction_id': original['id'],
+        'reversal_transaction_id': tx['id'],
+        'reason': reason,
+        'actor_name': AppSession.instance.fullName,
+        'created_by': AppSession.instance.profileId
+      });
+      for (final entry in restored.entries) {
+        final product = products.firstWhere((p) => p['id'] == entry.key);
+        changedProducts.add(product);
+        await _data.update('products', entry.key, {
+          'current_stock': dinnerNumber(product['current_stock']) + entry.value
+        });
+      }
+      for (final item in items) {
+        final quantity = dinnerNumber(item['quantity']) *
+            dinnerNumber(item['stock_quantity_per_unit']);
+        final notes = 'Anulação venda $saleId | Linha ${item['id']} | $reason';
+        await insert('stock_movements', {
+          'club_id': _clubId,
+          'product_id': item['product_id'],
+          'event_id': sale['event_id'],
+          'kind': 'adjustment',
+          'quantity': quantity,
+          'unit_cost': item['unit_cost_snapshot'],
+          'notes': notes,
+          'created_by': AppSession.instance.profileId
+        });
+        await insert('bar_operations', {
+          'club_id': _clubId,
+          'product_id': item['product_id'],
+          'event_id': sale['event_id'],
+          'sale_id': saleId,
+          'operation_type': 'adjustment_in',
+          'consumption_quantity': quantity,
+          'total_amount': 0,
+          'unit_price': 0,
+          'treasury_transaction_id': tx['id'],
+          'notes': notes,
+          'created_by': AppSession.instance.profileId,
+          'products': products.firstWhere((p) => p['id'] == item['product_id'])
+        });
+      }
+      await _data.update('bar_sales', saleId, {'status': 'reversed'});
+    } catch (_) {
+      for (final row in inserted.reversed) {
+        await _data.delete(row.$1, row.$2);
+      }
+      for (final product in changedProducts) {
+        await _data.update('products', product['id'].toString(), product);
+      }
+      rethrow;
     }
   }
 
@@ -623,6 +839,8 @@ class BarSalesRepository {
       'member_id': member,
       'treasury_transaction_id': tx['id'],
       'completed_at': DateTime.now().toUtc().toIso8601String(),
+      'completed_by': AppSession.instance.profileId,
+      'completed_actor_name': AppSession.instance.fullName,
       'notes': notes
     });
     return {
