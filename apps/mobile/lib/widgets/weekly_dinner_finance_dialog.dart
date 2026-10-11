@@ -36,12 +36,9 @@ class WeeklyDinnerFinanceDialog extends StatefulWidget {
 
 class _DinnerFinanceState extends State<WeeklyDinnerFinanceDialog> {
   late Future<WeeklyDinnerFinance> _future;
-  final _quantity = TextEditingController(),
-      _revenue = TextEditingController(),
-      _food = TextEditingController(),
+  final _food = TextEditingController(),
       _other = TextEditingController(),
       _notes = TextEditingController();
-  String _mode = 'automatic';
   bool _busy = false;
   late final String _club, _profile;
   final _money = NumberFormat.currency(locale: 'pt_PT', symbol: '€');
@@ -58,7 +55,7 @@ class _DinnerFinanceState extends State<WeeklyDinnerFinanceDialog> {
 
   @override
   void dispose() {
-    for (final c in [_quantity, _revenue, _food, _other, _notes]) {
+    for (final c in [_food, _other, _notes]) {
       c.dispose();
     }
     super.dispose();
@@ -72,9 +69,6 @@ class _DinnerFinanceState extends State<WeeklyDinnerFinanceDialog> {
     if (!_sameSession) {
       throw StateError('A sessão mudou. Abre novamente o jantar.');
     }
-    _mode = detail.data['meal_mode']?.toString() ?? 'automatic';
-    _quantity.text = '${detail.number('manual_meal_quantity')}';
-    _revenue.text = '${detail.number('manual_meal_revenue')}';
     _food.text = '${detail.number('food_cost_manual')}';
     _other.text = '${detail.number('other_cost_manual')}';
     _notes.text = detail.data['notes']?.toString() ?? '';
@@ -90,9 +84,9 @@ class _DinnerFinanceState extends State<WeeklyDinnerFinanceDialog> {
   }
 
   Future<void> _save() => widget.repository.save(id,
-      mode: _mode,
-      quantity: _value(_quantity),
-      revenue: _value(_revenue),
+      mode: 'automatic',
+      quantity: 0,
+      revenue: 0,
       food: _value(_food),
       other: _value(_other),
       notes: _notes.text);
@@ -229,18 +223,14 @@ class _DinnerFinanceState extends State<WeeklyDinnerFinanceDialog> {
   WeeklyDinnerFinance _preview(WeeklyDinnerFinance current) {
     if (current.closed) return current;
     try {
-      final meal = _mode == 'manual'
-          ? _value(_revenue)
-          : current.number('bar_meal_revenue');
+      final meal = current.number('bar_meal_revenue');
       final food = current.number('food_cost_linked') + _value(_food);
       final other = current.number('other_cost_linked') + _value(_other);
       final revenue = dinnerMoney(meal + current.number('beverage_revenue'));
       final cost = dinnerMoney(food + other + current.number('beverage_cost'));
       return WeeklyDinnerFinance({
         ...current.data,
-        'meal_quantity': _mode == 'manual'
-            ? _value(_quantity)
-            : current.number('bar_meal_quantity'),
+        'meal_quantity': current.number('bar_meal_quantity'),
         'meal_revenue': meal,
         'food_cost': food,
         'meal_profit': dinnerMoney(meal - food),
@@ -347,27 +337,8 @@ class _DinnerFinanceState extends State<WeeklyDinnerFinanceDialog> {
                           .where((line) => line['component_override'] != null))
                         _classificationLine(line, edit, undo: true),
                       const Divider(),
-                      const Text('Ajustes de refeições',
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                      DropdownButtonFormField<String>(
-                          isExpanded: true,
-                          initialValue: _mode,
-                          decoration: const InputDecoration(
-                              labelText: 'Receita de refeições'),
-                          items: const [
-                            DropdownMenuItem(
-                                value: 'automatic',
-                                child: Text('Automático pelo BAR')),
-                            DropdownMenuItem(
-                                value: 'manual',
-                                child: Text('Manual (substitui o automático)'))
-                          ],
-                          onChanged:
-                              edit ? (v) => setState(() => _mode = v!) : null),
-                      if (_mode == 'manual') ...[
-                        _input('Quantidade de refeições', _quantity, edit),
-                        _input('Receita das refeições', _revenue, edit)
-                      ],
+                      const Text(
+                          'As refeições e respetivas receitas são calculadas exclusivamente pelas vendas registadas no BAR e associadas a este jantar.'),
                       const Divider(),
                       const Text('Custos ligados à Tesouraria',
                           style: TextStyle(fontWeight: FontWeight.bold)),

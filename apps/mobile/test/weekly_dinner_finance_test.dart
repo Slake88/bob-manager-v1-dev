@@ -163,7 +163,7 @@ void main() {
       }))['id']
           .toString();
   Future<void> settings(String id, {double food = 0}) => repo.save(id,
-      mode: 'automatic', quantity: 10, revenue: 0, food: food, other: 0);
+      mode: 'automatic', quantity: 0, revenue: 0, food: food, other: 0);
   test(
       'automatic separates meals, historical BAR cost, reversed costs and excluded revenue',
       () {
@@ -180,7 +180,9 @@ void main() {
     expect(v.number('excluded_line_count'), 1);
     expect(v.hasUnclassifiedRevenue, isTrue);
   });
-  test('manual replaces automatic meals; costs are additional adjustments', () {
+  test(
+      'legacy manual settings cannot override BAR meals; costs remain additional',
+      () {
     final v = WeeklyDinnerFinance.calculate(
         lines: lines,
         expenses: expenses,
@@ -191,11 +193,11 @@ void main() {
           'food_cost_manual': 2,
           'other_cost_manual': 3
         });
-    expect(v.number('meal_quantity'), 12);
+    expect(v.number('meal_quantity'), 10);
     expect(v.number('bar_meal_revenue'), 100);
-    expect(v.number('total_revenue'), 170);
+    expect(v.number('total_revenue'), 120);
     expect(v.number('total_cost'), 46);
-    expect(v.number('result'), 124);
+    expect(v.number('result'), 74);
   });
   test('missing historical cost is unknown; zero revenue has zero margin', () {
     final v = WeeklyDinnerFinance.calculate(lines: const [
@@ -550,7 +552,7 @@ void main() {
       (tester) async {
     final id = await dinner();
     await repo.save(id,
-        mode: 'manual', quantity: 2, revenue: 20, food: 5, other: 1);
+        mode: 'automatic', quantity: 0, revenue: 0, food: 5, other: 1);
     await tester.binding.setSurfaceSize(const Size(1000, 1800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(MaterialApp(
@@ -829,5 +831,100 @@ void main() {
     expect(find.text('Revisão 1 · 15/10/2026 20:30'), findsOneWidget);
     expect(find.textContaining('2026-10-15T'), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+  test(
+      'manual writes rejected; historical snapshot survives reopen and BAR-only reclose',
+      () async {
+    final id = await dinner();
+    const historic = <String, dynamic>{
+      'meal_quantity': 10,
+      'meal_revenue': 100,
+      'total_revenue': 100,
+      'food_cost': 40,
+      'other_costs': 10,
+      'total_cost': 50,
+      'result': 50,
+      'margin_percent': 50
+    };
+    await data.insert('weekly_dinner_finances', {
+      'club_id': club,
+      'dinner_id': id,
+      'financial_status': 'closed',
+      'meal_mode': 'manual',
+      'manual_meal_quantity': 10,
+      'manual_meal_revenue': 100,
+      'food_cost_manual': 40,
+      'other_cost_manual': 10,
+      'revision': 1,
+      'snapshot': historic
+    });
+    await data.insert('weekly_dinner_financial_snapshots', {
+      'club_id': club,
+      'dinner_id': id,
+      'revision': 1,
+      'snapshot': historic
+    });
+    expect((await repo.detail(id)).number('meal_revenue'), 100);
+    await repo.setClosed(id, false);
+    expect((await repo.detail(id)).number('meal_revenue'), 0);
+    expect((await repo.detail(id)).number('result'), -50);
+    for (final args in [
+      ('manual', 0.0, 0.0),
+      ('automatic', 1.0, 0.0),
+      ('automatic', 0.0, 100.0)
+    ]) {
+      await expectLater(
+          repo.save(id,
+              mode: args.$1,
+              quantity: args.$2,
+              revenue: args.$3,
+              food: 40,
+              other: 10),
+          throwsArgumentError);
+    }
+    final preset = await data.insert('bar_sale_presets', {
+      'club_id': club,
+      'name': 'Jantar',
+      'active': true,
+      'unit_price': 10,
+      'counts_as_dinner_meal': true
+    });
+    for (final actor in ['one', 'two']) {
+      AppSession.instance.profileId = actor;
+      final sale = await bar.createDraft(weeklyDinnerId: id);
+      await bar.completeSale(
+          saleId: sale,
+          paymentMethod: 'cash',
+          weeklyDinnerId: id,
+          lines: [
+            {'kind': 'preset', 'preset_id': preset['id'], 'quantity': 2}
+          ]);
+    }
+    expect((await repo.detail(id)).number('meal_quantity'), 4);
+    expect((await repo.detail(id)).number('meal_revenue'), 40);
+    await repo.setClosed(id, true);
+    final revisionOne = (await repo.detail(id))
+        .rows('previous_snapshots')
+        .firstWhere((r) => r['revision'] == 1);
+    expect(revisionOne['snapshot'], historic);
+  });
+  testWidgets(
+      'financial panel explains BAR-only meals and has no manual revenue controls',
+      (tester) async {
+    await panel(tester, PanelRepo());
+    await tester.scrollUntilVisible(
+        find.textContaining('calculadas exclusivamente'), 300,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.textContaining('calculadas exclusivamente'), findsOneWidget);
+    expect(find.text('Automático pelo BAR'), findsNothing);
+    expect(find.text('Manual (substitui o automático)'), findsNothing);
+    expect(find.widgetWithText(TextField, 'Quantidade de refeições'),
+        findsNothing);
+    expect(
+        find.widgetWithText(TextField, 'Receita das refeições'), findsNothing);
+    expect(
+        find.widgetWithText(
+            TextField, 'Comida/preparação — ajuste manual adicional'),
+        findsOneWidget);
   });
 }

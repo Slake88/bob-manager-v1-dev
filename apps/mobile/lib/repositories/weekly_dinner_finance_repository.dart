@@ -228,6 +228,10 @@ class WeeklyDinnerFinanceRepository {
       required double other,
       String notes = ''}) async {
     require(write: true);
+    if (mode != 'automatic' || quantity != 0 || revenue != 0) {
+      throw ArgumentError(
+          'As refeições e receitas são registadas exclusivamente no BAR.');
+    }
     if (!['automatic', 'manual'].contains(mode) ||
         [quantity, revenue, food, other].any((v) => !v.isFinite || v < 0)) {
       throw ArgumentError('Valores financeiros inválidos.');

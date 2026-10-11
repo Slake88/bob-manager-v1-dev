@@ -55,13 +55,9 @@ class WeeklyDinnerFinance {
         otherLinked += dinnerNumber(expense['amount']);
       }
     }
-    final mode = settings['meal_mode'] ?? 'automatic';
-    final quantity = mode == 'manual'
-        ? dinnerNumber(settings['manual_meal_quantity'])
-        : mealQuantity;
-    final revenue = mode == 'manual'
-        ? dinnerNumber(settings['manual_meal_revenue'])
-        : mealRevenue;
+    // Live meal amounts only come from BAR lines; old manual settings are audit data.
+    final quantity = mealQuantity;
+    final revenue = mealRevenue;
     final food = foodLinked + dinnerNumber(settings['food_cost_manual']);
     final other = otherLinked + dinnerNumber(settings['other_cost_manual']);
     final totalRevenue = dinnerMoney(revenue + barRevenue);

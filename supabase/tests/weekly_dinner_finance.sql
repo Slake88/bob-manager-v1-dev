@@ -21,6 +21,15 @@ language plpgsql as $$ declare failed boolean:=false; begin
   if not failed then raise exception 'Expected rejection: %',message; end if;
 end $$;
 
+-- Fixture helper creates real BAR meal sales instead of manual meal income.
+create function pg_temp.meal_sale(c uuid,d uuid,q numeric,price numeric) returns uuid
+language plpgsql security definer set search_path=public as $$ declare preset uuid; sale uuid; begin
+  insert into public.bar_sale_presets(club_id,name,unit_price,counts_as_dinner_meal)
+    values(c,'Meal fixture '||gen_random_uuid(),price,true) returning id into preset;
+  sale:=public.create_bar_sale_v3(c,p_weekly_dinner=>d);
+  perform public.complete_bar_sale_v3(c,sale,jsonb_build_array(jsonb_build_object('kind','preset','preset_id',preset,'quantity',q)),'cash',p_weekly_dinner=>d);
+  return sale;
+end $$;
 do $$ declare c uuid:=gen_random_uuid(); foreign_c uuid:=gen_random_uuid(); manager uuid:=gen_random_uuid();
   member uuid:=gen_random_uuid(); reader uuid:=gen_random_uuid(); d uuid:=gen_random_uuid(); foreign_d uuid:=gen_random_uuid();
   p uuid:=gen_random_uuid(); dose uuid:=gen_random_uuid(); preset uuid:=gen_random_uuid(); ev uuid:=gen_random_uuid(); a uuid:=gen_random_uuid();
@@ -86,9 +95,9 @@ begin
   perform public.save_weekly_dinner_finance_v1(c,d,'automatic',0,0,1,2,'Explicit additional adjustments');
   detail:=public.weekly_dinner_finance_v1(c,d);
   perform pg_temp.assert_true((detail->>'total_revenue')::numeric=26 and (detail->>'total_cost')::numeric=18 and (detail->>'result')::numeric=8,'automatic direct result');
-  perform public.save_weekly_dinner_finance_v1(c,d,'manual',3,40,1,2,null);
+  perform pg_temp.must_fail(format('select public.save_weekly_dinner_finance_v1(%L,%L,''manual'',3,40,1,2)',c,d),'manual meals rejected');
   detail:=public.weekly_dinner_finance_v1(c,d);
-  perform pg_temp.assert_true((detail->>'meal_quantity')::numeric=3 and (detail->>'total_revenue')::numeric=46,'manual overrides rather than adds');
+  perform pg_temp.assert_true((detail->>'meal_quantity')::numeric=2 and (detail->>'total_revenue')::numeric=26,'rejected manual inputs cannot affect BAR totals');
   perform public.save_weekly_dinner_finance_v1(c,d,'automatic',0,0,1,2,null);
   detail:=public.set_weekly_dinner_financial_closed_v1(c,d,true);
   perform pg_temp.assert_true(detail->>'financial_status'='closed' and (detail->>'result')::numeric=8,'close snapshot result');
@@ -159,14 +168,16 @@ begin
   perform pg_temp.assert_true((detail->>'missing_cost_count')::integer=1 and detail->>'result' is null,'historical unknown cost never backfilled');
   perform pg_temp.must_fail(format('select public.set_weekly_dinner_financial_closed_v1(%L,%L,true)',c,old_d),'missing cost prevents false historic close');
   perform public.assign_bar_sale_dinner_v1(c,current_setting('dinner_test.old_sale')::uuid,null);
-  perform public.save_weekly_dinner_finance_v1(c,old_d,'manual',2,100,30,0,null);
+  perform pg_temp.meal_sale(c,old_d,2,50);
+  perform public.save_weekly_dinner_finance_v1(c,old_d,'automatic',0,0,30,0,null);
   perform public.set_weekly_dinner_financial_closed_v1(c,old_d,true);
   history:=public.weekly_dinner_financial_history_v1(c,2025);
-  perform pg_temp.assert_true((history->>'closed_count')::integer=1 and (history->>'result')::numeric=70,'previous-year manual history');
+  perform pg_temp.assert_true((history->>'closed_count')::integer=1 and (history->>'result')::numeric=70,'previous-year BAR history');
   history:=public.weekly_dinner_financial_history_v1(c,2026);
   perform pg_temp.assert_true((history->>'closed_count')::integer=1 and (history->>'result')::numeric=18,'annual sum uses final snapshot');
   perform pg_temp.assert_true(abs((history->>'margin_percent')::numeric-18.0/26*100)<.000001,'global weighted margin');
-  perform public.save_weekly_dinner_finance_v1(c,current_setting('dinner_test.second')::uuid,'manual',10,100,50,0,null);
+  perform pg_temp.meal_sale(c,current_setting('dinner_test.second')::uuid,10,10);
+  perform public.save_weekly_dinner_finance_v1(c,current_setting('dinner_test.second')::uuid,'automatic',0,0,50,0,null);
   perform public.set_weekly_dinner_financial_closed_v1(c,current_setting('dinner_test.second')::uuid,true);
   history:=public.weekly_dinner_financial_history_v1(c,2026);
   perform pg_temp.assert_true((history->>'closed_count')::integer=2 and (history->>'total_revenue')::numeric=126 and (history->>'result')::numeric=68,'multiple closed dinner totals');
