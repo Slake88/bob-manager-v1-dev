@@ -361,8 +361,9 @@ Deno.serve(async (req: Request) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const client = createClient(supabaseUrl, anonKey, {
+    const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: auth } },
+      auth: { persistSession: false, autoRefreshToken: false },
     });
 
     const body = await req.json().catch(() => ({}));
@@ -376,8 +377,20 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const { data: userData, error: userError } = await client.auth.getUser();
+    const { data: userData, error: userError } = await userClient.auth.getUser();
     if (userError || !userData.user) throw new Error("Sessão inválida.");
+
+    const { data: allowed, error: permissionError } = await userClient.rpc(
+      "has_club_permission",
+      { target_club: clubId, requested_permission: "viewLottery" },
+    );
+    if (permissionError) throw permissionError;
+    if (allowed !== true) {
+      return new Response(JSON.stringify({ error: "Permissão para consultar o Euromilhões necessária." }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const expected = expectedDraws(year, month);
     if (expected.length === 0) {
@@ -397,7 +410,13 @@ Deno.serve(async (req: Request) => {
       ? `${year + 1}-01-01`
       : `${year}-${String(month + 1).padStart(2, "0")}-01`;
 
-    const { data: existingRows, error: existingError } = await client
+    // Keep the results lookup under the caller's RLS scope. The authentication
+    // client above is limited to identity and permission checks.
+    const readClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: auth } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: existingRows, error: existingError } = await readClient
       .from("euromillions_results")
       .select("draw_date,official_draw_number,prize_table,source")
       .eq("club_id", clubId)
@@ -443,13 +462,19 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!serviceRoleKey) throw new Error("Configuração interna de importação indisponível.");
+    const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
     let importedCount = 0;
     let updatedCount = 0;
     const processed: Result[] = [];
 
     for (const item of prepared) {
       const parsed = item.result;
-      const { error } = await client.rpc("process_euromillions_official_result_v1", {
+      const { error } = await serviceClient.rpc("process_euromillions_official_result_v1", {
         target_club: clubId,
         p_draw_date: parsed.drawDate,
         p_draw_number: parsed.drawNumber,
