@@ -107,7 +107,6 @@ grant execute on function public.treasury_account_balances_v1(uuid) to authentic
 create or replace function public.dashboard_summary(target_club uuid)
 returns jsonb
 language plpgsql
-stable
 security definer
 set search_path = pg_catalog, public
 as $function$
