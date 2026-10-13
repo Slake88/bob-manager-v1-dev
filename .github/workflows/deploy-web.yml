@@ -1,8 +1,6 @@
 name: Deploy BOB Manager Web
 
 on:
-  push:
-    branches: [rc1-rebuild]
   workflow_dispatch:
 
 permissions:

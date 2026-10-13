@@ -370,7 +370,7 @@ Deno.serve(async (req: Request) => {
     const clubId = body.club_id?.toString();
     const year = Number(body.year);
     const month = Number(body.month);
-    if (!clubId || !Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    if (!clubId || !Number.isInteger(year) || year < 1 || year > 9999 || !Number.isInteger(month) || month < 1 || month > 12) {
       return new Response(JSON.stringify({ error: "Parâmetros inválidos." }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -382,12 +382,24 @@ Deno.serve(async (req: Request) => {
 
     const { data: allowed, error: permissionError } = await userClient.rpc(
       "has_club_permission",
-      { target_club: clubId, requested_permission: "viewLottery" },
+      { target_club: clubId, requested_permission: "manageLottery" },
     );
     if (permissionError) throw permissionError;
     if (allowed !== true) {
-      return new Response(JSON.stringify({ error: "Permissão para consultar o Euromilhões necessária." }), {
+      return new Response(JSON.stringify({ error: "Permissão para gerir o Euromilhões necessária." }), {
         status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const lisbonDate = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Lisbon", year: "numeric", month: "2-digit",
+    }).formatToParts(new Date());
+    const currentYear = Number(lisbonDate.find((p) => p.type === "year")!.value);
+    const currentMonth = Number(lisbonDate.find((p) => p.type === "month")!.value);
+    if (year * 12 + month < currentYear * 12 + currentMonth) {
+      return new Response(JSON.stringify({ error: "Meses passados apenas mostram o histórico existente." }), {
+        status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

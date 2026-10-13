@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_config.dart';
 import '../repositories/lottery_extra_repository.dart';
 import '../repositories/lottery_ranking_repository.dart';
 import '../repositories/lottery_repository.dart';
 
 class LotteryScreen extends StatefulWidget {
-  const LotteryScreen({super.key});
+  const LotteryScreen({super.key, this.repository});
+
+  final LotteryRepository? repository;
 
   @override
   State<LotteryScreen> createState() => _LotteryScreenState();
 }
 
 class _LotteryScreenState extends State<LotteryScreen> {
-  final LotteryRepository _repository = LotteryRepository();
+  late final LotteryRepository _repository = widget.repository ?? LotteryRepository();
+  bool _preparing = false;
   final LotteryExtraRepository _extra = LotteryExtraRepository();
   late DateTime _month;
   late Future<Map<String, dynamic>> _future;
@@ -337,6 +341,45 @@ class _LotteryScreenState extends State<LotteryScreen> {
     if (changed == true && mounted) setState(_reload);
   }
 
+  bool get _historical {
+    final now = DateTime.now();
+    return _month.isBefore(DateTime(now.year, now.month));
+  }
+
+  Future<void> _prepareMonth() async {
+    if (_preparing) return;
+    final month = _month;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Preparar mês'),
+        content: Text('Criar as cobranças em falta de ${month.month}/${month.year} '
+            'para os jogadores atualmente ativos, com o preço atual? '
+            'As cobranças existentes serão preservadas.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Preparar')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || _preparing) return;
+    setState(() => _preparing = true);
+    try {
+      await _repository.prepareMonth(month.year, month.month);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Mês preparado.')));
+        setState(_reload);
+      }
+    } catch (error) {
+      _showError(error);
+    } finally {
+      if (mounted) setState(() => _preparing = false);
+    }
+  }
+
   Future<void> _importOfficial() async {
     try {
       final imported = await _repository.importOfficial(
@@ -381,8 +424,15 @@ class _LotteryScreenState extends State<LotteryScreen> {
           final prizes = List<Map<String, dynamic>>.from(data['prizes'] as List);
           final drawDates = _repository.drawDates(_month.year, _month.month);
           final drawAmount = _asDouble(data['draw_amount']);
+          final historicalIds = [...charges, ...fines, ...prizes]
+              .map((row) => row['player_id']).toSet();
+          final monthPlayers = _historical
+              ? players.where((row) => historicalIds.contains(row['player_id'])).toList()
+              : players.where((row) => row['status'] == 'active' ||
+                  historicalIds.contains(row['player_id'])).toList();
           final monthlyPerPlayer = drawDates.length * drawAmount;
-          final totalExpected = active.length * monthlyPerPlayer;
+          final totalExpected = charges.fold<double>(0,
+              (sum, row) => sum + _asDouble(row['amount']));
           final fineDebt = fines.fold<double>(
             0,
             (sum, row) =>
@@ -421,13 +471,14 @@ class _LotteryScreenState extends State<LotteryScreen> {
                   spacing: 8,
                   runSpacing: 8,
                   children: [
-                    _MetricCard(label: 'Jogadores ativos', value: '${active.length}'),
-                    _MetricCard(
-                      label: 'Custo mensal / jogador',
+                    _MetricCard(label: _historical ? 'Jogadores no histórico' : 'Jogadores ativos',
+                        value: '${_historical ? monthPlayers.length : active.length}'),
+                    if (!_historical) _MetricCard(
+                      label: 'Custo atual / jogador',
                       value: _money(monthlyPerPlayer),
                     ),
                     _MetricCard(
-                      label: 'Total previsto do mês',
+                      label: 'Cobranças registadas do mês',
                       value: _money(totalExpected),
                     ),
                     _MetricCard(label: 'Multas por receber', value: _money(fineDebt)),
@@ -438,22 +489,31 @@ class _LotteryScreenState extends State<LotteryScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                if (_repository.canOperateMoney)
+                if (_repository.canManage || _repository.canOperateMoney)
                   Wrap(
                     alignment: WrapAlignment.end,
                     spacing: 8,
                     runSpacing: 8,
                     children: [
+                      if (_repository.canManage && !_historical && !AppConfig.demoMode)
+                        OutlinedButton.icon(
+                          onPressed: _preparing ? null : _prepareMonth,
+                          icon: const Icon(Icons.calendar_month_outlined),
+                          label: Text(_preparing ? 'A preparar…' : 'Preparar mês'),
+                        ),
+                      if (_repository.canManage && !_historical)
                       OutlinedButton.icon(
                         onPressed: _importOfficial,
                         icon: const Icon(Icons.cloud_download_outlined),
                         label: const Text('Atualizar oficial'),
                       ),
+                      if (_repository.canOperateMoney)
                       OutlinedButton.icon(
-                        onPressed: () => _manualPrize(active, results),
+                        onPressed: () => _manualPrize(monthPlayers, results),
                         icon: const Icon(Icons.emoji_events_outlined),
                         label: const Text('Registar prémio'),
                       ),
+                      if (_repository.canOperateMoney)
                       OutlinedButton.icon(
                         onPressed: () => _configure(data),
                         icon: const Icon(Icons.tune),
@@ -470,7 +530,7 @@ class _LotteryScreenState extends State<LotteryScreen> {
                         isScrollable: true,
                         tabs: [
                           Tab(text: 'Quadro mensal'),
-                          Tab(text: 'Jogadores e chaves'),
+                          Tab(text: 'Jogadores e chaves atuais'),
                           Tab(text: 'Resultados e multas'),
                           Tab(text: 'Ranking'),
                         ],
@@ -481,7 +541,7 @@ class _LotteryScreenState extends State<LotteryScreen> {
                           children: [
                             _MonthlyBoard(
                               repository: _repository,
-                              players: active,
+                              players: monthPlayers,
                               charges: charges,
                               dates: drawDates,
                               onPayDraw: _repository.canOperateMoney ? _payDraw : null,
@@ -498,17 +558,18 @@ class _LotteryScreenState extends State<LotteryScreen> {
                             ),
                             _ResultsAndFinesView(
                               dates: drawDates,
-                              players: active,
+                              players: monthPlayers,
                               results: results,
                               fines: fines,
                               prizes: prizes,
+                              historical: _historical,
                               canOperate: _repository.canOperateMoney,
                               onProcess: _processResult,
                               onReceiveFines: _payFines,
                               onReverseFines: _reverseFines,
                               onReceivePrize: _receivePrize,
                               onReversePrize: _reversePrize,
-                              onManualPrize: () => _manualPrize(active, results),
+                              onManualPrize: () => _manualPrize(monthPlayers, results),
                             ),
                             _RankingView(
                               players: players,
@@ -706,6 +767,7 @@ class _ResultsAndFinesView extends StatelessWidget {
     required this.results,
     required this.fines,
     required this.prizes,
+    this.historical = false,
     required this.canOperate,
     required this.onProcess,
     required this.onReceiveFines,
@@ -720,6 +782,7 @@ class _ResultsAndFinesView extends StatelessWidget {
   final List<Map<String, dynamic>> results;
   final List<Map<String, dynamic>> fines;
   final List<Map<String, dynamic>> prizes;
+  final bool historical;
   final bool canOperate;
   final Future<void> Function(DateTime) onProcess;
   final Future<void> Function(Map<String, dynamic>, double) onReceiveFines;
@@ -844,7 +907,7 @@ class _ResultsAndFinesView extends StatelessWidget {
                       '${_notEmpty(localResult['official_draw_number']) == '—' ? '' : ' • Sorteio ${localResult['official_draw_number']}'}\n'
                       'Números: ${_listText(localResult['numbers'])} • Estrelas: ${_listText(localResult['stars'])}',
                     ),
-              trailing: canOperate
+              trailing: canOperate && !historical
                   ? IconButton(
                       tooltip: localResult == null ? 'Registar resultado' : 'Editar resultado',
                       onPressed: () => onProcess(date),
@@ -862,7 +925,9 @@ class _ResultsAndFinesView extends StatelessWidget {
                         child: Text('Sem comparação enquanto o resultado não estiver registado.'),
                       ),
                     ]
-                  : players.map((player) {
+                  : players.where((player) => !historical ||
+                      [...resultFines, ...resultPrizes].any((row) =>
+                          row['player_id'] == player['player_id'])).map((player) {
                       final playerId = player['player_id']?.toString();
                       Map<String, dynamic>? fine;
                       for (final row in resultFines) {
@@ -891,7 +956,7 @@ class _ResultsAndFinesView extends StatelessWidget {
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                             const SizedBox(height: 6),
-                            Wrap(
+                            if (!historical) Wrap(
                               spacing: 6,
                               runSpacing: 6,
                               children: [
@@ -1417,7 +1482,8 @@ class _PlayerDialogState extends State<_PlayerDialog> {
     setState(() => _saving = true);
     try {
       await widget.repository.updatePlayer(
-        playerId: widget.player['player_id'].toString(),
+        playerId: widget.player['player_id']?.toString(),
+        memberId: widget.player['member_id']?.toString(),
         status: _status,
         numbers: _numbers.text,
         stars: _stars.text,

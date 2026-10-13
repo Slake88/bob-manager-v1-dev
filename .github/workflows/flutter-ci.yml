@@ -27,5 +27,11 @@ jobs:
 
       - run: flutter test
 
+      - name: Test explicit Euromillions contracts (mock HTTP only)
+        run: >-
+          flutter test test/lottery_read_write_split_test.dart test/lottery_screen_split_test.dart
+          --dart-define=SUPABASE_URL=https://example.supabase.co
+          --dart-define=SUPABASE_PUBLISHABLE_KEY=test-key
+
       - name: Build Flutter Web
         run: flutter build web --release --dart-define=DEMO_MODE=true

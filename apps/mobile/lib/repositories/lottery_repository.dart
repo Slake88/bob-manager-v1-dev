@@ -51,19 +51,6 @@ class LotteryRepository {
       };
     }
 
-    // A importação oficial não deve bloquear o módulo se o portal estiver
-    // temporariamente indisponível ou se o último sorteio for de outro mês.
-    await importOfficial(year: year, month: month, silent: true);
-
-    await _supabase.rpc(
-      'generate_euromillions_charges_v1',
-      params: {
-        'target_club': AppSession.instance.clubId,
-        'p_year': year,
-        'p_month': month,
-      },
-    );
-
     final first = DateTime(year, month, 1);
     final next = month == 12
         ? DateTime(year + 1, 1, 1)
@@ -111,6 +98,10 @@ class LotteryRepository {
           .eq('club_id', AppSession.instance.clubId)
           .gte('result.draw_date', firstIso)
           .lt('result.draw_date', nextIso),
+      _supabase
+          .from('members')
+          .select('id,full_name,nickname')
+          .eq('club_id', AppSession.instance.clubId),
     ]);
 
     final players = List<Map<String, dynamic>>.from(results[0] as List)
@@ -125,6 +116,21 @@ class LotteryRepository {
         'stars_text': _intList(row['stars']).join(', '),
       };
     }).toList();
+    final configuredMembers = players.map((row) => row['member_id']).toSet();
+    for (final member in List<Map<String, dynamic>>.from(results[6] as List)) {
+      if (configuredMembers.contains(member['id'])) continue;
+      players.add({
+        'player_id': null,
+        'member_id': member['id'],
+        'member_name': member['full_name'],
+        'member_nickname': member['nickname'],
+        'status': 'non_player',
+        'numbers': <int>[],
+        'stars': <int>[],
+        'numbers_text': '',
+        'stars_text': '',
+      });
+    }
     players.sort((a, b) => (a['member_name']?.toString() ?? '')
         .compareTo(b['member_name']?.toString() ?? ''));
 
@@ -146,11 +152,34 @@ class LotteryRepository {
     };
   }
 
+  Future<void> prepareMonth(int year, int month) async {
+    _require(AppPermission.manageLottery);
+    _requireCurrentOrFutureMonth(year, month);
+    if (AppConfig.demoMode) return;
+    await _supabase.rpc('prepare_euromillions_month_v1', params: {
+      'target_club': AppSession.instance.clubId,
+      'p_year': year,
+      'p_month': month,
+    });
+  }
+
+  void _requireCurrentOrFutureMonth(int year, int month) {
+    if (year < 1 || year > 9999 || month < 1 || month > 12) {
+      throw ArgumentError('Mês inválido.');
+    }
+    final now = DateTime.now();
+    if (DateTime(year, month).isBefore(DateTime(now.year, now.month))) {
+      throw StateError('Meses passados apenas mostram o histórico existente.');
+    }
+  }
+
   Future<bool> importOfficial({
     required int year,
     required int month,
     bool silent = false,
   }) async {
+    _require(AppPermission.manageLottery);
+    _requireCurrentOrFutureMonth(year, month);
     if (AppConfig.demoMode) return false;
     try {
       final response = await _supabase.functions.invoke(
@@ -171,7 +200,8 @@ class LotteryRepository {
   }
 
   Future<void> updatePlayer({
-    required String playerId,
+    String? playerId,
+    String? memberId,
     required String status,
     required String numbers,
     required String stars,
@@ -191,16 +221,24 @@ class LotteryRepository {
       throw ArgumentError('Um jogador ativo precisa de uma chave completa.');
     }
     if (AppConfig.demoMode) return;
-    await _supabase
-        .from('euromillions_players')
-        .update({
-          'status': status,
-          'numbers': parsedNumbers,
-          'stars': parsedStars,
-          'updated_at': DateTime.now().toIso8601String(),
-        })
-        .eq('id', playerId)
-        .eq('club_id', AppSession.instance.clubId);
+    final values = {
+      'status': status,
+      'numbers': parsedNumbers,
+      'stars': parsedStars,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+    if (memberId != null && memberId.isNotEmpty) {
+      await _supabase.from('euromillions_players').upsert({
+        ...values,
+        'club_id': AppSession.instance.clubId,
+        'member_id': memberId,
+      }, onConflict: 'club_id,member_id');
+    } else if (playerId != null && playerId.isNotEmpty) {
+      await _supabase.from('euromillions_players').update(values)
+          .eq('id', playerId).eq('club_id', AppSession.instance.clubId);
+    } else {
+      throw ArgumentError('Seleciona um membro.');
+    }
   }
 
   Future<void> saveSettings({
@@ -334,6 +372,7 @@ class LotteryRepository {
         'Apenas o Tesoureiro ou Super Admin pode processar resultados.',
       );
     }
+    _requireCurrentOrFutureMonth(drawDate.year, drawDate.month);
     final parsedNumbers = _parseAndValidate(numbers, 5, 1, 50, 'números');
     final parsedStars = _parseAndValidate(stars, 2, 1, 12, 'estrelas');
     if (drawDate.weekday != DateTime.tuesday &&
@@ -447,22 +486,15 @@ class LotteryRepository {
     if (memberId == null || memberId.isEmpty) {
       throw ArgumentError('Seleciona um membro.');
     }
-    await _supabase.rpc(
-      'sync_euromillions_players_v1',
-      params: {'target_club': AppSession.instance.clubId},
-    );
-    final player = await _supabase
-        .from('euromillions_players')
-        .select()
-        .eq('club_id', AppSession.instance.clubId)
-        .eq('member_id', memberId)
-        .single();
     await updatePlayer(
-      playerId: player['id'].toString(),
+      memberId: memberId,
       status: values['active'] == false ? 'inactive' : 'active',
       numbers: numbers.join(', '),
       stars: stars.join(', '),
     );
+    final player = await _supabase.from('euromillions_players').select()
+        .eq('club_id', AppSession.instance.clubId)
+        .eq('member_id', memberId).single();
     return {
       ...Map<String, dynamic>.from(player),
       'member_id': memberId,
