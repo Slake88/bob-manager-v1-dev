@@ -20,6 +20,7 @@ class AgendaRepository {
     return response == true || response?.toString().toLowerCase() == 'true';
   }
 
+  /// Ensures dates for the grid years without recalculating assignments.
   Future<void> ensureDinnerYears(DateTime from, DateTime to) async {
     if (AppConfig.demoMode) return;
     for (var year = from.year; year <= to.year; year++) {

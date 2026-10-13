@@ -19,6 +19,26 @@ class WeeklyOfficerRepository {
         superAdmin: AppSession.instance.superAdmin,
       );
 
+  bool get supportsRebuild => !AppConfig.demoMode;
+
+  /// Server membership capability; local role labels are not authorization.
+  Future<bool> canManageSchedule() async {
+    if (AppConfig.demoMode) return canManage;
+    final response = await _supabase
+        .rpc('can_manage_weekly_officer_v1', params: {'target_club': _clubId});
+    return response == true;
+  }
+
+  Future<Map<String, dynamic>> rebuildYear(int year) async {
+    if (AppConfig.demoMode) {
+      throw StateError('O recálculo não está disponível em demonstração.');
+    }
+    final response = await _supabase.rpc('rebuild_weekly_officer_schedule_v1',
+        params: {'target_club': _clubId, 'p_year': year});
+    return Map<String, dynamic>.from(response as Map);
+  }
+
+  /// Ensures calendar dates only. Never recalculates assignments.
   Future<void> ensureYear(int year) async {
     if (AppConfig.demoMode) {
       await WeeklyDinnerFinanceRepository.seedDemo();

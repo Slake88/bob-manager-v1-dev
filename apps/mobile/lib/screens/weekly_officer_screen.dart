@@ -8,20 +8,24 @@ import '../repositories/weekly_dinner_finance_repository.dart';
 import '../widgets/weekly_dinner_finance_dialog.dart';
 
 class WeeklyOfficerScreen extends StatefulWidget {
-  const WeeklyOfficerScreen({super.key});
+  const WeeklyOfficerScreen({super.key, this.repository});
+
+  final WeeklyOfficerRepository? repository;
 
   @override
   State<WeeklyOfficerScreen> createState() => _WeeklyOfficerScreenState();
 }
 
 class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
-  final WeeklyOfficerRepository _repository = WeeklyOfficerRepository();
+  late final WeeklyOfficerRepository _repository =
+      widget.repository ?? WeeklyOfficerRepository();
   final _finance = WeeklyDinnerFinanceRepository();
   late int _year;
   int _financialRevision = 0;
   late Future<_WeeklyOfficerData> _future;
 
-  bool get _canManage => _repository.canManage;
+  bool _canManage = false;
+  bool _rebuilding = false;
 
   @override
   void initState() {
@@ -35,6 +39,7 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
   }
 
   Future<_WeeklyOfficerData> _load() async {
+    _canManage = await _repository.canManageSchedule();
     await _repository.ensureYear(_year);
     final values = await Future.wait([
       _repository.members(),
@@ -57,6 +62,44 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
   Future<void> _refresh() async {
     setState(_reload);
     await _future;
+  }
+
+  Future<void> _rebuildYear() async {
+    final year = _year;
+    final today = DateTime.now();
+    final from = year == today.year
+        ? DateTime(today.year, today.month, today.day)
+        : DateTime(year, 1, 1);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Recalcular escala'),
+        content: Text('Recalcular atribuições automáticas de '
+            '${DateFormat('dd/MM/yyyy').format(from)} a 31/12/$year? '
+            'Atribuições manuais, trocas e externos serão preservados.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Recalcular')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _rebuilding = true);
+    try {
+      final result = await _repository.rebuildYear(year);
+      if (!mounted) return;
+      _message('Escala recalculada: ${result['assigned']} de '
+          '${result['eligible']} jantares com responsável.');
+      await _refresh();
+    } catch (error) {
+      if (mounted) _message(_errorText(error), error: true);
+    } finally {
+      if (mounted) setState(() => _rebuilding = false);
+    }
   }
 
   void _changeYear(int delta) {
@@ -151,6 +194,15 @@ class _WeeklyOfficerScreenState extends State<WeeklyOfficerScreen> {
                 onPressed: () => _changeYear(1),
                 icon: const Icon(Icons.chevron_right),
               ),
+              if (_canManage &&
+                  _repository.supportsRebuild &&
+                  _year >= DateTime.now().year &&
+                  _year <= 2100)
+                IconButton(
+                  tooltip: 'Recalcular atribuições automáticas',
+                  onPressed: _rebuilding ? null : _rebuildYear,
+                  icon: const Icon(Icons.autorenew),
+                ),
               IconButton(
                 tooltip: 'Atualizar',
                 onPressed: _refresh,

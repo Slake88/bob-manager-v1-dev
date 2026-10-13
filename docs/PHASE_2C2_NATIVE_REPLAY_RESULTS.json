@@ -1,0 +1,19 @@
+{
+  "database": "bob_phase2c2_native_1791891524482",
+  "endpoint": "127.0.0.1:55439",
+  "applied": [],
+  "adaptations": [
+    {
+      "setting": "check_function_bodies=off during baseline replay",
+      "reason": "Initial migration defines has_permission against membership_id but creates club_membership_id; bodies are kept unchanged and relevant final functions are tested at runtime."
+    }
+  ],
+  "checks": [],
+  "version": "PostgreSQL 17.10 on x86_64-windows, compiled by msvc-19.44.35226, 64-bit",
+  "currentMigration": "1000_bob_manager_v1_complete.sql",
+  "failure": {
+    "migration": "1000_bob_manager_v1_complete.sql",
+    "code": "42703",
+    "message": "column sm.variant_id does not exist"
+  }
+}
