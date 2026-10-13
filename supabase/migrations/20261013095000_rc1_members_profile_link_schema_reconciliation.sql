@@ -63,12 +63,92 @@ begin
 end;
 $$;
 
-create index if not exists members_profile_id_idx
-  on public.members (profile_id)
-  where profile_id is not null;
+do $$
+declare
+  v_index record;
+  v_index_oid oid;
+  v_relkind "char";
+  v_is_unique boolean;
+  v_is_valid boolean;
+  v_is_ready boolean;
+  v_key_count smallint;
+  v_column_count smallint;
+  v_column_attnums smallint[];
+  v_predicate text;
+  v_normalized_predicate text;
+begin
+  for v_index in
+    select * from (values
+      ('members_profile_id_idx', array[
+        (select attnum from pg_attribute where attrelid='public.members'::regclass
+          and attname='profile_id' and not attisdropped)
+      ]::smallint[]),
+      ('members_club_profile_idx', array[
+        (select attnum from pg_attribute where attrelid='public.members'::regclass
+          and attname='club_id' and not attisdropped),
+        (select attnum from pg_attribute where attrelid='public.members'::regclass
+          and attname='profile_id' and not attisdropped)
+      ]::smallint[])
+    ) as expected(index_name, column_attnums)
+  loop
+    select c.oid, c.relkind
+      into v_index_oid, v_relkind
+    from pg_class c
+    join pg_namespace n on n.oid=c.relnamespace
+    where n.nspname='public' and c.relname=v_index.index_name;
 
-create index if not exists members_club_profile_idx
-  on public.members (club_id, profile_id)
-  where profile_id is not null;
+    if not found then
+      if v_index.index_name='members_profile_id_idx' then
+        execute 'create index members_profile_id_idx on public.members (profile_id) where profile_id is not null';
+      else
+        execute 'create index members_club_profile_idx on public.members (club_id, profile_id) where profile_id is not null';
+      end if;
+      continue;
+    end if;
+
+    if v_relkind <> 'i' then
+      raise exception 'Schema conflict: public.% exists but is not an index',v_index.index_name;
+    end if;
+
+    select i.indisunique, i.indisvalid, i.indisready,
+      i.indnkeyatts, i.indnatts,
+      array(
+        select i.indkey[position]::smallint
+        from generate_series(0,i.indnatts-1) as positions(position)
+        order by position
+      ),
+      pg_get_expr(i.indpred,i.indrelid)
+    into v_is_unique, v_is_valid, v_is_ready, v_key_count, v_column_count,
+      v_column_attnums, v_predicate
+    from pg_index i
+    where i.indexrelid=v_index_oid and i.indrelid='public.members'::regclass;
+
+    if not found then
+      raise exception 'Schema conflict: public.% is not an index on public.members',v_index.index_name;
+    end if;
+
+    v_normalized_predicate := lower(coalesce(v_predicate,''));
+    v_normalized_predicate := regexp_replace(v_normalized_predicate,'[[:space:]()]','','g');
+    v_normalized_predicate := replace(v_normalized_predicate,'"','');
+    v_normalized_predicate := replace(v_normalized_predicate,'public.members.','');
+    v_normalized_predicate := replace(v_normalized_predicate,'members.','');
+
+    if v_is_unique
+      or not v_is_valid
+      or not v_is_ready
+      or v_key_count <> cardinality(v_index.column_attnums)
+      or v_column_count <> cardinality(v_index.column_attnums)
+      or v_column_attnums is distinct from v_index.column_attnums
+      or v_normalized_predicate <> 'profile_idisnotnull' then
+      raise exception
+        'Schema conflict: public.% must be a valid, ready, non-unique index on public.members (%) where profile_id is not null; found columns %, predicate "%" (unique %, valid %, ready %)',
+        v_index.index_name,
+        case when v_index.index_name='members_profile_id_idx'
+          then 'profile_id' else 'club_id, profile_id' end,
+        v_column_attnums,v_predicate,v_is_unique,v_is_valid,v_is_ready;
+    end if;
+  end loop;
+end;
+$$;
 
 commit;
