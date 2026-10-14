@@ -1,0 +1,23 @@
+{
+  "database": "bob_phase2c7_1791986086241",
+  "endpoint": "127.0.0.1:55440",
+  "checks": [
+    "Baseline reproduces cross-club acceptance for eight references (plus both borrower fields regardless of type); valid/NULL fixtures pass",
+    "Preflight rejects absent RPCs and unexpected PUBLIC exposure atomically; original catalog fully restored",
+    "Only five definitions changed; OIDs, exact signatures/defaults, owner, ACLs, volatility/strictness/parallelism preserved; PUBLIC/anon denied",
+    "Full SQL matrix passed: valid, missing, foreign, NULL, inactive references, all borrower types, transfer/accounts, product/variant guards, unauthorized/no identity/anon; every case rolls back all public/net rows",
+    "Exact baseline authorization errors preserved for every reference case, absent identity and no-permission member",
+    "Two-connection tests: SHARE locks block concurrent club_id reassignment in all six newly validated reference tables",
+    "Idempotent reapplication on populated fixtures changes zero rows; full regression passes twice"
+  ],
+  "catalog": {
+    "tables": 131,
+    "functions": 288,
+    "enums": 8,
+    "triggers": 291,
+    "captured_at": "2026-10-13T11:43:26.265608+00:00",
+    "sourceVersion": "PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit"
+  },
+  "caseCount": 35,
+  "status": "passed"
+}
