@@ -1,0 +1,20 @@
+{
+  "database": "bob_phase2c4_1791969597690",
+  "endpoint": "127.0.0.1:55439",
+  "checks": [
+    "Both RPCs: auth/access/permission, exact cardinality, ACLs, fields and audit; regression rollback",
+    "Duplicate preflight aborts without altering rows/audit or creating index",
+    "Incompatible named index fails safely",
+    "Unique partial index: idempotence, duplicate rejection, null links and cross-club links",
+    "RPC migration reapplication preserves rows/audit"
+  ],
+  "catalog": {
+    "tables": 131,
+    "functions": 288,
+    "enums": 8,
+    "triggers": 291,
+    "captured_at": "2026-10-13T11:43:26.265608+00:00",
+    "sourceVersion": "PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gcc (GCC) 15.2.0, 64-bit"
+  },
+  "status": "passed"
+}

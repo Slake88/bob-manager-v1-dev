@@ -331,7 +331,9 @@ class _MemberDetailScreenState extends State<MemberDetailScreen> {
       appBar: AppBar(
         title: Text(name),
         actions: [
-          if (_canManage || _isOwnProfile)
+          if (_canManage ||
+              (_isOwnProfile &&
+                  AppSession.instance.can(AppPermission.editOwnMemberProfile)))
             IconButton(
               tooltip: 'Editar membro',
               onPressed: _edit,

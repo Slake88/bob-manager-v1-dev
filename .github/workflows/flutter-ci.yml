@@ -35,3 +35,9 @@ jobs:
 
       - name: Build Flutter Web
         run: flutter build web --release --dart-define=DEMO_MODE=true
+
+      - name: Test own-profile v2 contract (mock HTTP only)
+        run: >-
+          flutter test test/self_profile_phase2c4_test.dart
+          --dart-define=SUPABASE_URL=https://example.supabase.co
+          --dart-define=SUPABASE_PUBLISHABLE_KEY=test-key
