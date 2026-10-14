@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
 
 import '../core/app_role.dart';
+import '../core/app_config.dart';
 import '../core/app_session.dart';
 import '../core/permissions.dart';
 import '../repositories/fees_repository.dart';
 
 class FeesScreen extends StatefulWidget {
-  const FeesScreen({super.key});
+  const FeesScreen({super.key, this.repository});
+
+  final FeesRepository? repository;
 
   @override
   State<FeesScreen> createState() => _FeesScreenState();
 }
 
 class _FeesScreenState extends State<FeesScreen> {
-  final FeesRepository _repository = FeesRepository();
+  late final FeesRepository _repository = widget.repository ?? FeesRepository();
   late Future<_FeesViewData> _future;
   int _year = DateTime.now().year;
+  bool _preparing = false;
 
   bool get _canManage => PermissionPolicy.allows(
         AppRole.fromValue(AppSession.instance.role),
@@ -33,7 +37,6 @@ class _FeesScreenState extends State<FeesScreen> {
   }
 
   Future<_FeesViewData> _load() async {
-    await _repository.ensureYear(_year);
     final results = await Future.wait([
       _repository.listObligations(year: _year),
       _repository.listMembers(),
@@ -56,6 +59,43 @@ class _FeesScreenState extends State<FeesScreen> {
       _year += delta;
       _reload();
     });
+  }
+
+  Future<void> _prepareYear() async {
+    if (_preparing) return;
+    final year = _year;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Preparar quotas de $year?'),
+        content:
+            const Text('Cria apenas quotas em falta com os valores atuais. '
+                'Inclui inscrições de membros com entrada nesse ano. '
+                'Quotas e pagamentos existentes são preservados. '
+                'Não reconstrói inscrições de anos anteriores.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Cancelar')),
+          FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Preparar')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || _preparing) return;
+    setState(() => _preparing = true);
+    try {
+      await _repository.prepareYear(year);
+      if (mounted) setState(_reload);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(_friendlyError(error))));
+      }
+    } finally {
+      if (mounted) setState(() => _preparing = false);
+    }
   }
 
   Future<void> _newObligation(_FeesViewData data) async {
@@ -134,7 +174,8 @@ class _FeesScreenState extends State<FeesScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text('Erro: ${_friendlyError(snapshot.error!)}'));
+            return Center(
+                child: Text('Erro: ${_friendlyError(snapshot.error!)}'));
           }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
@@ -142,13 +183,17 @@ class _FeesScreenState extends State<FeesScreen> {
 
           final data = snapshot.data!;
           final monthly = data.obligations
-              .where((row) => row['obligation_type']?.toString() != 'registration')
+              .where(
+                  (row) => row['obligation_type']?.toString() != 'registration')
               .toList();
           final registrations = data.obligations
-              .where((row) => row['obligation_type']?.toString() == 'registration')
+              .where(
+                  (row) => row['obligation_type']?.toString() == 'registration')
               .toList();
-          final paidCount = monthly.where((row) => _asDouble(row['balance']) == 0).length;
-          final pendingCount = monthly.where((row) => _asDouble(row['balance']) > 0).length;
+          final paidCount =
+              monthly.where((row) => _asDouble(row['balance']) == 0).length;
+          final pendingCount =
+              monthly.where((row) => _asDouble(row['balance']) > 0).length;
           final received = data.obligations.fold<double>(
             0,
             (total, row) => total + _asDouble(row['paid_amount']),
@@ -165,8 +210,18 @@ class _FeesScreenState extends State<FeesScreen> {
               children: [
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final compact = constraints.maxWidth < 600;
+                    final compact = constraints.maxWidth < 1100;
                     final actions = <Widget>[
+                      if (_canManage &&
+                          !AppConfig.demoMode &&
+                          _year >= DateTime.now().year &&
+                          _year <= 2100)
+                        FilledButton.icon(
+                          onPressed: _preparing ? null : _prepareYear,
+                          icon: const Icon(Icons.playlist_add_check),
+                          label:
+                              Text(_preparing ? 'A preparar…' : 'Preparar ano'),
+                        ),
                       if (_repository.canConfigureFees)
                         OutlinedButton.icon(
                           onPressed: () => _openSettings(data),
@@ -195,7 +250,8 @@ class _FeesScreenState extends State<FeesScreen> {
                               Expanded(
                                 child: Text(
                                   'Quotas $_year',
-                                  style: Theme.of(context).textTheme.headlineSmall,
+                                  style:
+                                      Theme.of(context).textTheme.headlineSmall,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -284,7 +340,8 @@ class _FeesScreenState extends State<FeesScreen> {
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         const SizedBox(height: 4),
-                        const Text('✓ pago  •  ✕ por pagar  •  — sem obrigação'),
+                        const Text(
+                            '✓ pago  •  ✕ por pagar  •  — sem obrigação'),
                         const SizedBox(height: 12),
                         _AnnualFeesGrid(
                           members: data.members,
@@ -296,7 +353,8 @@ class _FeesScreenState extends State<FeesScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Text('Inscrições', style: Theme.of(context).textTheme.titleLarge),
+                Text('Inscrições',
+                    style: Theme.of(context).textTheme.titleLarge),
                 const SizedBox(height: 8),
                 if (registrations.isEmpty)
                   Card(
@@ -304,9 +362,10 @@ class _FeesScreenState extends State<FeesScreen> {
                       leading: const Icon(Icons.info_outline),
                       title: const Text('Sem inscrições registadas neste ano.'),
                       subtitle: _repository.canConfigureFees &&
-                              _asDouble(data.settings['registration_amount']) == 0
+                              _asDouble(data.settings['registration_amount']) ==
+                                  0
                           ? const Text(
-                              'O valor de inscrição está a 0 €. Define-o em Configurar para gerar inscrições automaticamente.',
+                              'O valor de inscrição está a 0 €. Define-o em Configurar e usa Preparar ano para criar inscrições desse ano.',
                             )
                           : null,
                     ),
@@ -551,7 +610,8 @@ class _FeeObligationDialogState extends State<_FeeObligationDialog> {
     super.initState();
     _month = DateTime.now().month;
     _year = TextEditingController(text: widget.initialYear.toString());
-    _amount = TextEditingController(text: widget.defaultAmount.toStringAsFixed(2));
+    _amount =
+        TextEditingController(text: widget.defaultAmount.toStringAsFixed(2));
   }
 
   @override
@@ -635,7 +695,8 @@ class _FeeObligationDialogState extends State<_FeeObligationDialog> {
             const SizedBox(height: 12),
             TextField(
               controller: _amount,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(labelText: 'Valor'),
             ),
             const SizedBox(height: 8),
@@ -678,12 +739,14 @@ class _FeeSettingsDialogState extends State<_FeeSettingsDialog> {
   @override
   void initState() {
     super.initState();
-    _dueDay = TextEditingController(text: widget.settings['due_day']?.toString() ?? '8');
+    _dueDay = TextEditingController(
+        text: widget.settings['due_day']?.toString() ?? '8');
     _monthly = TextEditingController(
       text: _asDouble(widget.settings['monthly_amount']).toStringAsFixed(2),
     );
     _registration = TextEditingController(
-      text: _asDouble(widget.settings['registration_amount']).toStringAsFixed(2),
+      text:
+          _asDouble(widget.settings['registration_amount']).toStringAsFixed(2),
     );
   }
 
@@ -698,7 +761,8 @@ class _FeeSettingsDialogState extends State<_FeeSettingsDialog> {
   Future<void> _save() async {
     final day = int.tryParse(_dueDay.text);
     final monthly = double.tryParse(_monthly.text.replaceAll(',', '.'));
-    final registration = double.tryParse(_registration.text.replaceAll(',', '.'));
+    final registration =
+        double.tryParse(_registration.text.replaceAll(',', '.'));
     if (day == null || monthly == null || registration == null) return;
     setState(() => _saving = true);
     try {
@@ -731,23 +795,28 @@ class _FeeSettingsDialogState extends State<_FeeSettingsDialog> {
             TextField(
               controller: _dueDay,
               keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Dia de vencimento mensal'),
+              decoration:
+                  const InputDecoration(labelText: 'Dia de vencimento mensal'),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _monthly,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Valor da quota mensal'),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration:
+                  const InputDecoration(labelText: 'Valor da quota mensal'),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _registration,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Valor da inscrição'),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration:
+                  const InputDecoration(labelText: 'Valor da inscrição'),
             ),
             const SizedBox(height: 8),
             const Text(
-              'Ao definir um valor de inscrição, as inscrições em falta são geradas automaticamente para Prospects e Full Colors.',
+              'Guardar altera apenas as configurações. Usa Preparar ano para criar quotas e inscrições em falta desse ano com os valores atuais.',
             ),
           ],
         ),
@@ -841,7 +910,8 @@ class _FeePaymentDialogState extends State<_FeePaymentDialog> {
               'MB Way',
               'Dinheiro',
             ]
-                .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+                .map((value) =>
+                    DropdownMenuItem(value: value, child: Text(value)))
                 .toList(),
             onChanged: (value) => setState(() => _method = value ?? _method),
           ),
@@ -862,7 +932,8 @@ class _FeePaymentDialogState extends State<_FeePaymentDialog> {
 }
 
 class _MetricCard extends StatelessWidget {
-  const _MetricCard({required this.label, required this.value, required this.icon});
+  const _MetricCard(
+      {required this.label, required this.value, required this.icon});
 
   final String label;
   final String value;

@@ -41,3 +41,9 @@ jobs:
           flutter test test/self_profile_phase2c4_test.dart
           --dart-define=SUPABASE_URL=https://example.supabase.co
           --dart-define=SUPABASE_PUBLISHABLE_KEY=test-key
+
+      - name: Test explicit fee preparation (mock HTTP only)
+        run: >-
+          flutter test test/fees_phase2c5_test.dart
+          --dart-define=SUPABASE_URL=https://example.supabase.co
+          --dart-define=SUPABASE_PUBLISHABLE_KEY=test-key

@@ -29,17 +29,13 @@ class FeesRepository {
   bool get canConfigureFees =>
       PermissionPolicy.allows(currentRole, AppPermission.manageFees);
 
-  Future<void> ensureYear(int year) async {
-    _require(AppPermission.viewFees);
-    if (AppConfig.demoMode || !canConfigureFees) return;
-    await _supabase.rpc(
-      'sync_member_fee_obligations_v1',
-      params: {
-        'target_club': AppSession.instance.clubId,
-        'p_year': year,
-        'p_member': null,
-      },
-    );
+  Future<void> prepareYear(int year) async {
+    _require(AppPermission.manageFees);
+    if (AppConfig.demoMode) return;
+    await _supabase.rpc('prepare_member_fees_year_v1', params: {
+      'target_club': AppSession.instance.clubId,
+      'p_year': year,
+    });
   }
 
   Future<Map<String, dynamic>> settings() async {
@@ -74,7 +70,6 @@ class FeesRepository {
         'p_registration_amount': registrationAmount,
       },
     );
-    await ensureYear(DateTime.now().year);
   }
 
   Future<List<Map<String, dynamic>>> listObligations({int? year}) async {
@@ -136,7 +131,8 @@ class FeesRepository {
 
     final response = await _supabase
         .from('members')
-        .select('id, full_name, member_number, status, prospect_joined_at, joined_at')
+        .select(
+            'id, full_name, member_number, status, prospect_joined_at, joined_at')
         .eq('club_id', AppSession.instance.clubId)
         .order('full_name');
     return List<Map<String, dynamic>>.from(response);
@@ -241,10 +237,13 @@ class FeesRepository {
     }
 
     final id = obligation['id']?.toString();
-    if (id == null || id.isEmpty) throw ArgumentError('Quota sem identificador.');
+    if (id == null || id.isEmpty) {
+      throw ArgumentError('Quota sem identificador.');
+    }
     final balance = _asDouble(obligation['balance']);
     if (balance > 0 && amount > balance) {
-      throw StateError('O pagamento excede o valor em dívida desta mensalidade.');
+      throw StateError(
+          'O pagamento excede o valor em dívida desta mensalidade.');
     }
 
     if (AppConfig.demoMode) {
