@@ -1,3 +1,10 @@
+-- Clean-rebuild baseline only. Never replay this historical file on an existing application schema.
+do $$ begin
+ if to_regclass('public.clubs') is not null then
+  raise exception '1000 is clean-rebuild only; existing application schema detected' using errcode='55000';
+ end if;
+end $$;
+
 create extension if not exists pgcrypto;
 
 create extension if not exists citext;
@@ -61,7 +68,7 @@ alter table public.clubs add column if not exists updated_at timestamptz default
 create table if not exists public.profiles (
   id uuid primary key default gen_random_uuid(),
   full_name text not null,
-  email citext,
+  email text,
   phone text,
   avatar_path text,
   locale text,
@@ -73,7 +80,7 @@ create table if not exists public.profiles (
 
 alter table public.profiles add column if not exists full_name text;
 
-alter table public.profiles add column if not exists email citext;
+alter table public.profiles add column if not exists email text;
 
 alter table public.profiles add column if not exists phone text;
 
@@ -93,9 +100,10 @@ alter table public.profiles add column if not exists updated_at timestamptz defa
 create table if not exists public.club_memberships (
   id uuid primary key default gen_random_uuid(),
   club_id uuid not null,
-  profile_id uuid,
+  profile_id uuid not null,
   member_id uuid,
-  active boolean default true,
+  access_role text not null default 'member',
+  active boolean not null default true,
   joined_at date,
   ended_at date,
   created_at timestamptz not null default now()
@@ -208,41 +216,17 @@ alter table public.membership_roles add column if not exists ends_at timestamptz
 alter table public.membership_roles add column if not exists is_primary boolean;
 
 -- Identidade e acesso: Exceções individuais.
+-- Match the actual dynamic-permission table declared by 20260807152000.
+-- The obsolete membership_id/permission_id/effect model is not recreated.
 create table if not exists public.user_permission_overrides (
-  id uuid primary key default gen_random_uuid(),
-  club_id uuid not null,
-  profile_id uuid,
-  permission_id uuid,
-  allowed boolean,
-  scope_type text,
-  scope_id uuid,
-  valid_from timestamptz,
-  valid_until timestamptz,
-  reason text,
-  granted_by uuid
+  club_id uuid not null references public.clubs(id) on delete cascade,
+  profile_id uuid not null references public.profiles(id) on delete cascade,
+  permission_key text not null,
+  allowed boolean not null,
+  updated_by uuid,
+  updated_at timestamptz not null default now(),
+  primary key (club_id, profile_id, permission_key)
 );
-
-alter table public.user_permission_overrides add column if not exists club_id uuid;
-
-alter table public.user_permission_overrides add column if not exists profile_id uuid;
-
-alter table public.user_permission_overrides add column if not exists permission_id uuid;
-
-alter table public.user_permission_overrides add column if not exists allowed boolean;
-
-alter table public.user_permission_overrides add column if not exists scope_type text;
-
-alter table public.user_permission_overrides add column if not exists scope_id uuid;
-
-alter table public.user_permission_overrides add column if not exists valid_from timestamptz;
-
-alter table public.user_permission_overrides add column if not exists valid_until timestamptz;
-
-alter table public.user_permission_overrides add column if not exists reason text;
-
-alter table public.user_permission_overrides add column if not exists granted_by uuid;
-
-create index if not exists idx_user_permission_overrides_club_id on public.user_permission_overrides(club_id);
 
 -- Identidade e acesso: Auditoria específica de permissões.
 create table if not exists public.permission_change_log (
@@ -284,9 +268,10 @@ create table if not exists public.members (
   nickname text,
   tax_number text,
   birth_date date,
-  email citext,
+  email text,
   phone text,
-  address jsonb,
+  address text,
+  emergency_contact jsonb,
   status text,
   first_contact_date date,
   prospect_joined_at date,
@@ -314,11 +299,11 @@ alter table public.members add column if not exists tax_number text;
 
 alter table public.members add column if not exists birth_date date;
 
-alter table public.members add column if not exists email citext;
+alter table public.members add column if not exists email text;
 
 alter table public.members add column if not exists phone text;
 
-alter table public.members add column if not exists address jsonb;
+alter table public.members add column if not exists address text;
 
 alter table public.members add column if not exists status text;
 
@@ -1026,72 +1011,10 @@ alter table public.suppliers add column if not exists notes text;
 create index if not exists idx_suppliers_club_id on public.suppliers(club_id);
 
 -- Tesouraria: Contas a pagar.
-create table if not exists public.payables (
-  id uuid primary key default gen_random_uuid(),
-  club_id uuid not null,
-  supplier_id uuid,
-  event_id uuid,
-  invoice_number text,
-  document_date date,
-  due_date date,
-  total_amount numeric(14,2),
-  paid_amount numeric(14,2) default 0,
-  status text,
-  document_id uuid
-);
-
-alter table public.payables add column if not exists club_id uuid;
-
-alter table public.payables add column if not exists supplier_id uuid;
-
-alter table public.payables add column if not exists event_id uuid;
-
-alter table public.payables add column if not exists invoice_number text;
-
-alter table public.payables add column if not exists document_date date;
-
-alter table public.payables add column if not exists due_date date;
-
-alter table public.payables add column if not exists total_amount numeric(14,2);
-
-alter table public.payables add column if not exists paid_amount numeric(14,2) default 0;
-
-alter table public.payables add column if not exists status text;
-
-alter table public.payables add column if not exists document_id uuid;
-
-create index if not exists idx_payables_club_id on public.payables(club_id);
+-- payables is created with its real contract by 20260813102933.
 
 -- Tesouraria: Contas a receber.
-create table if not exists public.receivables (
-  id uuid primary key default gen_random_uuid(),
-  club_id uuid not null,
-  party_type text,
-  party_id uuid,
-  description text,
-  due_date date,
-  total_amount numeric(14,2),
-  received_amount numeric(14,2),
-  status text
-);
-
-alter table public.receivables add column if not exists club_id uuid;
-
-alter table public.receivables add column if not exists party_type text;
-
-alter table public.receivables add column if not exists party_id uuid;
-
-alter table public.receivables add column if not exists description text;
-
-alter table public.receivables add column if not exists due_date date;
-
-alter table public.receivables add column if not exists total_amount numeric(14,2);
-
-alter table public.receivables add column if not exists received_amount numeric(14,2);
-
-alter table public.receivables add column if not exists status text;
-
-create index if not exists idx_receivables_club_id on public.receivables(club_id);
+-- receivables is created with its real contract by 20260813102933.
 
 -- Tesouraria: Despesa submetida por membro.
 create table if not exists public.reimbursement_requests (
@@ -1140,137 +1063,16 @@ alter table public.reimbursement_requests add column if not exists financial_tra
 create index if not exists idx_reimbursement_requests_club_id on public.reimbursement_requests(club_id);
 
 -- Tesouraria: Abertura/fecho de caixa.
-create table if not exists public.cash_sessions (
-  id uuid primary key default gen_random_uuid(),
-  club_id uuid not null,
-  account_id uuid,
-  event_id uuid,
-  opened_by uuid,
-  opened_at timestamptz,
-  opening_amount numeric(14,2),
-  closed_by uuid,
-  closed_at timestamptz,
-  expected_amount numeric(14,2),
-  counted_amount numeric(14,2),
-  difference numeric(14,2),
-  status text
-);
-
-alter table public.cash_sessions add column if not exists club_id uuid;
-
-alter table public.cash_sessions add column if not exists account_id uuid;
-
-alter table public.cash_sessions add column if not exists event_id uuid;
-
-alter table public.cash_sessions add column if not exists opened_by uuid;
-
-alter table public.cash_sessions add column if not exists opened_at timestamptz;
-
-alter table public.cash_sessions add column if not exists opening_amount numeric(14,2);
-
-alter table public.cash_sessions add column if not exists closed_by uuid;
-
-alter table public.cash_sessions add column if not exists closed_at timestamptz;
-
-alter table public.cash_sessions add column if not exists expected_amount numeric(14,2);
-
-alter table public.cash_sessions add column if not exists counted_amount numeric(14,2);
-
-alter table public.cash_sessions add column if not exists difference numeric(14,2);
-
-alter table public.cash_sessions add column if not exists status text;
-
-create index if not exists idx_cash_sessions_club_id on public.cash_sessions(club_id);
+-- cash_sessions is created with its real contract by 20260813102933.
 
 -- Tesouraria: Reconciliação por período.
-create table if not exists public.bank_reconciliations (
-  id uuid primary key default gen_random_uuid(),
-  club_id uuid not null,
-  account_id uuid,
-  period_start date,
-  period_end date,
-  statement_balance numeric(14,2),
-  system_balance numeric(14,2),
-  difference numeric(14,2),
-  status text,
-  document_id uuid
-);
-
-alter table public.bank_reconciliations add column if not exists club_id uuid;
-
-alter table public.bank_reconciliations add column if not exists account_id uuid;
-
-alter table public.bank_reconciliations add column if not exists period_start date;
-
-alter table public.bank_reconciliations add column if not exists period_end date;
-
-alter table public.bank_reconciliations add column if not exists statement_balance numeric(14,2);
-
-alter table public.bank_reconciliations add column if not exists system_balance numeric(14,2);
-
-alter table public.bank_reconciliations add column if not exists difference numeric(14,2);
-
-alter table public.bank_reconciliations add column if not exists status text;
-
-alter table public.bank_reconciliations add column if not exists document_id uuid;
-
-create index if not exists idx_bank_reconciliations_club_id on public.bank_reconciliations(club_id);
+-- bank_reconciliations is created with its real contract by 20260813102933.
 
 -- Tesouraria: Orçamentos.
-create table if not exists public.budgets (
-  id uuid primary key default gen_random_uuid(),
-  club_id uuid not null,
-  name text not null,
-  scope_type text,
-  scope_id uuid,
-  period_start date,
-  period_end date,
-  status text
-);
-
-alter table public.budgets add column if not exists club_id uuid;
-
-alter table public.budgets add column if not exists name text;
-
-alter table public.budgets add column if not exists scope_type text;
-
-alter table public.budgets add column if not exists scope_id uuid;
-
-alter table public.budgets add column if not exists period_start date;
-
-alter table public.budgets add column if not exists period_end date;
-
-alter table public.budgets add column if not exists status text;
-
-create index if not exists idx_budgets_club_id on public.budgets(club_id);
+-- budgets is created with its real contract by 20260813102933.
 
 -- Tesouraria: Linhas de orçamento.
-create table if not exists public.budget_lines (
-  id uuid primary key default gen_random_uuid(),
-  club_id uuid not null,
-  budget_id uuid,
-  category_id uuid,
-  cost_center_id uuid,
-  planned_amount numeric(14,2),
-  committed_amount numeric(14,2),
-  actual_amount numeric(14,2)
-);
-
-alter table public.budget_lines add column if not exists club_id uuid;
-
-alter table public.budget_lines add column if not exists budget_id uuid;
-
-alter table public.budget_lines add column if not exists category_id uuid;
-
-alter table public.budget_lines add column if not exists cost_center_id uuid;
-
-alter table public.budget_lines add column if not exists planned_amount numeric(14,2);
-
-alter table public.budget_lines add column if not exists committed_amount numeric(14,2);
-
-alter table public.budget_lines add column if not exists actual_amount numeric(14,2);
-
-create index if not exists idx_budget_lines_club_id on public.budget_lines(club_id);
+-- budget_lines is created with its real contract by 20260813102933.
 
 -- Quotas: Planos configuráveis.
 create table if not exists public.fee_plans (
@@ -1278,7 +1080,7 @@ create table if not exists public.fee_plans (
   club_id uuid not null,
   name text not null,
   frequency text,
-  amount numeric(14,2),
+  amount numeric(12,2),
   due_day integer,
   destination_fund_id uuid,
   active boolean default true,
@@ -1346,8 +1148,8 @@ create table if not exists public.fee_obligations (
   period_start date,
   period_end date,
   due_date date,
-  amount numeric(14,2),
-  paid_amount numeric(14,2) default 0,
+  amount numeric(12,2),
+  paid_amount numeric(12,2) default 0,
   status text,
   source text,
   unique_key text
@@ -1383,7 +1185,7 @@ create table if not exists public.fee_payments (
   club_id uuid not null,
   member_id uuid,
   payment_date date,
-  amount numeric(14,2),
+  amount numeric(12,2),
   account_id uuid,
   fund_id uuid,
   method_id uuid,
@@ -1423,7 +1225,7 @@ create table if not exists public.fee_payment_allocations (
   club_id uuid not null,
   fee_payment_id uuid,
   fee_obligation_id uuid,
-  amount numeric(14,2)
+  amount numeric(12,2)
 );
 
 alter table public.fee_payment_allocations add column if not exists club_id uuid;
@@ -1437,15 +1239,22 @@ alter table public.fee_payment_allocations add column if not exists amount numer
 create index if not exists idx_fee_payment_allocations_club_id on public.fee_payment_allocations(club_id);
 
 -- Quotas: Crédito do membro.
-create table if not exists public.fee_credits (
+-- Canonical fee writer contract from 20260813151110; CREATE IF NOT EXISTS later cannot repair a pre-created table.
+create table if not exists public.fee_credits(
   id uuid primary key default gen_random_uuid(),
-  club_id uuid not null,
-  member_id uuid,
-  origin_payment_id uuid,
-  amount numeric(14,2),
-  remaining_amount numeric(14,2),
-  status text,
-  created_at timestamptz not null default now()
+  club_id uuid not null references public.clubs(id) on delete cascade,
+  member_id uuid not null references public.members(id) on delete restrict,
+  amount numeric(12,2) not null check(amount<>0),
+  entry_type text not null check(entry_type in ('payment_excess','manual_adjustment','application','reversal')),
+  payment_id uuid references public.fee_payments(id) on delete restrict,
+  obligation_id uuid references public.fee_obligations(id) on delete restrict,
+  source_credit_id uuid references public.fee_credits(id) on delete restrict,
+  reversal_of uuid references public.fee_credits(id) on delete restrict,
+  reason text,
+  created_at timestamptz not null default now(),
+  created_by uuid default auth.uid(),
+  updated_at timestamptz not null default now(),
+  updated_by uuid default auth.uid()
 );
 
 alter table public.fee_credits add column if not exists club_id uuid;
@@ -1465,16 +1274,22 @@ alter table public.fee_credits add column if not exists created_at timestamptz d
 create index if not exists idx_fee_credits_club_id on public.fee_credits(club_id);
 
 -- Quotas: Isenções.
-create table if not exists public.fee_exemptions (
+-- Canonical fee writer contract from 20260813151110; CREATE IF NOT EXISTS later cannot repair a pre-created table.
+create table if not exists public.fee_exemptions(
   id uuid primary key default gen_random_uuid(),
-  club_id uuid not null,
-  member_id uuid,
-  starts_at date,
-  ends_at date,
-  type text,
-  value numeric(14,2),
-  reason text,
-  approved_by uuid
+  club_id uuid not null references public.clubs(id) on delete cascade,
+  member_id uuid not null references public.members(id) on delete restrict,
+  obligation_id uuid not null references public.fee_obligations(id) on delete restrict,
+  amount numeric(12,2) not null check(amount>0),
+  reason text not null,
+  status text not null default 'active' check(status in ('active','reversed')),
+  reversed_at timestamptz,
+  reversed_by uuid,
+  reversal_reason text,
+  created_at timestamptz not null default now(),
+  created_by uuid default auth.uid(),
+  updated_at timestamptz not null default now(),
+  updated_by uuid default auth.uid()
 );
 
 alter table public.fee_exemptions add column if not exists club_id uuid;
@@ -1496,16 +1311,22 @@ alter table public.fee_exemptions add column if not exists approved_by uuid;
 create index if not exists idx_fee_exemptions_club_id on public.fee_exemptions(club_id);
 
 -- Quotas: Dívida inicial, perdão e correções.
-create table if not exists public.fee_adjustments (
+-- Canonical fee writer contract from 20260813151110; CREATE IF NOT EXISTS later cannot repair a pre-created table.
+create table if not exists public.fee_adjustments(
   id uuid primary key default gen_random_uuid(),
-  club_id uuid not null,
-  member_id uuid,
-  obligation_id uuid,
-  adjustment_type text,
-  amount numeric(14,2),
-  reason text,
-  approved_by uuid,
-  created_at timestamptz not null default now()
+  club_id uuid not null references public.clubs(id) on delete cascade,
+  member_id uuid not null references public.members(id) on delete restrict,
+  obligation_id uuid not null references public.fee_obligations(id) on delete restrict,
+  amount numeric(12,2) not null check(amount<>0),
+  reason text not null,
+  status text not null default 'active' check(status in ('active','reversed')),
+  reversed_at timestamptz,
+  reversed_by uuid,
+  reversal_reason text,
+  created_at timestamptz not null default now(),
+  created_by uuid default auth.uid(),
+  updated_at timestamptz not null default now(),
+  updated_by uuid default auth.uid()
 );
 
 alter table public.fee_adjustments add column if not exists club_id uuid;
@@ -1555,19 +1376,28 @@ alter table public.fee_receipts add column if not exists issued_at timestamptz;
 create index if not exists idx_fee_receipts_club_id on public.fee_receipts(club_id);
 
 -- Quotas: Pagamento comunicado pelo membro.
-create table if not exists public.reported_payments (
+-- Canonical reported-payment writer and review contract, same operational schema.
+create table if not exists public.reported_payments(
   id uuid primary key default gen_random_uuid(),
-  club_id uuid not null,
-  member_id uuid,
-  amount numeric(14,2),
-  payment_date date,
-  method_id uuid,
-  reference text,
-  intended_periods jsonb,
-  status text,
-  attachment_id uuid,
-  validated_by uuid,
-  validation_notes text
+  club_id uuid not null references public.clubs(id) on delete cascade,
+  member_id uuid not null references public.members(id) on delete restrict,
+  amount numeric(12,2) not null check(amount>0),
+  paid_on date not null,
+  payment_method text not null,
+  notes text,
+  proof_path text not null,
+  proof_name text not null,
+  proof_mime_type text,
+  proof_size bigint check(proof_size is null or proof_size>=0),
+  status text not null default 'pending' check(status in ('pending','approved','rejected','cancelled','reversed')),
+  review_notes text,
+  reviewed_at timestamptz,
+  reviewed_by uuid,
+  fee_payment_id uuid references public.fee_payments(id) on delete restrict,
+  created_at timestamptz not null default now(),
+  created_by uuid default auth.uid(),
+  updated_at timestamptz not null default now(),
+  updated_by uuid default auth.uid()
 );
 
 alter table public.reported_payments add column if not exists club_id uuid;
@@ -1982,7 +1812,7 @@ create table if not exists public.events (
   cover_path text,
   starts_at timestamptz,
   ends_at timestamptz,
-  location jsonb,
+  location text,
   visibility text,
   capacity integer,
   expected_attendance integer,
@@ -2010,7 +1840,7 @@ alter table public.events add column if not exists starts_at timestamptz;
 
 alter table public.events add column if not exists ends_at timestamptz;
 
-alter table public.events add column if not exists location jsonb;
+alter table public.events add column if not exists location text;
 
 alter table public.events add column if not exists visibility text;
 
@@ -2293,18 +2123,26 @@ alter table public.event_routes add column if not exists route_data jsonb;
 create index if not exists idx_event_routes_club_id on public.event_routes(club_id);
 
 -- Eventos: Bandas/artistas.
+-- Canonical event writer contract from 20260814090737; blueprint extras kept by ADD COLUMN.
 create table if not exists public.event_bands (
   id uuid primary key default gen_random_uuid(),
   club_id uuid not null,
-  event_id uuid,
+  event_id uuid not null references public.events(id) on delete cascade,
   name text not null,
-  contact jsonb,
-  fee numeric(14,2),
-  schedule jsonb,
-  technical_rider_document_id uuid,
-  contract_document_id uuid,
-  payment_status text,
-  status text
+  contact_name text,
+  phone text,
+  email text,
+  slot_start timestamptz,
+  slot_end timestamptz,
+  agreed_value numeric(12,2) not null default 0 check (agreed_value >= 0),
+  paid_value numeric(12,2) not null default 0 check (paid_value >= 0),
+  status text not null default 'planned' check (status in ('planned','confirmed','completed','cancelled')),
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid default auth.uid(),
+  updated_by uuid default auth.uid(),
+  constraint event_bands_slot_check check (slot_end is null or slot_start is null or slot_end >= slot_start)
 );
 
 alter table public.event_bands add column if not exists club_id uuid;
@@ -2330,19 +2168,25 @@ alter table public.event_bands add column if not exists status text;
 create index if not exists idx_event_bands_club_id on public.event_bands(club_id);
 
 -- Eventos: Expositores/vendedores.
+-- Canonical event writer contract from 20260814090737; blueprint extras kept by ADD COLUMN.
 create table if not exists public.event_exhibitors (
   id uuid primary key default gen_random_uuid(),
   club_id uuid not null,
-  event_id uuid,
-  supplier_id uuid,
+  event_id uuid not null references public.events(id) on delete cascade,
   name text not null,
   category text,
-  requirements jsonb,
-  fee numeric(14,2),
-  deposit numeric(14,2),
-  location_code text,
-  payment_status text,
-  status text
+  contact_name text,
+  phone text,
+  email text,
+  space_label text,
+  agreed_value numeric(12,2) not null default 0 check (agreed_value >= 0),
+  paid_value numeric(12,2) not null default 0 check (paid_value >= 0),
+  status text not null default 'planned' check (status in ('planned','confirmed','completed','cancelled')),
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid default auth.uid(),
+  updated_by uuid default auth.uid()
 );
 
 alter table public.event_exhibitors add column if not exists club_id uuid;
@@ -2370,17 +2214,24 @@ alter table public.event_exhibitors add column if not exists status text;
 create index if not exists idx_event_exhibitors_club_id on public.event_exhibitors(club_id);
 
 -- Eventos: Patrocinadores/apoios.
+-- Canonical event writer contract from 20260814090737; blueprint extras kept by ADD COLUMN.
 create table if not exists public.event_sponsors (
   id uuid primary key default gen_random_uuid(),
   club_id uuid not null,
-  event_id uuid,
+  event_id uuid not null references public.events(id) on delete cascade,
   name text not null,
-  support_type text,
-  monetary_value numeric(14,2),
-  in_kind_description text,
-  benefits text,
-  logo_path text,
-  status text
+  sponsor_level text,
+  contact_name text,
+  phone text,
+  email text,
+  agreed_value numeric(12,2) not null default 0 check (agreed_value >= 0),
+  received_value numeric(12,2) not null default 0 check (received_value >= 0),
+  status text not null default 'planned' check (status in ('planned','confirmed','completed','cancelled')),
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid default auth.uid(),
+  updated_by uuid default auth.uid()
 );
 
 alter table public.event_sponsors add column if not exists club_id uuid;
@@ -2547,9 +2398,9 @@ create table if not exists public.product_variants (
   sku text,
   barcode text,
   attributes jsonb,
-  cost numeric(14,2),
-  sale_price numeric(14,2),
-  minimum_stock numeric(14,2) default 0,
+  cost numeric(12,2),
+  sale_price numeric(12,2),
+  minimum_stock numeric(12,2) default 0,
   maximum_stock numeric(14,2) default 0,
   active boolean default true
 );
@@ -2641,7 +2492,7 @@ create table if not exists public.stock_movements (
   club_id uuid not null,
   product_variant_id uuid,
   movement_type text,
-  quantity numeric(14,2),
+  quantity numeric(12,2),
   from_location_id uuid,
   to_location_id uuid,
   lot_id uuid,
@@ -2649,7 +2500,7 @@ create table if not exists public.stock_movements (
   member_id uuid,
   source_table text,
   source_id uuid,
-  unit_cost numeric(14,2),
+  unit_cost numeric(12,2),
   occurred_at timestamptz,
   confirmed_by uuid
 );
@@ -2962,7 +2813,7 @@ create table if not exists public.documents (
   owner_member_id uuid,
   sensitive boolean,
   description text,
-  tags text[]
+  tags text
 );
 
 alter table public.documents add column if not exists club_id uuid;
@@ -2997,12 +2848,19 @@ create index if not exists idx_documents_club_id on public.documents(club_id);
 create table if not exists public.document_versions (
   id uuid primary key default gen_random_uuid(),
   club_id uuid not null,
-  document_id uuid,
-  version_number integer,
-  attachment_id uuid,
+  document_id uuid not null constraint fk_document_versions_document_id references public.documents(id) on delete cascade,
+  version_no integer not null check (version_no > 0),
+  version_label text not null,
+  storage_path text not null,
+  original_file_name text,
+  mime_type text,
+  file_size bigint not null default 0 check (file_size >= 0),
   change_notes text,
-  created_by uuid,
-  created_at timestamptz not null default now()
+  is_current boolean not null default true,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now(),
+  unique(document_id, version_no),
+  unique(storage_path)
 );
 
 alter table public.document_versions add column if not exists club_id uuid;
@@ -3025,10 +2883,14 @@ create index if not exists idx_document_versions_club_id on public.document_vers
 create table if not exists public.document_links (
   id uuid primary key default gen_random_uuid(),
   club_id uuid not null,
-  document_id uuid,
-  entity_type text,
-  entity_id uuid,
-  link_role text
+  document_id uuid not null references public.documents(id) on delete cascade,
+  link_type text not null default 'related',
+  linked_entity_type text not null,
+  linked_entity_id uuid,
+  label text,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now(),
+  unique(document_id,link_type,linked_entity_type,linked_entity_id)
 );
 
 alter table public.document_links add column if not exists club_id uuid;
@@ -3073,7 +2935,7 @@ create index if not exists idx_document_approvals_club_id on public.document_app
 
 -- Documentos e comunicação: Downloads/aberturas sensíveis.
 create table if not exists public.document_access_log (
-  id bigint generated always as identity primary key,
+  id uuid primary key default gen_random_uuid(),
   club_id uuid not null,
   document_id uuid,
   profile_id uuid,
@@ -3243,76 +3105,13 @@ alter table public.announcement_recipients add column if not exists confirmed_at
 create index if not exists idx_announcement_recipients_club_id on public.announcement_recipients(club_id);
 
 -- Documentos e comunicação: Votações.
-create table if not exists public.polls (
-  id uuid primary key default gen_random_uuid(),
-  club_id uuid not null,
-  title text not null,
-  description text,
-  anonymous boolean,
-  multiple_choice boolean,
-  starts_at timestamptz,
-  ends_at timestamptz,
-  status text
-);
-
-alter table public.polls add column if not exists club_id uuid;
-
-alter table public.polls add column if not exists title text;
-
-alter table public.polls add column if not exists description text;
-
-alter table public.polls add column if not exists anonymous boolean;
-
-alter table public.polls add column if not exists multiple_choice boolean;
-
-alter table public.polls add column if not exists starts_at timestamptz;
-
-alter table public.polls add column if not exists ends_at timestamptz;
-
-alter table public.polls add column if not exists status text;
-
-create index if not exists idx_polls_club_id on public.polls(club_id);
+-- polls is created with its real contract by 20260830182741.
 
 -- Documentos e comunicação: Opções.
-create table if not exists public.poll_options (
-  id uuid primary key default gen_random_uuid(),
-  club_id uuid not null,
-  poll_id uuid,
-  label text,
-  sort_order integer
-);
-
-alter table public.poll_options add column if not exists club_id uuid;
-
-alter table public.poll_options add column if not exists poll_id uuid;
-
-alter table public.poll_options add column if not exists label text;
-
-alter table public.poll_options add column if not exists sort_order integer;
-
-create index if not exists idx_poll_options_club_id on public.poll_options(club_id);
+-- poll_options is created with its real contract by 20260830182741.
 
 -- Documentos e comunicação: Votos.
-create table if not exists public.poll_votes (
-  id uuid primary key default gen_random_uuid(),
-  club_id uuid not null,
-  poll_id uuid,
-  option_id uuid,
-  profile_id uuid,
-  created_at timestamptz not null default now()
-);
-
-alter table public.poll_votes add column if not exists club_id uuid;
-
-alter table public.poll_votes add column if not exists poll_id uuid;
-
-alter table public.poll_votes add column if not exists option_id uuid;
-
-alter table public.poll_votes add column if not exists profile_id uuid;
-
-alter table public.poll_votes add column if not exists created_at timestamptz default now();
-
-create index if not exists idx_poll_votes_club_id on public.poll_votes(club_id);
+-- poll_votes is created with its real contract by 20260830182741.
 
 -- Plataforma e futuro: Centro de notificações.
 create table if not exists public.notifications (
@@ -3399,6 +3198,7 @@ create table if not exists public.audit_log (
   action text,
   entity_type text,
   entity_id text,
+  data jsonb,
   old_data jsonb,
   new_data jsonb,
   reason text,
@@ -3432,106 +3232,13 @@ alter table public.audit_log add column if not exists created_at timestamptz def
 create index if not exists idx_audit_log_club_id on public.audit_log(club_id);
 
 -- Plataforma e futuro: Execução de importação.
-create table if not exists public.imports (
-  id uuid primary key default gen_random_uuid(),
-  club_id uuid not null,
-  import_type text,
-  original_attachment_id uuid,
-  mapping jsonb,
-  status text,
-  created_by uuid,
-  confirmed_by uuid,
-  created_at timestamptz not null default now()
-);
-
-alter table public.imports add column if not exists club_id uuid;
-
-alter table public.imports add column if not exists import_type text;
-
-alter table public.imports add column if not exists original_attachment_id uuid;
-
-alter table public.imports add column if not exists mapping jsonb;
-
-alter table public.imports add column if not exists status text;
-
-alter table public.imports add column if not exists created_by uuid;
-
-alter table public.imports add column if not exists confirmed_by uuid;
-
-alter table public.imports add column if not exists created_at timestamptz default now();
-
-create index if not exists idx_imports_club_id on public.imports(club_id);
+-- imports is created with its real contract by 20260813070834.
 
 -- Plataforma e futuro: Pré-visualização/editável.
-create table if not exists public.import_rows (
-  id uuid primary key default gen_random_uuid(),
-  club_id uuid not null,
-  import_id uuid,
-  row_number integer,
-  raw_data jsonb,
-  normalized_data jsonb,
-  errors jsonb,
-  warnings jsonb,
-  status text,
-  created_entity_type text,
-  created_entity_id uuid
-);
-
-alter table public.import_rows add column if not exists club_id uuid;
-
-alter table public.import_rows add column if not exists import_id uuid;
-
-alter table public.import_rows add column if not exists row_number integer;
-
-alter table public.import_rows add column if not exists raw_data jsonb;
-
-alter table public.import_rows add column if not exists normalized_data jsonb;
-
-alter table public.import_rows add column if not exists errors jsonb;
-
-alter table public.import_rows add column if not exists warnings jsonb;
-
-alter table public.import_rows add column if not exists status text;
-
-alter table public.import_rows add column if not exists created_entity_type text;
-
-alter table public.import_rows add column if not exists created_entity_id uuid;
-
-create index if not exists idx_import_rows_club_id on public.import_rows(club_id);
+-- import_rows is created with its real contract by 20260813070834.
 
 -- Plataforma e futuro: Exportações e pacotes integrais.
-create table if not exists public.exports (
-  id uuid primary key default gen_random_uuid(),
-  club_id uuid not null,
-  export_type text,
-  filters jsonb,
-  format text,
-  status text,
-  attachment_id uuid,
-  reason text,
-  requested_by uuid,
-  created_at timestamptz not null default now()
-);
-
-alter table public.exports add column if not exists club_id uuid;
-
-alter table public.exports add column if not exists export_type text;
-
-alter table public.exports add column if not exists filters jsonb;
-
-alter table public.exports add column if not exists format text;
-
-alter table public.exports add column if not exists status text;
-
-alter table public.exports add column if not exists attachment_id uuid;
-
-alter table public.exports add column if not exists reason text;
-
-alter table public.exports add column if not exists requested_by uuid;
-
-alter table public.exports add column if not exists created_at timestamptz default now();
-
-create index if not exists idx_exports_club_id on public.exports(club_id);
+-- exports is created by 20260812210544; omit the conflicting blueprint table.
 
 -- Plataforma e futuro: Relatórios agendados.
 create table if not exists public.scheduled_reports (
@@ -3804,10 +3511,8 @@ do $$ begin
  foreign key (product_id) references public.products(id) on delete cascade;
 exception when duplicate_object then null; when undefined_column then null; end $$;
 
-do $$ begin
- alter table public.stock_movements add constraint fk_stock_movements_variant_id
- foreign key (variant_id) references public.product_variants(id) on delete cascade;
-exception when duplicate_object then null; when undefined_column then null; end $$;
+-- Reconstruction only: captured production has no legacy product_variant_id FK.
+-- Preserve stock ledger when a legacy-linked variant is deleted.
 
 do $$ begin
  alter table public.document_versions add constraint fk_document_versions_document_id
@@ -3829,24 +3534,8 @@ returns boolean language sql stable security definer set search_path=public as $
  where cm.club_id=target_club and cm.profile_id=auth.uid() and coalesce(cm.active,true));
 $$;
 
-create or replace function public.has_permission(target_club uuid, permission_code text)
-returns boolean language sql stable security definer set search_path=public as $$
- select exists(
-   select 1 from public.club_memberships cm
-   join public.membership_roles mr on mr.membership_id=cm.id
-   join public.role_permissions rp on rp.role_id=mr.role_id
-   join public.permissions p on p.id=rp.permission_id
-   where cm.club_id=target_club and cm.profile_id=auth.uid()
-     and coalesce(cm.active,true) and p.code=permission_code
- ) or exists(
-   select 1 from public.club_memberships cm
-   join public.user_permission_overrides upo on upo.membership_id=cm.id
-   join public.permissions p on p.id=upo.permission_id
-   where cm.club_id=target_club and cm.profile_id=auth.uid()
-     and upo.effect='allow' and p.code=permission_code
-     and (upo.valid_until is null or upo.valid_until>=current_date)
- );
-$$;
+-- Obsolete has_permission omitted: absent in production, no versioned callers.
+-- Its membership_id/effect references never matched the tables declared above.
 
 create or replace function public.audit_event(
  target_club uuid, p_action text, p_entity_type text, p_entity_id text,
@@ -3868,10 +3557,7 @@ drop policy if exists profiles_self on public.profiles; create policy profiles_s
 
 alter table public.club_memberships enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists club_memberships_tenant on public.club_memberships';
-   execute 'create policy club_memberships_tenant on public.club_memberships for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Membership SELECT policies installed after the canonical has_club_role bootstrap below.
 
 alter table public.roles enable row level security;
 
@@ -3898,15 +3584,13 @@ alter table public.membership_roles enable row level security;
 
 do $$ begin
    execute 'drop policy if exists membership_roles_tenant on public.membership_roles';
-   execute 'create policy membership_roles_tenant on public.membership_roles for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
+   execute 'create policy membership_roles_tenant on public.membership_roles for all to authenticated using(exists(select 1 from public.club_memberships cm where cm.id=club_membership_id and public.has_club_access(cm.club_id))) with check(exists(select 1 from public.club_memberships cm where cm.id=club_membership_id and public.has_club_access(cm.club_id)))';
   exception when undefined_column then null; end $$;
 
 alter table public.user_permission_overrides enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists user_permission_overrides_tenant on public.user_permission_overrides';
-   execute 'create policy user_permission_overrides_tenant on public.user_permission_overrides for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- The dynamic-permissions migration installs self-read and super_admin manage.
+-- A permissive tenant FOR ALL policy would let a member grant own permissions.
 
 alter table public.permission_change_log enable row level security;
 
@@ -3917,10 +3601,9 @@ do $$ begin
 
 alter table public.members enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists members_tenant on public.members';
-   execute 'create policy members_tenant on public.members for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: members_tenant restricted to SELECT.
+-- Preserve baseline club read access; final members_manage guards all writes.
+create policy members_tenant on public.members for select to authenticated using(public.has_club_access(club_id));
 
 alter table public.member_emergency_data enable row level security;
 
@@ -3931,31 +3614,23 @@ do $$ begin
 
 alter table public.member_status_history enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists member_status_history_tenant on public.member_status_history';
-   execute 'create policy member_status_history_tenant on public.member_status_history for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: member_status_history_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.club_positions enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists club_positions_tenant on public.club_positions';
-   execute 'create policy club_positions_tenant on public.club_positions for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: club_positions_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.member_positions enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists member_positions_tenant on public.member_positions';
-   execute 'create policy member_positions_tenant on public.member_positions for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: member_positions_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.member_patch_awards enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists member_patch_awards_tenant on public.member_patch_awards';
-   execute 'create policy member_patch_awards_tenant on public.member_patch_awards for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: member_patch_awards_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.assigned_assets enable row level security;
 
@@ -3966,10 +3641,8 @@ do $$ begin
 
 alter table public.member_timeline enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists member_timeline_tenant on public.member_timeline';
-   execute 'create policy member_timeline_tenant on public.member_timeline for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: member_timeline_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.motorcycles enable row level security;
 
@@ -3994,17 +3667,13 @@ do $$ begin
 
 alter table public.maintenance_records enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists maintenance_records_tenant on public.maintenance_records';
-   execute 'create policy maintenance_records_tenant on public.maintenance_records for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: maintenance_records_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.maintenance_attachments enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists maintenance_attachments_tenant on public.maintenance_attachments';
-   execute 'create policy maintenance_attachments_tenant on public.maintenance_attachments for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: maintenance_attachments_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.motorcycle_documents enable row level security;
 
@@ -4029,10 +3698,8 @@ do $$ begin
 
 alter table public.cost_centers enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists cost_centers_tenant on public.cost_centers';
-   execute 'create policy cost_centers_tenant on public.cost_centers for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: cost_centers_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.financial_categories enable row level security;
 
@@ -4062,19 +3729,9 @@ do $$ begin
    execute 'create policy suppliers_tenant on public.suppliers for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
   exception when undefined_column then null; end $$;
 
-alter table public.payables enable row level security;
+-- payables RLS is defined by its actual historical migration.
 
-do $$ begin
-   execute 'drop policy if exists payables_tenant on public.payables';
-   execute 'create policy payables_tenant on public.payables for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
-
-alter table public.receivables enable row level security;
-
-do $$ begin
-   execute 'drop policy if exists receivables_tenant on public.receivables';
-   execute 'create policy receivables_tenant on public.receivables for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- receivables RLS is defined by its actual historical migration.
 
 alter table public.reimbursement_requests enable row level security;
 
@@ -4083,40 +3740,18 @@ do $$ begin
    execute 'create policy reimbursement_requests_tenant on public.reimbursement_requests for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
   exception when undefined_column then null; end $$;
 
-alter table public.cash_sessions enable row level security;
+-- cash_sessions RLS is defined by its actual historical migration.
 
-do $$ begin
-   execute 'drop policy if exists cash_sessions_tenant on public.cash_sessions';
-   execute 'create policy cash_sessions_tenant on public.cash_sessions for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- bank_reconciliations RLS is defined by its actual historical migration.
 
-alter table public.bank_reconciliations enable row level security;
+-- budgets RLS is defined by its actual historical migration.
 
-do $$ begin
-   execute 'drop policy if exists bank_reconciliations_tenant on public.bank_reconciliations';
-   execute 'create policy bank_reconciliations_tenant on public.bank_reconciliations for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
-
-alter table public.budgets enable row level security;
-
-do $$ begin
-   execute 'drop policy if exists budgets_tenant on public.budgets';
-   execute 'create policy budgets_tenant on public.budgets for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
-
-alter table public.budget_lines enable row level security;
-
-do $$ begin
-   execute 'drop policy if exists budget_lines_tenant on public.budget_lines';
-   execute 'create policy budget_lines_tenant on public.budget_lines for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- budget_lines RLS is defined by its actual historical migration.
 
 alter table public.fee_plans enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists fee_plans_tenant on public.fee_plans';
-   execute 'create policy fee_plans_tenant on public.fee_plans for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: fee_plans_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.member_fee_assignments enable row level security;
 
@@ -4127,45 +3762,33 @@ do $$ begin
 
 alter table public.fee_obligations enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists fee_obligations_tenant on public.fee_obligations';
-   execute 'create policy fee_obligations_tenant on public.fee_obligations for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: fee_obligations_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.fee_payments enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists fee_payments_tenant on public.fee_payments';
-   execute 'create policy fee_payments_tenant on public.fee_payments for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: fee_payments_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.fee_payment_allocations enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists fee_payment_allocations_tenant on public.fee_payment_allocations';
-   execute 'create policy fee_payment_allocations_tenant on public.fee_payment_allocations for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: fee_payment_allocations_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.fee_credits enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists fee_credits_tenant on public.fee_credits';
-   execute 'create policy fee_credits_tenant on public.fee_credits for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: fee_credits_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.fee_exemptions enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists fee_exemptions_tenant on public.fee_exemptions';
-   execute 'create policy fee_exemptions_tenant on public.fee_exemptions for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: fee_exemptions_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.fee_adjustments enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists fee_adjustments_tenant on public.fee_adjustments';
-   execute 'create policy fee_adjustments_tenant on public.fee_adjustments for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: fee_adjustments_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.fee_receipts enable row level security;
 
@@ -4176,10 +3799,8 @@ do $$ begin
 
 alter table public.reported_payments enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists reported_payments_tenant on public.reported_payments';
-   execute 'create policy reported_payments_tenant on public.reported_payments for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: reported_payments_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.prospect_enrollment_fees enable row level security;
 
@@ -4274,17 +3895,13 @@ do $$ begin
 
 alter table public.events enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists events_tenant on public.events';
-   execute 'create policy events_tenant on public.events for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: events_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.event_proposals enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists event_proposals_tenant on public.event_proposals';
-   execute 'create policy event_proposals_tenant on public.event_proposals for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: event_proposals_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.event_participants enable row level security;
 
@@ -4295,73 +3912,53 @@ do $$ begin
 
 alter table public.event_guests enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists event_guests_tenant on public.event_guests';
-   execute 'create policy event_guests_tenant on public.event_guests for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: event_guests_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.event_tasks enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists event_tasks_tenant on public.event_tasks';
-   execute 'create policy event_tasks_tenant on public.event_tasks for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: event_tasks_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.event_task_assignees enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists event_task_assignees_tenant on public.event_task_assignees';
-   execute 'create policy event_task_assignees_tenant on public.event_task_assignees for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: event_task_assignees_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.event_shifts enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists event_shifts_tenant on public.event_shifts';
-   execute 'create policy event_shifts_tenant on public.event_shifts for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: event_shifts_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.event_shift_members enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists event_shift_members_tenant on public.event_shift_members';
-   execute 'create policy event_shift_members_tenant on public.event_shift_members for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: event_shift_members_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.event_program enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists event_program_tenant on public.event_program';
-   execute 'create policy event_program_tenant on public.event_program for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: event_program_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.event_routes enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists event_routes_tenant on public.event_routes';
-   execute 'create policy event_routes_tenant on public.event_routes for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: event_routes_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.event_bands enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists event_bands_tenant on public.event_bands';
-   execute 'create policy event_bands_tenant on public.event_bands for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: event_bands_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.event_exhibitors enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists event_exhibitors_tenant on public.event_exhibitors';
-   execute 'create policy event_exhibitors_tenant on public.event_exhibitors for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: event_exhibitors_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.event_sponsors enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists event_sponsors_tenant on public.event_sponsors';
-   execute 'create policy event_sponsors_tenant on public.event_sponsors for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: event_sponsors_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.event_documents enable row level security;
 
@@ -4372,31 +3969,23 @@ do $$ begin
 
 alter table public.event_incidents enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists event_incidents_tenant on public.event_incidents';
-   execute 'create policy event_incidents_tenant on public.event_incidents for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: event_incidents_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.event_octane_configs enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists event_octane_configs_tenant on public.event_octane_configs';
-   execute 'create policy event_octane_configs_tenant on public.event_octane_configs for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: event_octane_configs_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.products enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists products_tenant on public.products';
-   execute 'create policy products_tenant on public.products for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: products_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.product_variants enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists product_variants_tenant on public.product_variants';
-   execute 'create policy product_variants_tenant on public.product_variants for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: product_variants_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.stock_locations enable row level security;
 
@@ -4407,24 +3996,18 @@ do $$ begin
 
 alter table public.stock_lots enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists stock_lots_tenant on public.stock_lots';
-   execute 'create policy stock_lots_tenant on public.stock_lots for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: stock_lots_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.stock_movements enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists stock_movements_tenant on public.stock_movements';
-   execute 'create policy stock_movements_tenant on public.stock_movements for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: stock_movements_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.stock_reservations enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists stock_reservations_tenant on public.stock_reservations';
-   execute 'create policy stock_reservations_tenant on public.stock_reservations for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: stock_reservations_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.physical_inventories enable row level security;
 
@@ -4484,59 +4067,43 @@ do $$ begin
 
 alter table public.document_versions enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists document_versions_tenant on public.document_versions';
-   execute 'create policy document_versions_tenant on public.document_versions for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Final policy review: tenant FOR ALL bypassed private document ownership.
+-- Later document_versions policies retain owner/manager access.
 
 alter table public.document_links enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists document_links_tenant on public.document_links';
-   execute 'create policy document_links_tenant on public.document_links for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Final policy review: tenant FOR ALL bypassed private document ownership.
+-- Later document_links policies retain owner/manager access.
 
 alter table public.document_approvals enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists document_approvals_tenant on public.document_approvals';
-   execute 'create policy document_approvals_tenant on public.document_approvals for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: document_approvals_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.document_access_log enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists document_access_log_tenant on public.document_access_log';
-   execute 'create policy document_access_log_tenant on public.document_access_log for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: document_access_log_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.document_ocr enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists document_ocr_tenant on public.document_ocr';
-   execute 'create policy document_ocr_tenant on public.document_ocr for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: document_ocr_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.annual_books enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists annual_books_tenant on public.annual_books';
-   execute 'create policy annual_books_tenant on public.annual_books for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: annual_books_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.annual_book_items enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists annual_book_items_tenant on public.annual_book_items';
-   execute 'create policy annual_book_items_tenant on public.annual_book_items for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Policy hardening: annual_book_items_tenant omitted after individual before/after RLS proof.
+-- Later versioned granular policies retain the legitimate direct/RPC contract.
 
 alter table public.announcements enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists announcements_tenant on public.announcements';
-   execute 'create policy announcements_tenant on public.announcements for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Final module policies are installed by later migrations.
+-- A permissive FOR ALL tenant policy would bypass those permission checks.
 
 alter table public.announcement_recipients enable row level security;
 
@@ -4545,40 +4112,21 @@ do $$ begin
    execute 'create policy announcement_recipients_tenant on public.announcement_recipients for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
   exception when undefined_column then null; end $$;
 
-alter table public.polls enable row level security;
+-- polls RLS is defined by its actual historical migration.
 
-do $$ begin
-   execute 'drop policy if exists polls_tenant on public.polls';
-   execute 'create policy polls_tenant on public.polls for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- poll_options RLS is defined by its actual historical migration.
 
-alter table public.poll_options enable row level security;
-
-do $$ begin
-   execute 'drop policy if exists poll_options_tenant on public.poll_options';
-   execute 'create policy poll_options_tenant on public.poll_options for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
-
-alter table public.poll_votes enable row level security;
-
-do $$ begin
-   execute 'drop policy if exists poll_votes_tenant on public.poll_votes';
-   execute 'create policy poll_votes_tenant on public.poll_votes for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- poll_votes RLS is defined by its actual historical migration.
 
 alter table public.notifications enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists notifications_tenant on public.notifications';
-   execute 'create policy notifications_tenant on public.notifications for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Final policy review: tenant FOR ALL exposed other recipients and allowed spoofing.
+-- Later self-read/self-update policies retain the recipient contract.
 
 alter table public.activity_feed enable row level security;
 
-do $$ begin
-   execute 'drop policy if exists activity_feed_tenant on public.activity_feed';
-   execute 'create policy activity_feed_tenant on public.activity_feed for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- Final module policies are installed by later migrations.
+-- A permissive FOR ALL tenant policy would bypass those permission checks.
 
 alter table public.audit_log enable row level security;
 
@@ -4587,26 +4135,11 @@ do $$ begin
    execute 'create policy audit_log_tenant on public.audit_log for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
   exception when undefined_column then null; end $$;
 
-alter table public.imports enable row level security;
+-- imports RLS is defined by its actual historical migration.
 
-do $$ begin
-   execute 'drop policy if exists imports_tenant on public.imports';
-   execute 'create policy imports_tenant on public.imports for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- import_rows RLS is defined by its actual historical migration.
 
-alter table public.import_rows enable row level security;
-
-do $$ begin
-   execute 'drop policy if exists import_rows_tenant on public.import_rows';
-   execute 'create policy import_rows_tenant on public.import_rows for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
-
-alter table public.exports enable row level security;
-
-do $$ begin
-   execute 'drop policy if exists exports_tenant on public.exports';
-   execute 'create policy exports_tenant on public.exports for all to authenticated using(public.has_club_access(club_id)) with check(public.has_club_access(club_id))';
-  exception when undefined_column then null; end $$;
+-- exports RLS is defined with its actual historical table.
 
 alter table public.scheduled_reports enable row level security;
 
@@ -4677,7 +4210,7 @@ create or replace view public.v_stock_balances as
 select pv.club_id,pv.id variant_id,p.name product_name,pv.sku,
  coalesce(sum(case when sm.movement_type in ('in','purchase','return','transfer_in') then sm.quantity else -sm.quantity end),0) quantity
 from public.product_variants pv join public.products p on p.id=pv.product_id
-left join public.stock_movements sm on sm.variant_id=pv.id
+left join public.stock_movements sm on sm.product_variant_id=pv.id
 group by pv.club_id,pv.id,p.name,pv.sku;
 
 create or replace view public.v_financial_balances as
@@ -4703,8 +4236,1327 @@ select jsonb_build_object(
  'low_stock', (select count(*) from public.v_stock_balances b join public.product_variants pv on pv.id=b.variant_id where b.club_id=target_club and b.quantity<=coalesce(pv.minimum_stock,0))
 ); $$;
 
+
+-- Missing treasury bootstrap, exact current production columns captured 2026-10-14T15:12:17.705797+00:00.
+-- Clean reconstruction only; this does not rename or reinterpret financial_* tables.
+create type public."transaction_kind" as enum ('income','expense','transfer','reversal');
+create table public."treasury_accounts" (
+ "id" uuid default gen_random_uuid() not null,
+ "club_id" uuid not null,
+ "name" text not null,
+ "account_type" text not null,
+ "iban" text,
+ "opening_balance" numeric(14,2) default 0 not null,
+ "opening_date" date,
+ "active" boolean default true not null,
+ "created_at" timestamp with time zone default now() not null,
+ "icon" text default '💰'::text not null,
+ "allows_negative" boolean default false not null,
+ "created_by" uuid default auth.uid(),
+ "updated_at" timestamp with time zone default now(),
+ "updated_by" uuid default auth.uid(),
+ constraint "treasury_accounts_account_type_check" CHECK ((account_type = ANY (ARRAY['cash'::text, 'bank'::text, 'reserve'::text, 'fund'::text]))),
+ constraint "treasury_accounts_club_id_name_key" UNIQUE (club_id, name),
+ constraint "treasury_accounts_pkey" PRIMARY KEY (id)
+);
+alter table public."treasury_accounts" enable row level security;
+create table public."treasury_categories" (
+ "id" uuid default gen_random_uuid() not null,
+ "club_id" uuid not null,
+ "name" text not null,
+ "direction" text not null,
+ "active" boolean default true not null,
+ "created_at" timestamp with time zone default now(),
+ "created_by" uuid default auth.uid(),
+ "updated_at" timestamp with time zone default now(),
+ "updated_by" uuid default auth.uid(),
+ constraint "treasury_categories_club_id_name_key" UNIQUE (club_id, name),
+ constraint "treasury_categories_direction_check" CHECK ((direction = ANY (ARRAY['income'::text, 'expense'::text, 'both'::text]))),
+ constraint "treasury_categories_pkey" PRIMARY KEY (id)
+);
+alter table public."treasury_categories" enable row level security;
+create table public."treasury_transactions" (
+ "id" uuid default gen_random_uuid() not null,
+ "club_id" uuid not null,
+ "kind" transaction_kind not null,
+ "account_id" uuid not null,
+ "destination_account_id" uuid,
+ "category_id" uuid,
+ "cost_center_id" uuid,
+ "event_id" uuid,
+ "transaction_date" date not null,
+ "description" text not null,
+ "amount" numeric(14,2) not null,
+ "payment_method" text,
+ "notes" text,
+ "document_path" text,
+ "source_type" text,
+ "source_id" uuid,
+ "reversal_of" uuid,
+ "created_by" uuid default auth.uid(),
+ "created_at" timestamp with time zone default now() not null,
+ "updated_at" timestamp with time zone default now(),
+ "updated_by" uuid default auth.uid()
+ constraint "treasury_transactions_amount_check" CHECK ((amount > (0)::numeric)),
+ constraint "treasury_transactions_check" CHECK ((((kind = 'transfer'::transaction_kind) AND (destination_account_id IS NOT NULL) AND (destination_account_id <> account_id)) OR ((kind <> 'transfer'::transaction_kind) AND (destination_account_id IS NULL)))),
+ constraint "treasury_transactions_pkey" PRIMARY KEY (id)
+);
+alter table public."treasury_transactions" enable row level security;
+
+-- Required fee enum captured from production, absent from historical bootstrap.
+create type public.fee_status as enum ('pending','partial','paid','exempt','cancelled');
+
+-- Required by the first fee SQL RPC; final FK remains in the versioned reconciliation migration.
+alter table public.members add column profile_id uuid;
+
+
+-- Exact baseline prerequisites of the next historical fee/lottery policies.
+alter table public.fee_payments add column obligation_id uuid;
+create table public."euromillions_draws" (
+ "id" uuid default gen_random_uuid() not null,
+ "club_id" uuid not null,
+ "week" integer not null,
+ "start_date" date,
+ "end_date" date,
+ "unit_cost" numeric(10,2) default 0 not null,
+ "total_bet" numeric(12,2) default 0 not null,
+ "prize" numeric(12,2) default 0 not null,
+ "bulletin_path" text,
+ "status" text default 'open'::text not null,
+ "created_at" timestamp with time zone default now() not null,
+ "created_by" uuid default auth.uid(),
+ "updated_at" timestamp with time zone default now(),
+ "updated_by" uuid default auth.uid(),
+ constraint "euromillions_draws_club_id_week_start_date_key" UNIQUE (club_id, week, start_date),
+ constraint "euromillions_draws_pkey" PRIMARY KEY (id),
+ constraint "euromillions_draws_status_check" CHECK ((status = ANY (ARRAY['open'::text, 'closed'::text, 'paid'::text])))
+);
+alter table public."euromillions_draws" enable row level security;
+-- Captured read contract is also required by the versioned child-table policies.
+-- Do not restore euromillions_draws_access FOR ALL: it bypasses manageLottery.
+create policy euromillions_read on public.euromillions_draws
+for select to authenticated using (public.has_club_access(club_id));
+create table public."euromillions_keys" (
+ "id" uuid default gen_random_uuid() not null,
+ "draw_id" uuid not null,
+ "numbers" integer[] not null,
+ "stars" integer[] not null,
+ constraint "euromillions_keys_numbers_check" CHECK ((cardinality(numbers) = 5)),
+ constraint "euromillions_keys_pkey" PRIMARY KEY (id),
+ constraint "euromillions_keys_stars_check" CHECK ((cardinality(stars) = 2))
+);
+alter table public."euromillions_keys" enable row level security;
+create table public."euromillions_participations" (
+ "id" uuid default gen_random_uuid() not null,
+ "draw_id" uuid not null,
+ "member_id" uuid not null,
+ "amount" numeric(10,2) default 0 not null,
+ "paid" boolean default false not null,
+ "paid_at" timestamp with time zone,
+ "billing_frequency" text default 'weekly'::text not null,
+ "numbers" integer[] default '{}'::integer[] not null,
+ "stars" integer[] default '{}'::integer[] not null,
+ "paid_amount" numeric default 0 not null,
+ "balance" numeric default 0 not null,
+ "active" boolean default true not null,
+ "payment_method" text,
+ "transaction_id" uuid,
+ constraint "euromillions_participations_draw_id_member_id_key" UNIQUE (draw_id, member_id),
+ constraint "euromillions_participations_pkey" PRIMARY KEY (id)
+);
+alter table public."euromillions_participations" enable row level security;
+
+
+-- Remaining missing tables, exact captured production contracts used by historical policies/events.
+create table public."domain_events" (
+ "id" uuid default gen_random_uuid() not null,
+ "club_id" uuid not null,
+ "event_name" text not null,
+ "aggregate_type" text not null,
+ "aggregate_id" uuid,
+ "actor_id" uuid,
+ "payload" jsonb default '{}'::jsonb not null,
+ "processed_at" timestamp with time zone,
+ "created_at" timestamp with time zone default now() not null,
+ constraint "domain_events_pkey" PRIMARY KEY (id)
+);
+alter table public."domain_events" enable row level security;
+create table public."event_partners" (
+ "id" uuid default gen_random_uuid() not null,
+ "event_id" uuid not null,
+ "partner_type" text not null,
+ "name" text not null,
+ "contact_name" text,
+ "phone" text,
+ "email" text,
+ "agreed_value" numeric(12,2),
+ "paid_value" numeric(12,2) default 0 not null,
+ "notes" text,
+ constraint "event_partners_partner_type_check" CHECK ((partner_type = ANY (ARRAY['band'::text, 'sponsor'::text, 'supplier'::text, 'exhibitor'::text, 'volunteer_team'::text]))),
+ constraint "event_partners_pkey" PRIMARY KEY (id)
+);
+alter table public."event_partners" enable row level security;
+create table public."event_registrations" (
+ "id" uuid default gen_random_uuid() not null,
+ "event_id" uuid not null,
+ "member_id" uuid,
+ "guest_name" text,
+ "status" text default 'confirmed'::text not null,
+ "checked_in_at" timestamp with time zone,
+ "notes" text,
+ "created_at" timestamp with time zone default now() not null,
+ constraint "event_registrations_pkey" PRIMARY KEY (id)
+);
+alter table public."event_registrations" enable row level security;
+create table public."member_motorcycles" (
+ "id" uuid default gen_random_uuid() not null,
+ "club_id" uuid not null,
+ "member_id" uuid not null,
+ "brand" text,
+ "model" text,
+ "year" integer,
+ "registration" text,
+ "nickname" text,
+ "primary_motorcycle" boolean default false not null,
+ "created_at" timestamp with time zone default now() not null,
+ "created_by" uuid default auth.uid(),
+ "updated_at" timestamp with time zone default now(),
+ "updated_by" uuid default auth.uid(),
+ "active" boolean default true not null,
+ "acquired_on" date,
+ "retired_on" date,
+ "notes" text,
+ constraint "member_motorcycles_pkey" PRIMARY KEY (id)
+);
+alter table public."member_motorcycles" enable row level security;
+
+create type public.stock_movement_kind as enum ('purchase','sale','adjustment','loss','transfer','event_consumption','return');
+alter table public.stock_movements add column created_by uuid default auth.uid();
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$function$
+;
+alter table public.documents add column created_by uuid default auth.uid();
+alter table public.documents add column storage_path text;
+alter table public.audit_log add column actor_id uuid;
+create type public.member_status as enum ('active','suspended','honorary','former','prospect','full_color','deceased');
+alter table public.members add column joined_at date;
+alter table public.activity_feed add column if not exists metadata jsonb default '{}'::jsonb not null;
+alter table public.activity_feed add column if not exists activity_type text not null;
+alter table public.products add column if not exists current_stock numeric(12,2) default 0 not null;
+alter table public.products add column if not exists reserved_stock numeric default 0 not null;
+alter table public.product_variants add column if not exists current_stock numeric(12,2) default 0 not null;
+alter table public.product_variants add column if not exists reserved_stock numeric(12,2) default 0 not null;
+alter table public.member_status_history add column if not exists changed_at timestamp with time zone default now() not null;
+alter table public.member_status_history add column if not exists changed_by uuid default auth.uid();
+alter table public.maintenance_records add column if not exists member_id uuid not null;
+alter table public.maintenance_records add column if not exists motorcycle_id uuid not null;
+alter table public.maintenance_records add column if not exists service_date date default CURRENT_DATE not null;
+alter table public.maintenance_attachments add column maintenance_id uuid not null;
+alter table public.member_patch_awards add column requested_at timestamp with time zone default now() not null;
+alter table public.member_patch_awards add column status text default 'pending'::text not null;
+alter table public.maintenance_attachments add column member_id uuid not null;
+alter table public.member_patch_awards add column product_id uuid not null;
+alter table public.member_patch_awards add column if not exists variant_id uuid;
+alter table public.member_patch_awards add column if not exists inventory_location_id uuid;
+alter table public.fee_payments add column paid_at timestamp with time zone default now() not null;
+alter table public.fee_payment_allocations add column if not exists payment_id uuid not null;
+alter table public.fee_payment_allocations add column if not exists obligation_id uuid not null;
+alter table public.fee_payment_allocations add constraint fee_payment_allocations_payment_id_obligation_id_key unique(payment_id,obligation_id);
+alter table public.fee_credits add column if not exists source_credit_id uuid;
+alter table public.fee_credits add column if not exists reversal_of uuid;
+-- fee_exemptions.obligation_id is declared in its canonical CREATE TABLE above.
+-- reported_payments.proof_path is declared in its canonical CREATE TABLE above.
+alter table public.event_guests add column registration_id uuid;
+alter table public.event_routes add column active boolean default true not null;
+-- event_bands.slot_start is declared in its canonical CREATE TABLE above.
+alter table public.event_task_assignees add column member_id uuid;
+alter table public.event_program add column sequence_no integer default 1 not null;
+alter table public.event_program add column responsible_member_id uuid;
+alter table public.event_incidents add column reported_by_member_id uuid;
+alter table public.event_incidents add column assigned_member_id uuid;
+alter table public.event_task_assignees add column event_id uuid not null;
+alter table public.event_shift_members add column event_id uuid not null;
+alter table public.event_proposals add column approved_event_id uuid;
+-- Canonical document contract declared above.
+-- Canonical document contract declared above.
+-- Canonical document contract declared above.
+-- Canonical document contract declared above.
+alter table public.document_approvals add column requested_at timestamp with time zone default now() not null;
+alter table public.document_ocr add column document_id uuid not null;
+alter table public.annual_book_items add column sequence_no integer not null;
+alter table public.annual_book_items add column document_id uuid;
+alter table public.documents add column scope text default 'club'::text not null;
+alter table public.documents add column owner_profile_id uuid;
+alter table public.documents add column event_id uuid;
+-- Canonical document contract declared above.
+-- Canonical document contract declared above.
+alter table public.annual_books add column cover_document_id uuid;
+alter table public.document_ocr add column version_id uuid;
+alter table public.document_access_log add column version_id uuid;
+alter table public.stock_reservations add column product_id uuid not null;
+alter table public.stock_reservations add column variant_id uuid;
+alter table public.stock_reservations add column location_id uuid not null;
+alter table public.stock_lots add column product_id uuid not null;
+alter table public.stock_lots add column variant_id uuid;
+alter table public.stock_lots add column status text default 'active'::text not null;
+alter table public.stock_lots add column lot_code text not null;
+alter table public.stock_reservations add column released_by uuid;
+alter table public.products add column sale_price numeric(12,2) default 0 not null;
+
+-- Foreign keys complete the captured missing prerequisite tables (all referenced tables exist here).
+alter table public.domain_events add constraint "domain_events_actor_id_fkey" FOREIGN KEY (actor_id) REFERENCES profiles(id) ON DELETE SET NULL;
+alter table public.domain_events add constraint "domain_events_club_id_fkey" FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.euromillions_draws add constraint "euromillions_draws_club_id_fkey" FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.euromillions_keys add constraint "euromillions_keys_draw_id_fkey" FOREIGN KEY (draw_id) REFERENCES euromillions_draws(id) ON DELETE CASCADE;
+alter table public.euromillions_participations add constraint "euromillions_participations_draw_id_fkey" FOREIGN KEY (draw_id) REFERENCES euromillions_draws(id) ON DELETE CASCADE;
+alter table public.euromillions_participations add constraint "euromillions_participations_member_id_fkey" FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE;
+alter table public.euromillions_participations add constraint "euromillions_participations_transaction_id_fkey" FOREIGN KEY (transaction_id) REFERENCES treasury_transactions(id);
+alter table public.event_partners add constraint "event_partners_event_id_fkey" FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE;
+alter table public.event_registrations add constraint "event_registrations_event_id_fkey" FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE;
+alter table public.event_registrations add constraint "event_registrations_member_id_fkey" FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE SET NULL;
+alter table public.member_motorcycles add constraint "member_motorcycles_club_id_fkey" FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.member_motorcycles add constraint "member_motorcycles_member_id_fkey" FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE;
+alter table public.treasury_accounts add constraint "treasury_accounts_club_id_fkey" FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.treasury_categories add constraint "treasury_categories_club_id_fkey" FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.treasury_transactions add constraint "treasury_transactions_account_id_fkey" FOREIGN KEY (account_id) REFERENCES treasury_accounts(id);
+alter table public.treasury_transactions add constraint "treasury_transactions_category_id_fkey" FOREIGN KEY (category_id) REFERENCES treasury_categories(id);
+alter table public.treasury_transactions add constraint "treasury_transactions_club_id_fkey" FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.treasury_transactions add constraint "treasury_transactions_cost_center_id_fkey" FOREIGN KEY (cost_center_id) REFERENCES cost_centers(id);
+alter table public.treasury_transactions add constraint "treasury_transactions_created_by_fkey" FOREIGN KEY (created_by) REFERENCES profiles(id);
+alter table public.treasury_transactions add constraint "treasury_transactions_destination_account_id_fkey" FOREIGN KEY (destination_account_id) REFERENCES treasury_accounts(id);
+alter table public.treasury_transactions add constraint "treasury_transactions_event_id_fkey" FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL;
+alter table public.treasury_transactions add constraint "treasury_transactions_reversal_of_fkey" FOREIGN KEY (reversal_of) REFERENCES treasury_transactions(id);
+alter table public.activity_feed add column actor_id uuid;
+alter table public.activity_feed add column entity_type text;
+alter table public.activity_feed add column entity_id uuid;
+alter table public.member_status_history add column old_status text;
+alter table public.member_status_history add column new_status text not null;
+alter table public.member_timeline add column source_type text;
+
+-- Active identity/membership key contracts confirmed read-only in production.
+alter table public.profiles add constraint "profiles_id_fkey" FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
+alter table public.club_memberships add constraint "club_memberships_club_id_fkey" FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.club_memberships add constraint "club_memberships_club_id_profile_id_key" UNIQUE (club_id, profile_id);
+alter table public.club_memberships add constraint "club_memberships_profile_id_fkey" FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE;
 grant usage on schema public to authenticated;
 grant select,insert,update,delete on all tables in schema public to authenticated;
 grant usage,select on all sequences in schema public to authenticated;
 grant execute on all functions in schema public to authenticated;
 insert into public.schema_migrations_bob(version,checksum) values('1.0.0-dev.1','generated-from-blueprint-v1') on conflict(version) do nothing;
+
+-- Active bootstrap precedes every historical reference. Guard at file start limits this to a new schema.
+-- Exact active contracts captured 2026-10-14; no legacy functions.
+begin;
+set local lock_timeout='5s';
+set local statement_timeout='30s';
+-- Effective production type: reject drift; do not convert an existing populated schema.
+do $$ begin
+ if (select atttypid from pg_attribute where attrelid='public.profiles'::regclass and attname='email' and not attisdropped) is distinct from 'text'::regtype::oid then
+  raise exception 'profiles.email must be production text; no automatic conversion' using errcode='55000';
+ end if;
+end $$;
+
+do $bootstrap$ declare p pg_proc%rowtype; begin
+ select * into p from pg_proc where oid=to_regprocedure('public.handle_new_user()');
+ if found then
+  if not p.prosecdef or p.provolatile<>'v' or p.proisstrict or p.proparallel<>'u' or p.proretset
+    or p.prorettype<>'trigger'::regtype or pg_get_userbyid(p.proowner)<>'postgres'
+    or (select lanname from pg_language where oid=p.prolang)<>'plpgsql'
+    or pg_get_function_arguments(p.oid)<>''
+    or p.proconfig is distinct from array['search_path=public']::text[] or md5(replace(p.prosrc,E'\r\n',E'\n'))<>'d09d2d62677178915cf6911a86adb79a' then
+   raise exception 'Unreviewed handle_new_user contract' using errcode='55000';
+  end if;
+ else
+  execute $ddl$CREATE OR REPLACE FUNCTION public.handle_new_user()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  insert into public.profiles (
+    id,
+    full_name,
+    email
+  )
+  values (
+    new.id,
+    coalesce(
+      new.raw_user_meta_data->>'full_name',
+      split_part(new.email, '@', 1)
+    ),
+    new.email
+  )
+  on conflict (id) do nothing;
+
+  return new;
+end;
+$function$;$ddl$;
+  revoke all on function public.handle_new_user() from public,anon,authenticated,service_role;
+  grant execute on function public.handle_new_user() to service_role;
+ end if;
+end $bootstrap$;
+
+do $bootstrap$ declare p pg_proc%rowtype; begin
+ select * into p from pg_proc where oid=to_regprocedure('public.has_club_role(uuid,text[])');
+ if found then
+  if not p.prosecdef or p.provolatile<>'s' or p.proisstrict or p.proparallel<>'u' or p.proretset
+    or p.prorettype<>'boolean'::regtype or pg_get_userbyid(p.proowner)<>'postgres'
+    or (select lanname from pg_language where oid=p.prolang)<>'sql'
+    or pg_get_function_arguments(p.oid)<>'target_club uuid, allowed_roles text[]'
+    or p.proconfig is distinct from array['search_path=public']::text[] or md5(replace(p.prosrc,E'\r\n',E'\n'))<>'d20dbc0bc410cd7afe5b584d9311dfba' then
+   raise exception 'Unreviewed has_club_role contract' using errcode='55000';
+  end if;
+ else
+  execute $ddl$CREATE OR REPLACE FUNCTION public.has_club_role(target_club uuid, allowed_roles text[])
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1
+    from public.club_memberships
+    where club_id = target_club
+      and profile_id = auth.uid()
+      and active = true
+      and access_role = any(allowed_roles)
+  );
+$function$;$ddl$;
+  revoke all on function public.has_club_role(uuid,text[]) from public,anon,authenticated,service_role;
+  grant execute on function public.has_club_role(uuid,text[]) to authenticated,service_role;
+ end if;
+end $bootstrap$;
+
+do $trigger$ declare t pg_trigger%rowtype; begin
+ select * into t from pg_trigger where tgrelid='auth.users'::regclass and tgname='on_auth_user_created' and not tgisinternal;
+ if found then
+  if t.tgfoid<>to_regprocedure('public.handle_new_user()') or t.tgtype<>5 or t.tgenabled<>'O' or t.tgqual is not null or t.tgnargs<>0 then
+   raise exception 'Unreviewed Auth onboarding trigger' using errcode='55000';
+  end if;
+ else
+  create trigger on_auth_user_created after insert on auth.users for each row execute function public.handle_new_user();
+ end if;
+end $trigger$;
+-- Fresh-baseline contracts used by later versioned writers. This migration's
+-- empty-schema guard forbids using these declarations as a production backfill.
+-- Evidence: fees redesign/operational schema, inventory advanced schema,
+-- shop variants and captured production catalog (policy hardening review).
+alter table public.fee_obligations
+  add column reference_year integer not null,
+  add column reference_month integer,
+  add column notes text,
+  add constraint fee_obligations_club_id_member_id_reference_year_reference__key
+    unique(club_id,member_id,reference_year,reference_month),
+  add constraint fee_obligations_club_id_fkey foreign key(club_id) references public.clubs(id) on delete cascade,
+  add constraint fee_obligations_fee_plan_id_fkey foreign key(fee_plan_id) references public.fee_plans(id),
+  add constraint fee_obligations_amount_check check(amount>=0),
+  add constraint fee_obligations_paid_amount_check check(paid_amount>=0);
+alter table public.fee_obligations
+  alter column member_id set not null,
+  alter column amount set not null,
+  alter column paid_amount set not null,
+  alter column status set default 'pending',
+  alter column status set not null;
+
+alter table public.stock_movements
+  add column product_id uuid not null references public.products(id) on delete cascade,
+  add column variant_id uuid references public.product_variants(id) on delete set null,
+  add column kind public.stock_movement_kind not null,
+  add column notes text,
+  add constraint stock_movements_club_id_fkey foreign key(club_id) references public.clubs(id) on delete cascade;
+alter table public.stock_movements alter column quantity set not null;
+alter table public.stock_movements
+  add constraint stock_movements_created_by_fkey foreign key(created_by) references public.profiles(id),
+  add constraint stock_movements_event_id_fkey foreign key(event_id) references public.events(id) on delete set null;
+alter table public.product_variants add column name text not null;
+-- inventory_count_start/finalize and lot receive read p.cost explicitly.
+alter table public.products add column cost numeric(12,2) not null default 0;
+
+alter table public.stock_lots
+  add column initial_quantity numeric(12,2) not null,
+  add column created_by uuid default auth.uid(),
+  add column supplier text,
+  add column notes text,
+  add constraint stock_lots_initial_quantity_check check(initial_quantity>0),
+  add constraint stock_lots_quantity_check check(quantity>=0),
+  add constraint stock_lots_check check(quantity<=initial_quantity),
+  add constraint stock_lots_unit_cost_check check(unit_cost is null or unit_cost>=0),
+  add constraint stock_lots_status_check check(status in ('active','expired','depleted','quarantined'));
+alter table public.stock_lots
+  alter column location_id set not null,
+  alter column received_at set default current_date,
+  alter column received_at set not null,
+  alter column quantity set not null;
+alter table public.stock_lots
+  add constraint stock_lots_club_id_fkey foreign key(club_id) references public.clubs(id) on delete cascade,
+  add constraint stock_lots_product_id_fkey foreign key(product_id) references public.products(id) on delete restrict,
+  add constraint stock_lots_variant_id_fkey foreign key(variant_id) references public.product_variants(id) on delete restrict,
+  add constraint stock_lots_created_by_fkey foreign key(created_by) references public.profiles(id) on delete set null;
+alter table public.stock_reservations
+  add column released_at timestamptz,
+  add column created_by uuid default auth.uid(),
+  add column release_reason text,
+  add column notes text,
+  add constraint stock_reservations_quantity_check check(quantity>0),
+  add constraint stock_reservations_status_check check(status in ('active','released','cancelled','expired')),
+  add constraint stock_reservations_check check(expires_at>reserved_at and expires_at<=reserved_at+interval '30 days');
+alter table public.stock_reservations
+  alter column member_id set not null,
+  alter column quantity set not null,
+  alter column status set default 'active',
+  alter column status set not null,
+  alter column reserved_at set default now(),
+  alter column reserved_at set not null,
+  alter column expires_at set default now()+interval '30 days',
+  alter column expires_at set not null;
+alter table public.stock_reservations
+  add constraint stock_reservations_club_id_fkey foreign key(club_id) references public.clubs(id) on delete cascade,
+  add constraint stock_reservations_product_id_fkey foreign key(product_id) references public.products(id) on delete restrict,
+  add constraint stock_reservations_variant_id_fkey foreign key(variant_id) references public.product_variants(id) on delete restrict,
+  add constraint stock_reservations_member_id_fkey foreign key(member_id) references public.members(id) on delete restrict,
+  add constraint stock_reservations_released_by_fkey foreign key(released_by) references public.profiles(id) on delete set null,
+  add constraint stock_reservations_created_by_fkey foreign key(created_by) references public.profiles(id) on delete set null;
+
+alter table public.fee_payments
+  add column received_by uuid references public.profiles(id),
+  add column notes text,
+  add constraint fee_payments_club_id_fkey foreign key(club_id) references public.clubs(id) on delete cascade,
+  add constraint fee_payments_member_id_fkey foreign key(member_id) references public.members(id),
+  add constraint fee_payments_obligation_id_fkey foreign key(obligation_id) references public.fee_obligations(id) on delete cascade,
+  add constraint fee_payments_transaction_id_fkey foreign key(transaction_id) references public.treasury_transactions(id),
+  add constraint fee_payments_amount_check check(amount>0);
+alter table public.fee_payments alter column amount set not null;
+-- member_id becomes NOT NULL in the existing operational migration.
+alter table public.fee_payment_allocations
+  add constraint fee_payment_allocations_club_id_fkey foreign key(club_id) references public.clubs(id) on delete cascade,
+  add constraint fee_payment_allocations_payment_id_fkey foreign key(payment_id) references public.fee_payments(id) on delete restrict,
+  add constraint fee_payment_allocations_obligation_id_fkey foreign key(obligation_id) references public.fee_obligations(id) on delete restrict,
+  add constraint fee_payment_allocations_amount_check check(amount>0);
+alter table public.fee_payment_allocations alter column amount set not null;
+-- Inventory writer, export and bar read model contract; captured production types/defaults.
+-- Only empty-schema baseline; no populated-schema conversion.
+alter table public.products
+  add column sku text,
+  add column unit text not null default 'unit',
+  add column minimum_stock numeric(12,2) not null default 0;
+-- Structural blockers: empty-schema baseline only; production catalog + active writers.
+alter table public.notifications
+  add column notification_type text not null default 'info',
+  alter column body set not null,
+  alter column priority set default 'normal',
+  alter column priority set not null;
+-- Extra blueprint field is not part of the canonical writer. Keep optional legacy
+-- input/audit behavior; tenant authorization continues through the parent product.
+alter table public.product_variants alter column club_id drop not null;
+-- Membership roles are written by the privileged user-access-admin Edge path.
+-- Never grant tenant members direct role writes; reproduced self escalation.
+create policy memberships_access on public.club_memberships for select to authenticated
+ using ((profile_id = auth.uid()) OR public.has_club_access(club_id));
+create policy memberships_read on public.club_memberships for select to authenticated
+ using ((profile_id = auth.uid()) OR public.has_club_role(club_id, ARRAY['admin'::text, 'super_admin'::text]));
+-- Consolidated review: canonical writers require these captured production fields.
+-- Baseline only: later CREATE TABLE IF NOT EXISTS cannot add omitted columns.
+-- OCR fields agree with 20260814112515; event contracts with captured catalog.
+alter table public.document_ocr
+  add column provider text,
+  add column model text,
+  add column raw_text text,
+  add column error_message text,
+  add column started_at timestamptz,
+  add column completed_at timestamptz;
+alter table public.events
+  add column budget numeric(14,2) not null default 0,
+  add column banner_path text,
+  add column event_mode_enabled boolean not null default false;
+-- High-risk semantic repairs: clean reconstruction only; no production migration.
+create table if not exists public.inventory_locations (
+  id uuid primary key default gen_random_uuid(), club_id uuid not null references public.clubs(id) on delete cascade,
+  name text not null, description text, active boolean not null default true, created_at timestamptz not null default now(),
+  unique(club_id,name)
+);
+create type public.event_status as enum ('draft','published','active','completed','cancelled');
+create type public.payment_status as enum ('paid','pending','exempt');
+create type public.transaction_type as enum ('income','expense');
+create type public.user_role as enum ('member','treasurer','admin','super_admin');
+alter table public.announcements add column if not exists body text;
+alter table public.announcements alter column body drop default;
+alter table public.announcements alter column body set not null;
+alter table public.announcements add column if not exists priority text default 'normal'::text;
+alter table public.announcements alter column priority set default 'normal'::text;
+alter table public.announcements alter column priority set not null;
+alter table public.announcements add column if not exists audience text default 'all'::text;
+alter table public.announcements alter column audience set default 'all'::text;
+alter table public.announcements alter column audience set not null;
+alter table public.announcements add column if not exists published_at timestamp with time zone default now();
+alter table public.announcements alter column published_at set default now();
+alter table public.announcements alter column published_at set not null;
+alter table public.announcements add column if not exists requires_acknowledgement boolean default false;
+alter table public.announcements alter column requires_acknowledgement set default false;
+alter table public.announcements alter column requires_acknowledgement set not null;
+alter table public.announcements add column if not exists created_at timestamp with time zone default now();
+alter table public.announcements alter column created_at set default now();
+alter table public.announcements alter column created_at set not null;
+alter table public.announcements add column if not exists updated_at timestamp with time zone default now();
+alter table public.announcements alter column updated_at set default now();
+alter table public.announcements alter column updated_at set not null;
+alter table public.announcements add constraint announcements_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.announcements add constraint announcements_expiry_after_publication CHECK (((expires_at IS NULL) OR (expires_at > published_at)));
+alter table public.announcements add constraint announcements_priority_check CHECK ((priority = ANY (ARRAY['informative'::text, 'normal'::text, 'important'::text, 'urgent'::text, 'critical'::text])));
+alter table public.annual_book_items add column if not exists annual_book_id uuid;
+alter table public.annual_book_items alter column annual_book_id drop default;
+alter table public.annual_book_items alter column annual_book_id set not null;
+alter table public.annual_book_items add column if not exists item_type text default 'custom'::text;
+alter table public.annual_book_items alter column item_type set default 'custom'::text;
+alter table public.annual_book_items alter column item_type set not null;
+alter table public.annual_book_items add column if not exists linked_entity_type text;
+alter table public.annual_book_items alter column linked_entity_type drop default;
+alter table public.annual_book_items alter column linked_entity_type drop not null;
+alter table public.annual_book_items add column if not exists linked_entity_id uuid;
+alter table public.annual_book_items alter column linked_entity_id drop default;
+alter table public.annual_book_items alter column linked_entity_id drop not null;
+alter table public.annual_book_items add column if not exists event_date date;
+alter table public.annual_book_items alter column event_date drop default;
+alter table public.annual_book_items alter column event_date drop not null;
+alter table public.annual_book_items add column if not exists created_at timestamp with time zone default now();
+alter table public.annual_book_items alter column created_at set default now();
+alter table public.annual_book_items alter column created_at set not null;
+alter table public.annual_book_items add column if not exists updated_at timestamp with time zone default now();
+alter table public.annual_book_items alter column updated_at set default now();
+alter table public.annual_book_items alter column updated_at set not null;
+alter table public.annual_book_items add constraint annual_book_items_annual_book_id_fkey FOREIGN KEY (annual_book_id) REFERENCES annual_books(id) ON DELETE CASCADE;
+alter table public.annual_book_items add constraint annual_book_items_annual_book_id_sequence_no_key UNIQUE (annual_book_id, sequence_no);
+alter table public.annual_book_items add constraint annual_book_items_document_id_fkey FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE SET NULL;
+alter table public.annual_book_items add constraint annual_book_items_item_type_check CHECK ((item_type = ANY (ARRAY['custom'::text, 'document'::text, 'event'::text, 'member'::text, 'timeline'::text])));
+alter table public.annual_book_items add constraint annual_book_items_sequence_no_check CHECK ((sequence_no > 0));
+alter table public.annual_books add column if not exists year integer;
+alter table public.annual_books alter column year drop default;
+alter table public.annual_books alter column year set not null;
+alter table public.annual_books add column if not exists description text;
+alter table public.annual_books alter column description drop default;
+alter table public.annual_books alter column description drop not null;
+alter table public.annual_books add column if not exists status text default 'draft'::text;
+alter table public.annual_books alter column status set default 'draft'::text;
+alter table public.annual_books alter column status set not null;
+alter table public.annual_books add column if not exists published_at timestamp with time zone;
+alter table public.annual_books alter column published_at drop default;
+alter table public.annual_books alter column published_at drop not null;
+alter table public.annual_books add column if not exists created_at timestamp with time zone default now();
+alter table public.annual_books alter column created_at set default now();
+alter table public.annual_books alter column created_at set not null;
+alter table public.annual_books add column if not exists updated_at timestamp with time zone default now();
+alter table public.annual_books alter column updated_at set default now();
+alter table public.annual_books alter column updated_at set not null;
+alter table public.annual_books add constraint annual_books_club_id_year_key UNIQUE (club_id, year);
+alter table public.annual_books add constraint annual_books_cover_document_id_fkey FOREIGN KEY (cover_document_id) REFERENCES documents(id) ON DELETE SET NULL;
+alter table public.annual_books add constraint annual_books_status_check CHECK ((status = ANY (ARRAY['draft'::text, 'published'::text, 'archived'::text])));
+alter table public.annual_books add constraint annual_books_year_check CHECK (((year >= 2000) AND (year <= 2200)));
+alter table public.document_access_log add column if not exists id uuid default gen_random_uuid();
+alter table public.document_access_log alter column id set default gen_random_uuid();
+alter table public.document_access_log alter column id set not null;
+alter table public.document_access_log add column if not exists document_id uuid;
+alter table public.document_access_log alter column document_id drop default;
+alter table public.document_access_log alter column document_id set not null;
+alter table public.document_access_log add column if not exists profile_id uuid default auth.uid();
+alter table public.document_access_log alter column profile_id set default auth.uid();
+alter table public.document_access_log alter column profile_id set not null;
+alter table public.document_access_log add column if not exists action text;
+alter table public.document_access_log alter column action drop default;
+alter table public.document_access_log alter column action set not null;
+alter table public.document_access_log add column if not exists metadata jsonb default '{}'::jsonb;
+alter table public.document_access_log alter column metadata set default '{}'::jsonb;
+alter table public.document_access_log alter column metadata set not null;
+alter table public.document_access_log add constraint document_access_log_action_check CHECK ((action = ANY (ARRAY['view'::text, 'download'::text, 'signed_url'::text, 'share'::text])));
+alter table public.document_access_log add constraint document_access_log_document_id_fkey FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE;
+alter table public.document_access_log add constraint document_access_log_version_id_fkey FOREIGN KEY (version_id) REFERENCES document_versions(id) ON DELETE SET NULL;
+alter table public.document_approvals add column if not exists document_id uuid;
+alter table public.document_approvals alter column document_id drop default;
+alter table public.document_approvals alter column document_id set not null;
+alter table public.document_approvals add column if not exists status text default 'pending'::text;
+alter table public.document_approvals alter column status set default 'pending'::text;
+alter table public.document_approvals alter column status set not null;
+alter table public.document_approvals add column if not exists requested_by uuid default auth.uid();
+alter table public.document_approvals alter column requested_by set default auth.uid();
+alter table public.document_approvals alter column requested_by set not null;
+alter table public.document_approvals add column if not exists decided_by uuid;
+alter table public.document_approvals alter column decided_by drop default;
+alter table public.document_approvals alter column decided_by drop not null;
+alter table public.document_approvals add column if not exists decided_at timestamp with time zone;
+alter table public.document_approvals alter column decided_at drop default;
+alter table public.document_approvals alter column decided_at drop not null;
+alter table public.document_approvals add column if not exists notes text;
+alter table public.document_approvals alter column notes drop default;
+alter table public.document_approvals alter column notes drop not null;
+alter table public.document_approvals add column if not exists created_at timestamp with time zone default now();
+alter table public.document_approvals alter column created_at set default now();
+alter table public.document_approvals alter column created_at set not null;
+alter table public.document_approvals add column if not exists updated_at timestamp with time zone default now();
+alter table public.document_approvals alter column updated_at set default now();
+alter table public.document_approvals alter column updated_at set not null;
+alter table public.document_approvals add constraint document_approvals_document_id_fkey FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE;
+alter table public.document_approvals add constraint document_approvals_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'cancelled'::text])));
+alter table public.document_ocr add column if not exists status text default 'pending'::text;
+alter table public.document_ocr alter column status set default 'pending'::text;
+alter table public.document_ocr alter column status set not null;
+alter table public.document_ocr add column if not exists confidence numeric(5,4);
+alter table public.document_ocr alter column confidence type numeric(5,4) using confidence::numeric(5,4);
+alter table public.document_ocr alter column confidence drop default;
+alter table public.document_ocr alter column confidence drop not null;
+alter table public.document_ocr add column if not exists created_by uuid default auth.uid();
+alter table public.document_ocr alter column created_by set default auth.uid();
+alter table public.document_ocr alter column created_by set not null;
+alter table public.document_ocr add column if not exists created_at timestamp with time zone default now();
+alter table public.document_ocr alter column created_at set default now();
+alter table public.document_ocr alter column created_at set not null;
+alter table public.document_ocr add column if not exists updated_at timestamp with time zone default now();
+alter table public.document_ocr alter column updated_at set default now();
+alter table public.document_ocr alter column updated_at set not null;
+alter table public.document_ocr add constraint document_ocr_confidence_check CHECK (((confidence IS NULL) OR ((confidence >= (0)::numeric) AND (confidence <= (1)::numeric))));
+alter table public.document_ocr add constraint document_ocr_document_id_fkey FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE;
+alter table public.document_ocr add constraint document_ocr_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'processing'::text, 'ready'::text, 'unconfigured'::text, 'failed'::text, 'cancelled'::text])));
+alter table public.document_ocr add constraint document_ocr_version_id_fkey FOREIGN KEY (version_id) REFERENCES document_versions(id) ON DELETE SET NULL;
+alter table public.event_guests add column if not exists event_id uuid;
+alter table public.event_guests alter column event_id drop default;
+alter table public.event_guests alter column event_id set not null;
+alter table public.event_guests add column if not exists host_member_id uuid;
+alter table public.event_guests alter column host_member_id drop default;
+alter table public.event_guests alter column host_member_id set not null;
+alter table public.event_guests add column if not exists status text default 'confirmed'::text;
+alter table public.event_guests alter column status set default 'confirmed'::text;
+alter table public.event_guests alter column status set not null;
+alter table public.event_guests add column if not exists checked_in_at timestamp with time zone;
+alter table public.event_guests alter column checked_in_at drop default;
+alter table public.event_guests alter column checked_in_at drop not null;
+alter table public.event_guests add column if not exists created_at timestamp with time zone default now();
+alter table public.event_guests alter column created_at set default now();
+alter table public.event_guests alter column created_at set not null;
+alter table public.event_guests add column if not exists updated_at timestamp with time zone default now();
+alter table public.event_guests alter column updated_at set default now();
+alter table public.event_guests alter column updated_at set not null;
+alter table public.event_guests add constraint event_guests_event_id_fkey FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE;
+alter table public.event_guests add constraint event_guests_host_member_id_fkey FOREIGN KEY (host_member_id) REFERENCES members(id) ON DELETE CASCADE;
+alter table public.event_guests add constraint event_guests_registration_id_fkey FOREIGN KEY (registration_id) REFERENCES event_registrations(id) ON DELETE SET NULL;
+alter table public.event_guests add constraint event_guests_status_check CHECK ((status = ANY (ARRAY['confirmed'::text, 'cancelled'::text, 'checked_in'::text])));
+alter table public.event_incidents add column if not exists event_id uuid;
+alter table public.event_incidents alter column event_id drop default;
+alter table public.event_incidents alter column event_id set not null;
+alter table public.event_incidents add column if not exists occurred_at timestamp with time zone default now();
+alter table public.event_incidents alter column occurred_at set default now();
+alter table public.event_incidents alter column occurred_at set not null;
+alter table public.event_incidents add column if not exists title text;
+alter table public.event_incidents alter column title drop default;
+alter table public.event_incidents alter column title set not null;
+alter table public.event_incidents add column if not exists severity text default 'low'::text;
+alter table public.event_incidents alter column severity set default 'low'::text;
+alter table public.event_incidents alter column severity set not null;
+alter table public.event_incidents add column if not exists status text default 'open'::text;
+alter table public.event_incidents alter column status set default 'open'::text;
+alter table public.event_incidents alter column status set not null;
+alter table public.event_incidents add column if not exists resolution text;
+alter table public.event_incidents alter column resolution drop default;
+alter table public.event_incidents alter column resolution drop not null;
+alter table public.event_incidents add column if not exists resolved_at timestamp with time zone;
+alter table public.event_incidents alter column resolved_at drop default;
+alter table public.event_incidents alter column resolved_at drop not null;
+alter table public.event_incidents add column if not exists created_at timestamp with time zone default now();
+alter table public.event_incidents alter column created_at set default now();
+alter table public.event_incidents alter column created_at set not null;
+alter table public.event_incidents add column if not exists updated_at timestamp with time zone default now();
+alter table public.event_incidents alter column updated_at set default now();
+alter table public.event_incidents alter column updated_at set not null;
+alter table public.event_incidents add constraint event_incidents_assigned_member_id_fkey FOREIGN KEY (assigned_member_id) REFERENCES members(id) ON DELETE SET NULL;
+alter table public.event_incidents add constraint event_incidents_event_id_fkey FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE;
+alter table public.event_incidents add constraint event_incidents_reported_by_member_id_fkey FOREIGN KEY (reported_by_member_id) REFERENCES members(id) ON DELETE SET NULL;
+alter table public.event_incidents add constraint event_incidents_severity_check CHECK ((severity = ANY (ARRAY['low'::text, 'medium'::text, 'high'::text, 'critical'::text])));
+alter table public.event_incidents add constraint event_incidents_status_check CHECK ((status = ANY (ARRAY['open'::text, 'monitoring'::text, 'resolved'::text, 'closed'::text])));
+alter table public.event_octane_configs add column if not exists event_id uuid;
+alter table public.event_octane_configs alter column event_id drop default;
+alter table public.event_octane_configs alter column event_id set not null;
+alter table public.event_octane_configs add column if not exists unit_price numeric(10,2) default 1.50;
+alter table public.event_octane_configs alter column unit_price set default 1.50;
+alter table public.event_octane_configs alter column unit_price set not null;
+alter table public.event_octane_configs add column if not exists five_card_units integer default 5;
+alter table public.event_octane_configs alter column five_card_units set default 5;
+alter table public.event_octane_configs alter column five_card_units set not null;
+alter table public.event_octane_configs add column if not exists five_card_price numeric(10,2) default 7.00;
+alter table public.event_octane_configs alter column five_card_price set default 7.00;
+alter table public.event_octane_configs alter column five_card_price set not null;
+alter table public.event_octane_configs add column if not exists ten_card_units integer default 10;
+alter table public.event_octane_configs alter column ten_card_units set default 10;
+alter table public.event_octane_configs alter column ten_card_units set not null;
+alter table public.event_octane_configs add column if not exists ten_card_price numeric(10,2) default 13.00;
+alter table public.event_octane_configs alter column ten_card_price set default 13.00;
+alter table public.event_octane_configs alter column ten_card_price set not null;
+alter table public.event_octane_configs add column if not exists ten_card_bonus integer default 1;
+alter table public.event_octane_configs alter column ten_card_bonus set default 1;
+alter table public.event_octane_configs alter column ten_card_bonus set not null;
+alter table public.event_octane_configs add column if not exists product_rules jsonb default '{}'::jsonb;
+alter table public.event_octane_configs alter column product_rules set default '{}'::jsonb;
+alter table public.event_octane_configs alter column product_rules set not null;
+alter table public.event_octane_configs add column if not exists active boolean default true;
+alter table public.event_octane_configs alter column active set default true;
+alter table public.event_octane_configs alter column active set not null;
+alter table public.event_octane_configs add column if not exists notes text;
+alter table public.event_octane_configs alter column notes drop default;
+alter table public.event_octane_configs alter column notes drop not null;
+alter table public.event_octane_configs add column if not exists created_at timestamp with time zone default now();
+alter table public.event_octane_configs alter column created_at set default now();
+alter table public.event_octane_configs alter column created_at set not null;
+alter table public.event_octane_configs add column if not exists updated_at timestamp with time zone default now();
+alter table public.event_octane_configs alter column updated_at set default now();
+alter table public.event_octane_configs alter column updated_at set not null;
+alter table public.event_octane_configs add constraint event_octane_configs_event_id_fkey FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE;
+alter table public.event_octane_configs add constraint event_octane_configs_event_id_key UNIQUE (event_id);
+alter table public.event_octane_configs add constraint event_octane_configs_five_card_price_check CHECK ((five_card_price >= (0)::numeric));
+alter table public.event_octane_configs add constraint event_octane_configs_five_card_units_check CHECK ((five_card_units > 0));
+alter table public.event_octane_configs add constraint event_octane_configs_ten_card_bonus_check CHECK ((ten_card_bonus >= 0));
+alter table public.event_octane_configs add constraint event_octane_configs_ten_card_price_check CHECK ((ten_card_price >= (0)::numeric));
+alter table public.event_octane_configs add constraint event_octane_configs_ten_card_units_check CHECK ((ten_card_units > 0));
+alter table public.event_octane_configs add constraint event_octane_configs_unit_price_check CHECK ((unit_price >= (0)::numeric));
+alter table public.event_program add column if not exists event_id uuid;
+alter table public.event_program alter column event_id drop default;
+alter table public.event_program alter column event_id set not null;
+alter table public.event_program add column if not exists item_type text default 'activity'::text;
+alter table public.event_program alter column item_type set default 'activity'::text;
+alter table public.event_program alter column item_type set not null;
+alter table public.event_program add column if not exists notes text;
+alter table public.event_program alter column notes drop default;
+alter table public.event_program alter column notes drop not null;
+alter table public.event_program add column if not exists created_at timestamp with time zone default now();
+alter table public.event_program alter column created_at set default now();
+alter table public.event_program alter column created_at set not null;
+alter table public.event_program add column if not exists updated_at timestamp with time zone default now();
+alter table public.event_program alter column updated_at set default now();
+alter table public.event_program alter column updated_at set not null;
+alter table public.event_program add constraint event_program_dates_check CHECK (((ends_at IS NULL) OR (starts_at IS NULL) OR (ends_at >= starts_at)));
+alter table public.event_program add constraint event_program_event_id_fkey FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE;
+alter table public.event_program add constraint event_program_event_id_sequence_no_key UNIQUE (event_id, sequence_no);
+alter table public.event_program add constraint event_program_responsible_member_id_fkey FOREIGN KEY (responsible_member_id) REFERENCES members(id) ON DELETE SET NULL;
+alter table public.event_program add constraint event_program_sequence_no_check CHECK ((sequence_no > 0));
+alter table public.event_proposals add column if not exists proposed_by uuid;
+alter table public.event_proposals alter column proposed_by drop default;
+alter table public.event_proposals alter column proposed_by set not null;
+alter table public.event_proposals add column if not exists name text;
+alter table public.event_proposals alter column name drop default;
+alter table public.event_proposals alter column name set not null;
+alter table public.event_proposals add column if not exists description text;
+alter table public.event_proposals alter column description drop default;
+alter table public.event_proposals alter column description drop not null;
+alter table public.event_proposals add column if not exists location text;
+alter table public.event_proposals alter column location drop default;
+alter table public.event_proposals alter column location drop not null;
+alter table public.event_proposals add column if not exists starts_at timestamp with time zone;
+alter table public.event_proposals alter column starts_at drop default;
+alter table public.event_proposals alter column starts_at drop not null;
+alter table public.event_proposals add column if not exists ends_at timestamp with time zone;
+alter table public.event_proposals alter column ends_at drop default;
+alter table public.event_proposals alter column ends_at drop not null;
+alter table public.event_proposals add column if not exists event_kind text default 'general'::text;
+alter table public.event_proposals alter column event_kind set default 'general'::text;
+alter table public.event_proposals alter column event_kind set not null;
+alter table public.event_proposals add column if not exists status text default 'submitted'::text;
+alter table public.event_proposals alter column status set default 'submitted'::text;
+alter table public.event_proposals alter column status set not null;
+alter table public.event_proposals add column if not exists decision_notes text;
+alter table public.event_proposals alter column decision_notes drop default;
+alter table public.event_proposals alter column decision_notes drop not null;
+alter table public.event_proposals add column if not exists decided_by uuid;
+alter table public.event_proposals alter column decided_by drop default;
+alter table public.event_proposals alter column decided_by drop not null;
+alter table public.event_proposals add column if not exists decided_at timestamp with time zone;
+alter table public.event_proposals alter column decided_at drop default;
+alter table public.event_proposals alter column decided_at drop not null;
+alter table public.event_proposals add column if not exists created_at timestamp with time zone default now();
+alter table public.event_proposals alter column created_at set default now();
+alter table public.event_proposals alter column created_at set not null;
+alter table public.event_proposals add column if not exists updated_at timestamp with time zone default now();
+alter table public.event_proposals alter column updated_at set default now();
+alter table public.event_proposals alter column updated_at set not null;
+alter table public.event_proposals add constraint event_proposals_approved_event_id_fkey FOREIGN KEY (approved_event_id) REFERENCES events(id) ON DELETE SET NULL;
+alter table public.event_proposals add constraint event_proposals_dates_check CHECK (((ends_at IS NULL) OR (starts_at IS NULL) OR (ends_at >= starts_at)));
+alter table public.event_proposals add constraint event_proposals_event_kind_check CHECK ((event_kind = ANY (ARRAY['general'::text, 'ride'::text, 'rock_ride_in'::text])));
+alter table public.event_proposals add constraint event_proposals_status_check CHECK ((status = ANY (ARRAY['submitted'::text, 'approved'::text, 'rejected'::text, 'withdrawn'::text])));
+alter table public.event_routes add column if not exists event_id uuid;
+alter table public.event_routes alter column event_id drop default;
+alter table public.event_routes alter column event_id set not null;
+alter table public.event_routes add column if not exists name text default 'Roadbook'::text;
+alter table public.event_routes alter column name set default 'Roadbook'::text;
+alter table public.event_routes alter column name set not null;
+alter table public.event_routes add column if not exists start_location text;
+alter table public.event_routes alter column start_location drop default;
+alter table public.event_routes alter column start_location drop not null;
+alter table public.event_routes add column if not exists end_location text;
+alter table public.event_routes alter column end_location drop default;
+alter table public.event_routes alter column end_location drop not null;
+alter table public.event_routes add column if not exists distance_km numeric(10,2);
+alter table public.event_routes alter column distance_km type numeric(10,2) using distance_km::numeric(10,2);
+alter table public.event_routes alter column distance_km drop default;
+alter table public.event_routes alter column distance_km drop not null;
+alter table public.event_routes add column if not exists estimated_minutes integer;
+alter table public.event_routes alter column estimated_minutes drop default;
+alter table public.event_routes alter column estimated_minutes drop not null;
+alter table public.event_routes add column if not exists notes text;
+alter table public.event_routes alter column notes drop default;
+alter table public.event_routes alter column notes drop not null;
+alter table public.event_routes add column if not exists emergency_notes text;
+alter table public.event_routes alter column emergency_notes drop default;
+alter table public.event_routes alter column emergency_notes drop not null;
+alter table public.event_routes add column if not exists created_at timestamp with time zone default now();
+alter table public.event_routes alter column created_at set default now();
+alter table public.event_routes alter column created_at set not null;
+alter table public.event_routes add column if not exists updated_at timestamp with time zone default now();
+alter table public.event_routes alter column updated_at set default now();
+alter table public.event_routes alter column updated_at set not null;
+alter table public.event_routes add constraint event_routes_distance_km_check CHECK (((distance_km IS NULL) OR (distance_km >= (0)::numeric)));
+alter table public.event_routes add constraint event_routes_estimated_minutes_check CHECK (((estimated_minutes IS NULL) OR (estimated_minutes >= 0)));
+alter table public.event_routes add constraint event_routes_event_id_fkey FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE;
+alter table public.event_routes add constraint event_routes_event_id_name_key UNIQUE (event_id, name);
+alter table public.event_shift_members add column if not exists shift_id uuid;
+alter table public.event_shift_members alter column shift_id drop default;
+alter table public.event_shift_members alter column shift_id set not null;
+alter table public.event_shift_members add column if not exists status text default 'assigned'::text;
+alter table public.event_shift_members alter column status set default 'assigned'::text;
+alter table public.event_shift_members alter column status set not null;
+alter table public.event_shift_members add column if not exists checked_in_at timestamp with time zone;
+alter table public.event_shift_members alter column checked_in_at drop default;
+alter table public.event_shift_members alter column checked_in_at drop not null;
+alter table public.event_shift_members add column if not exists checked_out_at timestamp with time zone;
+alter table public.event_shift_members alter column checked_out_at drop default;
+alter table public.event_shift_members alter column checked_out_at drop not null;
+alter table public.event_shift_members add column if not exists notes text;
+alter table public.event_shift_members alter column notes drop default;
+alter table public.event_shift_members alter column notes drop not null;
+alter table public.event_shift_members add constraint event_shift_members_event_id_fkey FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE;
+alter table public.event_shift_members add constraint event_shift_members_member_id_fkey FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE;
+alter table public.event_shift_members add constraint event_shift_members_shift_id_fkey FOREIGN KEY (shift_id) REFERENCES event_shifts(id) ON DELETE CASCADE;
+alter table public.event_shift_members add constraint event_shift_members_shift_id_member_id_key UNIQUE (shift_id, member_id);
+alter table public.event_shift_members add constraint event_shift_members_status_check CHECK ((status = ANY (ARRAY['assigned'::text, 'confirmed'::text, 'present'::text, 'absent'::text, 'cancelled'::text])));
+alter table public.event_shifts add column if not exists event_id uuid;
+alter table public.event_shifts alter column event_id drop default;
+alter table public.event_shifts alter column event_id set not null;
+alter table public.event_shifts add column if not exists name text;
+alter table public.event_shifts alter column name drop default;
+alter table public.event_shifts alter column name set not null;
+alter table public.event_shifts add column if not exists starts_at timestamp with time zone;
+alter table public.event_shifts alter column starts_at drop default;
+alter table public.event_shifts alter column starts_at set not null;
+alter table public.event_shifts add column if not exists ends_at timestamp with time zone;
+alter table public.event_shifts alter column ends_at drop default;
+alter table public.event_shifts alter column ends_at set not null;
+alter table public.event_shifts add column if not exists required_people integer default 1;
+alter table public.event_shifts alter column required_people set default 1;
+alter table public.event_shifts alter column required_people set not null;
+alter table public.event_shifts add column if not exists status text default 'planned'::text;
+alter table public.event_shifts alter column status set default 'planned'::text;
+alter table public.event_shifts alter column status set not null;
+alter table public.event_shifts add column if not exists notes text;
+alter table public.event_shifts alter column notes drop default;
+alter table public.event_shifts alter column notes drop not null;
+alter table public.event_shifts add column if not exists created_at timestamp with time zone default now();
+alter table public.event_shifts alter column created_at set default now();
+alter table public.event_shifts alter column created_at set not null;
+alter table public.event_shifts add column if not exists updated_at timestamp with time zone default now();
+alter table public.event_shifts alter column updated_at set default now();
+alter table public.event_shifts alter column updated_at set not null;
+alter table public.event_shifts add constraint event_shifts_dates_check CHECK ((ends_at >= starts_at));
+alter table public.event_shifts add constraint event_shifts_event_id_fkey FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE;
+alter table public.event_shifts add constraint event_shifts_required_people_check CHECK ((required_people > 0));
+alter table public.event_shifts add constraint event_shifts_status_check CHECK ((status = ANY (ARRAY['planned'::text, 'active'::text, 'completed'::text, 'cancelled'::text])));
+alter table public.event_task_assignees add column if not exists task_id uuid;
+alter table public.event_task_assignees alter column task_id drop default;
+alter table public.event_task_assignees alter column task_id set not null;
+alter table public.event_task_assignees add column if not exists assigned_at timestamp with time zone default now();
+alter table public.event_task_assignees alter column assigned_at set default now();
+alter table public.event_task_assignees alter column assigned_at set not null;
+alter table public.event_task_assignees add column if not exists acknowledged_at timestamp with time zone;
+alter table public.event_task_assignees alter column acknowledged_at drop default;
+alter table public.event_task_assignees alter column acknowledged_at drop not null;
+alter table public.event_task_assignees add column if not exists completed_at timestamp with time zone;
+alter table public.event_task_assignees alter column completed_at drop default;
+alter table public.event_task_assignees alter column completed_at drop not null;
+alter table public.event_task_assignees add column if not exists notes text;
+alter table public.event_task_assignees alter column notes drop default;
+alter table public.event_task_assignees alter column notes drop not null;
+alter table public.event_task_assignees add constraint event_task_assignees_event_id_fkey FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE;
+alter table public.event_task_assignees add constraint event_task_assignees_member_id_fkey FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE;
+alter table public.event_task_assignees add constraint event_task_assignees_task_id_fkey FOREIGN KEY (task_id) REFERENCES event_tasks(id) ON DELETE CASCADE;
+alter table public.event_task_assignees add constraint event_task_assignees_task_id_member_id_key UNIQUE (task_id, member_id);
+alter table public.event_tasks add column if not exists event_id uuid;
+alter table public.event_tasks alter column event_id drop default;
+alter table public.event_tasks alter column event_id set not null;
+alter table public.event_tasks add column if not exists priority text default 'normal'::text;
+alter table public.event_tasks alter column priority set default 'normal'::text;
+alter table public.event_tasks alter column priority set not null;
+alter table public.event_tasks add column if not exists status text default 'pending'::text;
+alter table public.event_tasks alter column status set default 'pending'::text;
+alter table public.event_tasks alter column status set not null;
+alter table public.event_tasks add column if not exists completed_at timestamp with time zone;
+alter table public.event_tasks alter column completed_at drop default;
+alter table public.event_tasks alter column completed_at drop not null;
+alter table public.event_tasks add column if not exists notes text;
+alter table public.event_tasks alter column notes drop default;
+alter table public.event_tasks alter column notes drop not null;
+alter table public.event_tasks add column if not exists created_at timestamp with time zone default now();
+alter table public.event_tasks alter column created_at set default now();
+alter table public.event_tasks alter column created_at set not null;
+alter table public.event_tasks add column if not exists updated_at timestamp with time zone default now();
+alter table public.event_tasks alter column updated_at set default now();
+alter table public.event_tasks alter column updated_at set not null;
+alter table public.event_tasks add constraint event_tasks_event_id_fkey FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE;
+alter table public.event_tasks add constraint event_tasks_priority_check CHECK ((priority = ANY (ARRAY['low'::text, 'normal'::text, 'high'::text, 'critical'::text])));
+alter table public.event_tasks add constraint event_tasks_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'in_progress'::text, 'done'::text, 'cancelled'::text])));
+alter table public.maintenance_attachments add column if not exists storage_path text;
+alter table public.maintenance_attachments alter column storage_path drop default;
+alter table public.maintenance_attachments alter column storage_path set not null;
+alter table public.maintenance_attachments add column if not exists original_file_name text;
+alter table public.maintenance_attachments alter column original_file_name drop default;
+alter table public.maintenance_attachments alter column original_file_name set not null;
+alter table public.maintenance_attachments add column if not exists mime_type text;
+alter table public.maintenance_attachments alter column mime_type drop default;
+alter table public.maintenance_attachments alter column mime_type drop not null;
+alter table public.maintenance_attachments add column if not exists file_size bigint default 0;
+alter table public.maintenance_attachments alter column file_size set default 0;
+alter table public.maintenance_attachments alter column file_size set not null;
+alter table public.maintenance_attachments add column if not exists created_at timestamp with time zone default now();
+alter table public.maintenance_attachments alter column created_at set default now();
+alter table public.maintenance_attachments alter column created_at set not null;
+alter table public.maintenance_attachments add column if not exists updated_at timestamp with time zone default now();
+alter table public.maintenance_attachments alter column updated_at set default now();
+alter table public.maintenance_attachments alter column updated_at set not null;
+alter table public.maintenance_attachments add constraint maintenance_attachments_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.maintenance_attachments add constraint maintenance_attachments_maintenance_id_fkey FOREIGN KEY (maintenance_id) REFERENCES maintenance_records(id) ON DELETE CASCADE;
+alter table public.maintenance_attachments add constraint maintenance_attachments_member_id_fkey FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE;
+alter table public.maintenance_attachments add constraint maintenance_attachments_size_nonnegative CHECK ((file_size >= 0));
+alter table public.maintenance_attachments add constraint maintenance_attachments_storage_path_key UNIQUE (storage_path);
+alter table public.maintenance_records add column if not exists motorcycle_id uuid;
+alter table public.maintenance_records alter column motorcycle_id drop default;
+alter table public.maintenance_records alter column motorcycle_id set not null;
+alter table public.maintenance_records add column if not exists service_date date default CURRENT_DATE;
+alter table public.maintenance_records alter column service_date set default CURRENT_DATE;
+alter table public.maintenance_records alter column service_date set not null;
+alter table public.maintenance_records add column if not exists service_type text;
+alter table public.maintenance_records alter column service_type drop default;
+alter table public.maintenance_records alter column service_type set not null;
+alter table public.maintenance_records add column if not exists odometer_km integer;
+alter table public.maintenance_records alter column odometer_km drop default;
+alter table public.maintenance_records alter column odometer_km drop not null;
+alter table public.maintenance_records add column if not exists workshop text;
+alter table public.maintenance_records alter column workshop drop default;
+alter table public.maintenance_records alter column workshop drop not null;
+alter table public.maintenance_records add column if not exists cost numeric(12,2) default 0;
+alter table public.maintenance_records alter column cost set default 0;
+alter table public.maintenance_records alter column cost set not null;
+alter table public.maintenance_records add column if not exists next_service_km integer;
+alter table public.maintenance_records alter column next_service_km drop default;
+alter table public.maintenance_records alter column next_service_km drop not null;
+alter table public.maintenance_records add column if not exists created_at timestamp with time zone default now();
+alter table public.maintenance_records alter column created_at set default now();
+alter table public.maintenance_records alter column created_at set not null;
+alter table public.maintenance_records add column if not exists updated_at timestamp with time zone default now();
+alter table public.maintenance_records alter column updated_at set default now();
+alter table public.maintenance_records alter column updated_at set not null;
+alter table public.maintenance_records add constraint maintenance_records_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.maintenance_records add constraint maintenance_records_cost_nonnegative CHECK ((cost >= (0)::numeric));
+alter table public.maintenance_records add constraint maintenance_records_member_id_fkey FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE;
+alter table public.maintenance_records add constraint maintenance_records_motorcycle_id_fkey FOREIGN KEY (motorcycle_id) REFERENCES member_motorcycles(id) ON DELETE CASCADE;
+alter table public.maintenance_records add constraint maintenance_records_next_km_nonnegative CHECK (((next_service_km IS NULL) OR (next_service_km >= 0)));
+alter table public.maintenance_records add constraint maintenance_records_odometer_nonnegative CHECK (((odometer_km IS NULL) OR (odometer_km >= 0)));
+alter table public.member_patch_awards add column if not exists member_id uuid;
+alter table public.member_patch_awards alter column member_id drop default;
+alter table public.member_patch_awards alter column member_id set not null;
+alter table public.member_patch_awards add column if not exists patch_name text;
+alter table public.member_patch_awards alter column patch_name drop default;
+alter table public.member_patch_awards alter column patch_name set not null;
+alter table public.member_patch_awards add column if not exists variant_name text;
+alter table public.member_patch_awards alter column variant_name drop default;
+alter table public.member_patch_awards alter column variant_name drop not null;
+alter table public.member_patch_awards add column if not exists approved_at timestamp with time zone;
+alter table public.member_patch_awards alter column approved_at drop default;
+alter table public.member_patch_awards alter column approved_at drop not null;
+alter table public.member_patch_awards add column if not exists delivered_at timestamp with time zone;
+alter table public.member_patch_awards alter column delivered_at drop default;
+alter table public.member_patch_awards alter column delivered_at drop not null;
+alter table public.member_patch_awards add column if not exists delivery_location_name text;
+alter table public.member_patch_awards alter column delivery_location_name drop default;
+alter table public.member_patch_awards alter column delivery_location_name drop not null;
+alter table public.member_patch_awards add column if not exists created_at timestamp with time zone default now();
+alter table public.member_patch_awards alter column created_at set default now();
+alter table public.member_patch_awards alter column created_at set not null;
+alter table public.member_patch_awards add column if not exists updated_at timestamp with time zone default now();
+alter table public.member_patch_awards alter column updated_at set default now();
+alter table public.member_patch_awards alter column updated_at set not null;
+alter table public.member_patch_awards add constraint member_patch_awards_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.member_patch_awards add constraint member_patch_awards_inventory_location_id_fkey FOREIGN KEY (inventory_location_id) REFERENCES inventory_locations(id) ON DELETE SET NULL;
+alter table public.member_patch_awards add constraint member_patch_awards_member_id_fkey FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE;
+alter table public.member_patch_awards add constraint member_patch_awards_product_id_fkey FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT;
+alter table public.member_patch_awards add constraint member_patch_awards_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'delivered'::text, 'cancelled'::text])));
+alter table public.member_patch_awards add constraint member_patch_awards_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES product_variants(id) ON DELETE RESTRICT;
+alter table public.member_status_history add column if not exists member_id uuid;
+alter table public.member_status_history alter column member_id drop default;
+alter table public.member_status_history alter column member_id set not null;
+alter table public.member_status_history add column if not exists changed_by uuid default auth.uid();
+alter table public.member_status_history alter column changed_by set default auth.uid();
+alter table public.member_status_history alter column changed_by drop not null;
+alter table public.member_status_history add column if not exists notes text;
+alter table public.member_status_history alter column notes drop default;
+alter table public.member_status_history alter column notes drop not null;
+alter table public.member_status_history add constraint member_status_history_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.member_status_history add constraint member_status_history_member_id_fkey FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE;
+alter table public.member_timeline add column if not exists member_id uuid;
+alter table public.member_timeline alter column member_id drop default;
+alter table public.member_timeline alter column member_id set not null;
+alter table public.member_timeline add column if not exists event_type text;
+alter table public.member_timeline alter column event_type drop default;
+alter table public.member_timeline alter column event_type set not null;
+alter table public.member_timeline add column if not exists event_date date default CURRENT_DATE;
+alter table public.member_timeline alter column event_date type date using event_date::date;
+alter table public.member_timeline alter column event_date set default CURRENT_DATE;
+alter table public.member_timeline alter column event_date set not null;
+alter table public.member_timeline add column if not exists visibility text default 'club'::text;
+alter table public.member_timeline alter column visibility set default 'club'::text;
+alter table public.member_timeline alter column visibility set not null;
+alter table public.member_timeline add column if not exists created_at timestamp with time zone default now();
+alter table public.member_timeline alter column created_at set default now();
+alter table public.member_timeline alter column created_at set not null;
+alter table public.member_timeline add constraint member_timeline_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.member_timeline add constraint member_timeline_member_id_fkey FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE CASCADE;
+alter table public.member_timeline add constraint member_timeline_visibility_check CHECK ((visibility = ANY (ARRAY['club'::text, 'member_private'::text, 'direction'::text])));
+alter table public.stock_lots add column if not exists quantity numeric(12,2);
+alter table public.stock_lots alter column quantity type numeric(12,2) using quantity::numeric(12,2);
+alter table public.stock_lots alter column quantity drop default;
+alter table public.stock_lots alter column quantity set not null;
+alter table public.stock_lots add column if not exists unit_cost numeric(12,2);
+alter table public.stock_lots alter column unit_cost type numeric(12,2) using unit_cost::numeric(12,2);
+alter table public.stock_lots alter column unit_cost drop default;
+alter table public.stock_lots alter column unit_cost drop not null;
+alter table public.stock_lots add column if not exists created_at timestamp with time zone default now();
+alter table public.stock_lots alter column created_at set default now();
+alter table public.stock_lots alter column created_at set not null;
+alter table public.stock_lots add column if not exists updated_at timestamp with time zone default now();
+alter table public.stock_lots alter column updated_at set default now();
+alter table public.stock_lots alter column updated_at set not null;
+alter table public.stock_reservations add column if not exists quantity numeric(12,2);
+alter table public.stock_reservations alter column quantity type numeric(12,2) using quantity::numeric(12,2);
+alter table public.stock_reservations alter column quantity drop default;
+alter table public.stock_reservations alter column quantity set not null;
+alter table public.stock_reservations add column if not exists created_at timestamp with time zone default now();
+alter table public.stock_reservations alter column created_at set default now();
+alter table public.stock_reservations alter column created_at set not null;
+alter table public.stock_reservations add column if not exists updated_at timestamp with time zone default now();
+alter table public.stock_reservations alter column updated_at set default now();
+alter table public.stock_reservations alter column updated_at set not null;
+alter table public.activity_feed add column if not exists activity_type text;
+alter table public.activity_feed alter column activity_type drop default;
+alter table public.activity_feed alter column activity_type set not null;
+alter table public.activity_feed add constraint activity_feed_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES profiles(id) ON DELETE SET NULL;
+alter table public.activity_feed add constraint activity_feed_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.audit_log add column if not exists club_id uuid;
+alter table public.audit_log alter column club_id drop default;
+alter table public.audit_log alter column club_id drop not null;
+alter table public.audit_log add column if not exists entity_type text;
+alter table public.audit_log alter column entity_type drop default;
+alter table public.audit_log alter column entity_type set not null;
+alter table public.audit_log add column if not exists action text;
+alter table public.audit_log alter column action drop default;
+alter table public.audit_log alter column action set not null;
+alter table public.audit_log add constraint audit_log_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES profiles(id);
+alter table public.audit_log add constraint audit_log_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.club_positions add column if not exists code text;
+alter table public.club_positions alter column code drop default;
+alter table public.club_positions alter column code set not null;
+alter table public.club_positions add column if not exists sort_order integer default 0;
+alter table public.club_positions alter column sort_order set default 0;
+alter table public.club_positions alter column sort_order set not null;
+alter table public.club_positions add column if not exists active boolean default true;
+alter table public.club_positions alter column active set default true;
+alter table public.club_positions alter column active set not null;
+alter table public.club_positions add constraint club_positions_club_id_code_key UNIQUE (club_id, code);
+alter table public.club_positions add constraint club_positions_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.clubs add column if not exists primary_color text default '#0C18D2'::text;
+alter table public.clubs alter column primary_color set default '#0C18D2'::text;
+alter table public.clubs alter column primary_color set not null;
+alter table public.clubs add column if not exists currency text default 'EUR'::text;
+alter table public.clubs alter column currency set default 'EUR'::text;
+alter table public.clubs alter column currency set not null;
+alter table public.clubs add column if not exists timezone text default 'Europe/Lisbon'::text;
+alter table public.clubs alter column timezone set default 'Europe/Lisbon'::text;
+alter table public.clubs alter column timezone set not null;
+alter table public.clubs add column if not exists active boolean default true;
+alter table public.clubs alter column active set default true;
+alter table public.clubs alter column active set not null;
+alter table public.clubs add column if not exists updated_at timestamp with time zone default now();
+alter table public.clubs alter column updated_at set default now();
+alter table public.clubs alter column updated_at set not null;
+CREATE TRIGGER clubs_set_updated_at BEFORE UPDATE ON public.clubs FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+alter table public.cost_centers add column if not exists active boolean default true;
+alter table public.cost_centers alter column active set default true;
+alter table public.cost_centers alter column active set not null;
+alter table public.cost_centers add constraint cost_centers_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.cost_centers add constraint cost_centers_club_id_name_key UNIQUE (club_id, name);
+alter table public.documents add column if not exists sensitive boolean default false;
+alter table public.documents alter column sensitive set default false;
+alter table public.documents alter column sensitive set not null;
+alter table public.documents add column if not exists linked_entity_type text;
+alter table public.documents alter column linked_entity_type drop default;
+alter table public.documents alter column linked_entity_type drop not null;
+alter table public.documents add column if not exists linked_entity_id uuid;
+alter table public.documents alter column linked_entity_id drop default;
+alter table public.documents alter column linked_entity_id drop not null;
+alter table public.documents add column if not exists created_at timestamp with time zone default now();
+alter table public.documents alter column created_at set default now();
+alter table public.documents alter column created_at set not null;
+alter table public.documents add column if not exists status text default 'active'::text;
+alter table public.documents alter column status set default 'active'::text;
+alter table public.documents alter column status set not null;
+alter table public.documents add column if not exists tags text;
+alter table public.documents alter column tags drop default;
+alter table public.documents alter column tags drop not null;
+alter table public.documents add constraint documents_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.documents add constraint documents_created_by_fkey FOREIGN KEY (created_by) REFERENCES profiles(id);
+alter table public.documents add constraint documents_event_id_fkey FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL;
+alter table public.documents add constraint documents_owner_profile_id_fkey FOREIGN KEY (owner_profile_id) REFERENCES profiles(id) ON DELETE SET NULL;
+alter table public.events add column if not exists status event_status default 'draft'::event_status;
+alter table public.events alter column status drop default;
+alter table public.events alter column status type event_status using status::event_status;
+alter table public.events alter column status set default 'draft'::event_status;
+alter table public.events alter column status set not null;
+alter table public.events add column if not exists created_at timestamp with time zone default now();
+alter table public.events alter column created_at set default now();
+alter table public.events alter column created_at set not null;
+alter table public.events add column if not exists updated_at timestamp with time zone default now();
+alter table public.events alter column updated_at set default now();
+alter table public.events alter column updated_at set not null;
+alter table public.events add constraint events_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+CREATE TRIGGER events_set_updated_at BEFORE UPDATE ON public.events FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+alter table public.fee_obligations add column if not exists amount numeric(12,2);
+alter table public.fee_obligations alter column amount drop default;
+alter table public.fee_obligations alter column amount set not null;
+alter table public.fee_obligations add column if not exists paid_amount numeric(12,2) default 0;
+alter table public.fee_obligations alter column paid_amount set default 0;
+alter table public.fee_obligations alter column paid_amount set not null;
+alter table public.fee_obligations add column if not exists status fee_status default 'pending'::fee_status;
+alter table public.fee_obligations alter column status drop default;
+alter table public.fee_obligations alter column status type fee_status using status::fee_status;
+alter table public.fee_obligations alter column status set default 'pending'::fee_status;
+alter table public.fee_obligations alter column status set not null;
+alter table public.fee_obligations add column if not exists created_at timestamp with time zone default now();
+alter table public.fee_obligations alter column created_at set default now();
+alter table public.fee_obligations alter column created_at set not null;
+alter table public.fee_payment_allocations add column if not exists amount numeric(12,2);
+alter table public.fee_payment_allocations alter column amount drop default;
+alter table public.fee_payment_allocations alter column amount set not null;
+alter table public.fee_payment_allocations add column if not exists created_at timestamp with time zone default now();
+alter table public.fee_payment_allocations alter column created_at set default now();
+alter table public.fee_payment_allocations alter column created_at set not null;
+alter table public.fee_payment_allocations add column if not exists updated_at timestamp with time zone default now();
+alter table public.fee_payment_allocations alter column updated_at set default now();
+alter table public.fee_payment_allocations alter column updated_at set not null;
+alter table public.fee_payments add column if not exists transaction_id uuid;
+alter table public.fee_payments alter column transaction_id drop default;
+alter table public.fee_payments alter column transaction_id set not null;
+alter table public.fee_payments add column if not exists amount numeric(12,2);
+alter table public.fee_payments alter column amount drop default;
+alter table public.fee_payments alter column amount set not null;
+alter table public.fee_payments add column if not exists status text default 'confirmed'::text;
+alter table public.fee_payments alter column status set default 'confirmed'::text;
+alter table public.fee_payments alter column status set not null;
+alter table public.fee_plans add column if not exists amount numeric(12,2);
+alter table public.fee_plans alter column amount drop default;
+alter table public.fee_plans alter column amount set not null;
+alter table public.fee_plans add column if not exists frequency text;
+alter table public.fee_plans alter column frequency drop default;
+alter table public.fee_plans alter column frequency set not null;
+alter table public.fee_plans add column if not exists active boolean default true;
+alter table public.fee_plans alter column active set default true;
+alter table public.fee_plans alter column active set not null;
+alter table public.fee_plans add column if not exists created_at timestamp with time zone default now();
+alter table public.fee_plans alter column created_at set default now();
+alter table public.fee_plans alter column created_at set not null;
+alter table public.fee_plans add constraint fee_plans_amount_check CHECK ((amount >= (0)::numeric));
+alter table public.fee_plans add constraint fee_plans_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.fee_plans add constraint fee_plans_frequency_check CHECK ((frequency = ANY (ARRAY['monthly'::text, 'quarterly'::text, 'annual'::text, 'custom'::text])));
+alter table public.member_positions add column if not exists member_id uuid;
+alter table public.member_positions alter column member_id drop default;
+alter table public.member_positions alter column member_id set not null;
+alter table public.member_positions add column if not exists position_id uuid;
+alter table public.member_positions alter column position_id drop default;
+alter table public.member_positions alter column position_id set not null;
+alter table public.member_positions add column if not exists is_primary boolean default false;
+alter table public.member_positions alter column is_primary set default false;
+alter table public.member_positions alter column is_primary set not null;
+alter table public.member_positions add column if not exists created_at timestamp with time zone default now();
+alter table public.member_positions alter column created_at set default now();
+alter table public.member_positions alter column created_at set not null;
+alter table public.member_positions add constraint member_positions_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.member_positions add constraint member_positions_member_id_position_id_starts_at_key UNIQUE (member_id, position_id, starts_at);
+alter table public.members add column if not exists status member_status default 'active'::member_status;
+alter table public.members alter column status drop default;
+alter table public.members alter column status type member_status using status::member_status;
+alter table public.members alter column status set default 'active'::member_status;
+alter table public.members alter column status set not null;
+alter table public.members add column if not exists photo_path text;
+alter table public.members alter column photo_path drop default;
+alter table public.members alter column photo_path drop not null;
+alter table public.members add column if not exists updated_at timestamp with time zone default now();
+alter table public.members alter column updated_at set default now();
+alter table public.members alter column updated_at set not null;
+alter table public.members add column if not exists motorcycle text;
+alter table public.members alter column motorcycle drop default;
+alter table public.members alter column motorcycle drop not null;
+alter table public.members add column if not exists registration text;
+alter table public.members alter column registration drop default;
+alter table public.members alter column registration drop not null;
+alter table public.members add constraint members_club_id_member_number_key UNIQUE (club_id, member_number);
+CREATE TRIGGER members_set_updated_at BEFORE UPDATE ON public.members FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+alter table public.notifications add constraint notifications_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.product_variants add column if not exists product_id uuid;
+alter table public.product_variants alter column product_id drop default;
+alter table public.product_variants alter column product_id set not null;
+alter table public.product_variants add column if not exists active boolean default true;
+alter table public.product_variants alter column active set default true;
+alter table public.product_variants alter column active set not null;
+alter table public.product_variants add column if not exists minimum_stock numeric(12,2) default 0;
+alter table public.product_variants alter column minimum_stock set default 0;
+alter table public.product_variants alter column minimum_stock set not null;
+alter table public.product_variants add column if not exists cost numeric(12,2);
+alter table public.product_variants alter column cost drop default;
+alter table public.product_variants alter column cost drop not null;
+alter table public.product_variants add column if not exists sale_price numeric(12,2);
+alter table public.product_variants alter column sale_price drop default;
+alter table public.product_variants alter column sale_price drop not null;
+alter table public.products add column if not exists active boolean default true;
+alter table public.products alter column active set default true;
+alter table public.products alter column active set not null;
+alter table public.products add column if not exists created_at timestamp with time zone default now();
+alter table public.products alter column created_at set default now();
+alter table public.products alter column created_at set not null;
+alter table public.products add constraint products_club_id_fkey FOREIGN KEY (club_id) REFERENCES clubs(id) ON DELETE CASCADE;
+alter table public.profiles add column if not exists id uuid;
+alter table public.profiles alter column id drop default;
+alter table public.profiles alter column id set not null;
+alter table public.profiles add column if not exists active boolean default true;
+alter table public.profiles alter column active set default true;
+alter table public.profiles alter column active set not null;
+alter table public.profiles add column if not exists updated_at timestamp with time zone default now();
+alter table public.profiles alter column updated_at set default now();
+alter table public.profiles alter column updated_at set not null;
+CREATE TRIGGER profiles_set_updated_at BEFORE UPDATE ON public.profiles FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+alter table public.stock_movements add column if not exists quantity numeric(12,2);
+alter table public.stock_movements alter column quantity drop default;
+alter table public.stock_movements alter column quantity set not null;
+alter table public.stock_movements add column if not exists unit_cost numeric(12,2);
+alter table public.stock_movements alter column unit_cost drop default;
+alter table public.stock_movements alter column unit_cost drop not null;
+alter table public.stock_movements add column if not exists created_at timestamp with time zone default now();
+alter table public.stock_movements alter column created_at set default now();
+alter table public.stock_movements alter column created_at set not null;
+alter table public.maintenance_records drop constraint fk_maintenance_records_motorcycle_id;
+commit;

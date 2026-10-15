@@ -1,0 +1,55 @@
+name: Flutter CI
+
+on:
+  push:
+    branches: [main, fase2-integral, rc1-rebuild]
+  pull_request:
+    branches: [main, fase2-integral]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - run: flutter analyze
+
+      - run: flutter test
+
+      - name: Test explicit Euromillions contracts (mock HTTP only)
+        run: >-
+          flutter test test/lottery_read_write_split_test.dart test/lottery_screen_split_test.dart
+          --dart-define=SUPABASE_URL=https://example.supabase.co
+          --dart-define=SUPABASE_PUBLISHABLE_KEY=test-key
+
+      - name: Build Flutter Web
+        run: flutter build web --release --dart-define=DEMO_MODE=true
+
+      - name: Test own-profile v2 contract (mock HTTP only)
+        run: >-
+          flutter test test/self_profile_phase2c4_test.dart
+          --dart-define=SUPABASE_URL=https://example.supabase.co
+          --dart-define=SUPABASE_PUBLISHABLE_KEY=test-key
+
+      - name: Test explicit fee preparation (mock HTTP only)
+        run: >-
+          flutter test test/fees_phase2c5_test.dart
+          --dart-define=SUPABASE_URL=https://example.supabase.co
+          --dart-define=SUPABASE_PUBLISHABLE_KEY=test-key
+
+      - name: Test active membership personal contracts (mock HTTP only)
+        run: >-
+          flutter test test/active_membership_phase2c6_test.dart
+          --dart-define=SUPABASE_URL=https://example.supabase.co
+          --dart-define=SUPABASE_PUBLISHABLE_KEY=test-key

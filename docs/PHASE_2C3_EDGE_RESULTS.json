@@ -1,0 +1,14 @@
+{
+  "status": "passed",
+  "checks": [
+    "Missing identity rejected before any data access",
+    "Viewer cannot import",
+    "Server checks manageLottery",
+    "Past import rejected server-side",
+    "Past import never requests privileged credentials",
+    "Invalid year rejected",
+    "Manager may explicitly request a future month (no completed draws)",
+    "Empty future month does not use privileged processing"
+  ],
+  "network": "mocked; no real HTTP"
+}
