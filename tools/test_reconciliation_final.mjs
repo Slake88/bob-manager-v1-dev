@@ -1,0 +1,57 @@
+// Fixed loopback; disposable production schema catalog, separate from clean replay proof.
+import {readFileSync,writeFileSync,readdirSync} from 'node:fs';
+import {resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+import assert from 'node:assert/strict';
+import {restoreCatalog} from './restore_weekly_officer_catalog.mjs';
+const root=resolve(import.meta.dirname,'..');
+const postgres=(await import(pathToFileURL(resolve(process.argv[2])).href)).default;
+const options={host:'127.0.0.1',port:55440,user:'postgres',max:1,prepare:false,onnotice:()=>{}};
+const database='bob_final_reconciliation_'+Date.now();
+const admin=postgres({...options,database:'postgres'});await admin.unsafe(`create database ${database}`);await admin.end();
+const sql=postgres({...options,database});
+const read=p=>readFileSync(resolve(root,p),'utf8');
+const report={database,endpoint:'127.0.0.1:55440',checks:[]};
+const files=readdirSync(resolve(root,'supabase/migrations')).filter(f=>f.endsWith('.sql')).sort();
+const candidates=files.filter(f=>f>='20261014151033');
+const strip=s=>s.replace(/^begin;\s*/i,'').replace(/commit;\s*$/i,'');
+const metadata=async()=>Array.from(await sql.unsafe(`select p.oid,p.proname,p.proowner,p.proacl::text,p.provolatile,p.proconfig,pg_get_functiondef(p.oid) definition from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in('public','bob_fees_private') order by p.oid`));
+const reject=async(statement,code)=>{await sql.unsafe('savepoint rejected');let e;try{await sql.unsafe(statement);}catch(error){e=error;}await sql.unsafe('rollback to savepoint rejected');assert.equal(e?.code,code);};
+try {
+ report.catalog=await restoreCatalog({exec:s=>sql.unsafe(s),query:async(s,p=[])=>({rows:await sql.unsafe(s,p)})},JSON.parse(readFileSync(resolve(process.argv[3] ?? resolve(root,'tools/fixtures/reconciliation_catalog.json')),'utf8')));
+ await sql.unsafe(`alter table auth.users add column email text,add column raw_user_meta_data jsonb;create table storage.objects(id uuid default gen_random_uuid(),bucket_id text,name text,owner uuid,owner_id text,metadata jsonb);alter table storage.objects enable row level security;`);
+ for(const f of files.filter(f=>f>='20261013100000'&&f<'20261014141853'))await sql.unsafe(read('supabase/migrations/'+f));
+ const before=await metadata();
+ for(const f of candidates)await sql.unsafe(read('supabase/migrations/'+f));
+ const trigger=(await sql.unsafe(`select oid from pg_trigger where tgrelid='auth.users'::regclass and tgname='on_auth_user_created'`))[0].oid;
+ const indexes=Array.from(await sql.unsafe(`select indexrelid,pg_get_indexdef(indexrelid) definition from pg_index where indrelid='public.clubs'::regclass order by indexrelid`));
+ for(const f of candidates)await sql.unsafe(read('supabase/migrations/'+f));
+ assert.deepEqual(await metadata(),before);
+ assert.equal((await sql.unsafe(`select oid from pg_trigger where tgrelid='auth.users'::regclass and tgname='on_auth_user_created'`))[0].oid,trigger);
+ assert.deepEqual(Array.from(await sql.unsafe(`select indexrelid,pg_get_indexdef(indexrelid) definition from pg_index where indrelid='public.clubs'::regclass order by indexrelid`)),indexes);
+ report.checks.push('Three final candidates apply/reapply with every production function OID/owner/ACL/body/attribute and existing slug index preserved; Auth trigger created once');
+ const bootstrap=strip(read('supabase/migrations/'+candidates.find(f=>f.endsWith('_active_bootstrap.sql'))));
+ const slug=strip(read('supabase/migrations/'+candidates.find(f=>f.endsWith('_slug_uniqueness.sql'))));
+ const timeline=strip(read('supabase/migrations/'+candidates.find(f=>f.endsWith('_timeline_literal.sql'))));
+ await sql.unsafe('begin');
+ await sql.unsafe(`create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path=public as $$begin return new;end$$`);
+ await reject(bootstrap,'55000');await sql.unsafe('rollback');
+ await sql.unsafe('begin');await sql.unsafe(`create extension citext;alter table public.profiles alter column email type citext using email::citext`);await reject(bootstrap,'55000');assert.equal((await sql.unsafe(`select format_type(atttypid,atttypmod) type from pg_attribute where attrelid='public.profiles'::regclass and attname='email'`))[0].type,'citext');await sql.unsafe('rollback');
+ await sql.unsafe('begin');await sql.unsafe(`create or replace function public.member_status_timeline_trigger_v1() returns trigger language plpgsql security definer set search_path=public as $$begin return new;end$$`);await reject(timeline,'55000');await sql.unsafe('rollback');
+ report.checks.push('Unreviewed Auth/timeline bodies reject atomically; citext drift rejected and never converted');
+ await sql.unsafe('begin');await sql.unsafe(`drop trigger on_auth_user_created on auth.users;drop function public.handle_new_user();drop function public.has_club_role(uuid,text[]) cascade;`);await sql.unsafe(bootstrap);
+ assert.equal((await sql.unsafe(`select has_function_privilege('anon','public.has_club_role(uuid,text[])','execute') allowed`))[0].allowed,false);
+ assert.equal((await sql.unsafe(`select has_function_privilege('authenticated','public.has_club_role(uuid,text[])','execute') allowed`))[0].allowed,true);
+ assert.equal((await sql.unsafe(`select has_function_privilege('authenticated','public.handle_new_user()','execute') allowed`))[0].allowed,false);
+ await sql.unsafe(`insert into auth.users(id,email,raw_user_meta_data) values('00000000-0000-0000-0000-000000000010','fixture@example.invalid','{"full_name":"Synthetic","role":"super_admin"}');`);
+ assert.equal((await sql.unsafe(`select full_name from public.profiles where id='00000000-0000-0000-0000-000000000010'`))[0].full_name,'Synthetic');
+ assert.equal((await sql.unsafe(`select count(*) n from public.club_memberships`))[0].n,'0');await sql.unsafe('rollback');
+ report.checks.push('Missing active functions/trigger bootstrap with exact ACLs; onboarding metadata cannot assign club role');
+ await sql.unsafe('begin');await sql.unsafe(`alter table public.clubs drop constraint clubs_slug_key;drop index public.clubs_slug_unique_idx;insert into public.clubs(name,slug) values('Synthetic A','duplicate'),('Synthetic B','duplicate')`);await reject(slug,'23505');assert.equal((await sql.unsafe(`select count(*) n from public.clubs`))[0].n,'2');await sql.unsafe('rollback');
+ await sql.unsafe('begin');await sql.unsafe(`drop index public.clubs_slug_unique_idx;create index clubs_slug_unique_idx on public.clubs(name)`);await reject(slug,'55000');await sql.unsafe('rollback');
+ report.checks.push('Duplicate slugs and unexpected existing index reject without cleanup or partial change');
+ assert.deepEqual(await metadata(),before);
+ report.status='passed';
+}catch(e){report.status='failed';report.error={code:e.code,message:e.message,where:e.where};process.exitCode=1;}
+finally{await sql.unsafe('rollback').catch(()=>{});await sql.end();writeFileSync(resolve(root,'docs/PHASE_BASELINE_FINAL_CANDIDATES_RESULTS.json'),JSON.stringify(report,null,2)+'\n');}
+console.log(JSON.stringify(report,null,2));

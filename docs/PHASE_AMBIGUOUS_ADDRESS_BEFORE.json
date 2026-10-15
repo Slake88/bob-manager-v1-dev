@@ -1,0 +1,1 @@
+{"database":"bob_clean_rebuild_1791998747567","before":true,"status":"passed","assignment":{"code":"42804","message":"column \"address\" is of type jsonb but expression is of type text"},"emergency_assignment":{"code":"42703","message":"column \"emergency_contact\" does not exist"}}

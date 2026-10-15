@@ -199,6 +199,25 @@ begin
       r.table_name
     );
   end loop;
+  -- Reconstruction only: match captured production scope for pre-created tables.
+  execute 'drop trigger if exists trg_audit_capture_v1 on public.document_access_log';
+  execute 'drop trigger if exists trg_audit_stamp_v1 on public.document_access_log';
+  execute 'drop trigger if exists trg_audit_stamp_v1 on public.document_approvals';
+  execute 'drop trigger if exists trg_audit_stamp_v1 on public.document_links';
+  execute 'drop trigger if exists trg_audit_capture_v1 on public.document_ocr';
+  execute 'drop trigger if exists trg_audit_stamp_v1 on public.document_ocr';
+  execute 'drop trigger if exists trg_audit_stamp_v1 on public.document_versions';
+  execute 'drop trigger if exists trg_audit_stamp_v1 on public.event_program';
+  execute 'drop trigger if exists trg_audit_stamp_v1 on public.event_shift_members';
+  execute 'drop trigger if exists trg_audit_stamp_v1 on public.event_task_assignees';
+  execute 'drop trigger if exists trg_audit_capture_v1 on public.member_status_history';
+  execute 'drop trigger if exists trg_audit_stamp_v1 on public.member_status_history';
+  execute 'drop trigger if exists trg_audit_capture_v1 on public.member_timeline';
+  execute 'drop trigger if exists trg_audit_stamp_v1 on public.member_timeline';
+  execute 'drop trigger if exists trg_audit_capture_v1 on public.product_variants';
+  execute 'drop trigger if exists trg_audit_stamp_v1 on public.product_variants';
+  execute 'drop trigger if exists trg_audit_stamp_v1 on public.stock_lots';
+  execute 'drop trigger if exists trg_audit_stamp_v1 on public.stock_reservations';
 end $$;
 
 -- 6) emit_domain_event continua a alimentar Activity Feed/Notificações,

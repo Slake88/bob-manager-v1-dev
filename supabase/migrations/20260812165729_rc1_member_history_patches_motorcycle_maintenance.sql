@@ -753,6 +753,15 @@ revoke all on function public.member_motorcycle_timeline_trigger_v1() from publi
 revoke all on function public.member_maintenance_timeline_trigger_v1() from public,anon,authenticated;
 revoke all on function public.member_patch_timeline_trigger_v1() from public,anon,authenticated;
 
+-- Clean-rebuild compatibility: 1000 pre-creates these tables before global audit.
+-- Replace its generic pair with the canonical pair below, avoiding double capture.
+-- Captured production already has only the canonical pair; no incremental replay.
+drop trigger if exists trg_audit_stamp_v1 on public.maintenance_records;
+drop trigger if exists trg_audit_capture_v1 on public.maintenance_records;
+drop trigger if exists trg_audit_stamp_v1 on public.maintenance_attachments;
+drop trigger if exists trg_audit_capture_v1 on public.maintenance_attachments;
+drop trigger if exists trg_audit_stamp_v1 on public.member_patch_awards;
+drop trigger if exists trg_audit_capture_v1 on public.member_patch_awards;
 create trigger trg_audit_stamp_maintenance_records before insert or update on public.maintenance_records for each row execute function public.audit_stamp_row_v1();
 create trigger trg_audit_capture_maintenance_records after insert or update or delete on public.maintenance_records for each row execute function public.audit_capture_row_v1();
 create trigger trg_audit_stamp_maintenance_attachments before insert or update on public.maintenance_attachments for each row execute function public.audit_stamp_row_v1();

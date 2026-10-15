@@ -1,0 +1,449 @@
+{
+  "head": "de53a2945d67653a8f41cb5939175ebaa9d0e6de",
+  "scope": "Exact candidates; self hash omitted; self bytes included",
+  "status": "READY TO COMMIT",
+  "candidate_files": 89,
+  "candidate_total_bytes": 13703553,
+  "files": [
+    {
+      "path": "docs/PHASE_AMBIGUOUS_ADDRESS_BEFORE.json",
+      "bytes": 284,
+      "sha256": "431836f4b55f45b50b73764784872cf5b484a72a4fa6a37a8121d53f112d39d9"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_FUTURE_PREFLIGHT.sql",
+      "bytes": 2467,
+      "sha256": "75b4db2d1669b9c65a309d837e211bda67fa7362aab4278484f011fa5935d362"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_ACTIVE_CONTRACTS_PREFLIGHT.sql",
+      "bytes": 874,
+      "sha256": "65cc15a643e32e0df7c38604cc81bd5869071daba9422ae0794486b6c63b1519"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_COLUMN_PREFLIGHT.sql",
+      "bytes": 600,
+      "sha256": "0501aab34a5c1abc6c68e5ad5063b8209b254d82c91d4e0d86a1a662af897934"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_FINAL_CANDIDATES_RESULTS.json",
+      "bytes": 778,
+      "sha256": "df195c1071964e2b064ed5f274b0f55ca6474c48d4a7f1cf9efc9aee8f90ae19"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_MISSING_OBJECTS_PREFLIGHT.sql",
+      "bytes": 1339,
+      "sha256": "54a034e9e51f9ec8e02dfc7c73359a0c6fc4fe371cf783a9829f4900bed1ee5c"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_MISSING_OBJECTS_SNAPSHOT.json",
+      "bytes": 21226,
+      "sha256": "80d6f7dfce68cb6b4dbbf4db6021ada33941e3c76fff6ba74849f4c97e565702"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_ORIGINAL_REBUILD_RESULTS.json",
+      "bytes": 633,
+      "sha256": "42b54dde5024a4c9e6feb0845c126bf4befccec89a6d0df789428da397f6aa74"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_REBUILD_ATTEMPTS.json",
+      "bytes": 1419086,
+      "sha256": "e9ae7d4560995aff51c307aa7d2ca4c47936a28a18ae6c19bdd2a279201a196a"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_REBUILD_RESULTS.json",
+      "bytes": 23030,
+      "sha256": "136a4f6ce2fbb3dcce14c3823f49abecdb180d8417849e699a1df35955ab47aa"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_STRICT_REBUILD_RESULTS.json",
+      "bytes": 7260,
+      "sha256": "6e25891455b0ac9b162bf0f83ee3bcfcdae53a4c77ff627d299e46df66243522"
+    },
+    {
+      "path": "docs/PHASE_FINAL_CONTRACTS_BEFORE.json",
+      "bytes": 1495,
+      "sha256": "61067a11925b54664d13f0022b69e631c9bde48a1245bff1adc7691501f23685"
+    },
+    {
+      "path": "docs/PHASE_FINAL_EVENT_POLICIES.json",
+      "bytes": 131827,
+      "sha256": "6f9a3947739b31d37aa8beb4de192ba0d10e07d847a5498cdd4518b6800712a0"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_BEFORE_DATABASE.json",
+      "bytes": 23030,
+      "sha256": "6ff7a76b98d033c9f675f0b1bffb8eb745f455c24a4b41cf9643c2578a1ab425"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_DRIFT_CLASSIFICATION.json",
+      "bytes": 20061,
+      "sha256": "c3f47d133979bd940491a1e78221c6bb3cd3387e2ee903bf0214eb425dc5f7f3"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_BASELINE_PATCH.sql",
+      "bytes": 70506,
+      "sha256": "09a54e2ecf6066f241e30b7d6bd295bfa88603f7d5f355b2bfdfbb4b697b637c"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_CATALOG_DELTA.json",
+      "bytes": 99583,
+      "sha256": "3b4aaaced4966926b3e13dd4012fa6bfb347b6b90932781799b89c117aab0c34"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_EDITS.json",
+      "bytes": 129882,
+      "sha256": "67a180b939c580df4d6fab69ffeca466f942e2d88ac36762849478e0c436b7aa"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_CLOSURE_BEFORE.json",
+      "bytes": 147702,
+      "sha256": "7c3b0917630e785c3c448b904d7f37626ce279a6a8b9f0b868b1554c21f923e3"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_CLOSURE_CATALOG_RESULTS.json",
+      "bytes": 1538615,
+      "sha256": "48e1e5f24b3736dfd8ff9a686d3982afdfc4a2315a865fc8ebabe0b9d5c2f928"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_CLOSURE_RESULTS.json",
+      "bytes": 1539505,
+      "sha256": "06dd5148799c3d8b0df3147560dc623ac0f9bc6227c4a36e2bcb631364a12840"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_CLOSURE_REVIEW.md",
+      "bytes": 5076,
+      "sha256": "82b8da1f825e836b80c81243ae311a9ebe020a55a4d822132360f243b702f386"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_INVENTORY.json",
+      "bytes": 947193,
+      "sha256": "4f7b0c6ab35ffff334660ca20a8cccfbea8fdd8859d23e9a9c75de2bda3bf933"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_LOCAL_SNAPSHOT.json",
+      "bytes": 1431546,
+      "sha256": "ea8e69e043979fd728fed87b891b1c43282a23189851d21ba26057aa5816d8f5"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_SEMANTIC_CLASSIFICATION.json",
+      "bytes": 1365257,
+      "sha256": "d170eedcc72b81446b2bfab9be676952b0f2c97c49c966cd1f4a49f359a40f7c"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_TRIGGER_EFFECTS.json",
+      "bytes": 33403,
+      "sha256": "52630e9575888c1a5596dfb3156cb3f2706f85b531fbb9f8a425bc09fc40deb5"
+    },
+    {
+      "path": "docs/PHASE_POLICY_DOCUMENTS_SQL_RESULTS.json",
+      "bytes": 2925,
+      "sha256": "28231b10db1e8b7a1c8d2f88293be369a6648a2dc97d25ce01bb6849d7f4eaa7"
+    },
+    {
+      "path": "docs/PHASE_POLICY_HARDENING_PREFLIGHT.sql",
+      "bytes": 2633,
+      "sha256": "167c4b68f3c0b4a8cf34f5d57ca2218839404722b8b6f02e6b8bcb972ad38ce1"
+    },
+    {
+      "path": "docs/PHASE_POLICY_HARDENING_RESULTS.json",
+      "bytes": 53630,
+      "sha256": "9b2b9355e683f98879d481259577b4844c1387fe46d4ddba4b22260fca6bc38a"
+    },
+    {
+      "path": "docs/PHASE_POLICY_STRUCTURAL_SQL_RESULTS.json",
+      "bytes": 1464,
+      "sha256": "5aa732446c37ff02366289d0e67d4af1e4f98e37d42999e10c9258caff75c76c"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_COMMIT_ALLOWLIST.txt",
+      "bytes": 4184,
+      "sha256": "77a3946aa16b157081af7f77a528c3c407701a0f97a5729c82d71ec0bf47af7a"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_COMMIT_EXCLUSIONS.txt",
+      "bytes": 10616,
+      "sha256": "1d31b3b12af2d8b6986d62c1f3389cf114823daf3979cabdd6ca3d0e019c0adc"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_COMMIT_READINESS.md",
+      "bytes": 3749,
+      "sha256": "347a0ce0fe57a3dbee9b2a267967b929e4e5e7c4f1e184defefc055bc2500198"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_LOCAL_SNAPSHOT.json",
+      "bytes": 1080585,
+      "sha256": "eaa772ed9cd11a70f0643978cf3734b7e1443ca61c3b2de83aaa505de6a7ac11"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_PREFLIGHT_RESULTS.json",
+      "bytes": 252,
+      "sha256": "cbd984a853c5fe80bbf6cc8eb46f041b439278e5beae68ba808e539c8e1462b1"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_FINAL_CLASSIFICATION_COMPACT.json",
+      "bytes": 137620,
+      "sha256": "567ca7504f649b38057a89c2029f7ae30afbeadcd48f8ade28c82f15c9efa79d"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_FINAL_INCREMENTAL_PREFLIGHT.sql",
+      "bytes": 6532,
+      "sha256": "dcbfab0517a3977c20d05105daa3a85780d0284a89e311f4e81201160f63ee67"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_FOLLOWUP_PREFLIGHT.sql",
+      "bytes": 1821,
+      "sha256": "13992a1a9239a3cef22fe71e86ddcc06812f102f7603f61633436dfc5c9b2d8c"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_ORIGINAL_EVIDENCE_INDEX.json",
+      "bytes": 87948,
+      "sha256": "0ca557cfe571f0a884ed1be995dc18261f846000226dcc33290a7ca02c53118d"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_PII_SCAN_RESULTS.json",
+      "bytes": 23666,
+      "sha256": "df724b5549af8412749e68e61b3a537ae33fc349f4119fd942677541c90ae01d"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_PREFLIGHT.sql",
+      "bytes": 5704,
+      "sha256": "2b4a574b5193c2b54044cee7b4c2003d0a5bd4217d6130adb63871bc23aece60"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_PRODUCTION_SNAPSHOT.json",
+      "bytes": 150997,
+      "sha256": "9f8c2841ce498f3c085530d99e02d96b24d7952dbaebb7df6c380faf8f2670cd"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_REPOSITORY_INVENTORY.json",
+      "bytes": 523545,
+      "sha256": "47eb73aad10c8c8bfc7dae3a3dbef0a35523839906e41bbd69dc74bbe6187527"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_REPRODUCIBILITY_RESULTS.json",
+      "bytes": 6925,
+      "sha256": "82f29c2b71febe4fe68fcabddd85bde13a0daf7df3350b9d966927bfe7ef1db5"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_SANITIZATION_REVIEW.md",
+      "bytes": 2001,
+      "sha256": "f944c45cbee0ebcdb3a7b10440bcdd4d30077fa068e38ec43e0292cfe4163b88"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_SANITIZATION_SCAN.json",
+      "bytes": 8093,
+      "sha256": "e2530e1b3b7d2be9c27f6c6f525fd30a04d190ebdd5e5ca4ed165dbed9ee344a"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_SQL_RESULTS.json",
+      "bytes": 1200,
+      "sha256": "84d4ad040b6411f43f3325138db33609ee71c6ce038229147ed17a8134478b28"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_SUPPLEMENTAL_PREFLIGHT.sql",
+      "bytes": 1326,
+      "sha256": "62bd03fd9d800d1ff42dd80f9ae9a52a65ffc2d86a9fdcbd313f3a685f0597fc"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_BLOCKERS_AFTER.json",
+      "bytes": 1672,
+      "sha256": "1486524bd24e56abdba159ec2178ff79eaa0c0cdb8f717ec10b18809e7ccfa23"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_BLOCKERS_BEFORE.json",
+      "bytes": 1566,
+      "sha256": "0e8b09a4964aeb0f9b7e5a7b135cd4ef292515e2150e93c358b069bb9720f46b"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "bytes": 31895,
+      "sha256": "37c53b8b3f05fb9338518c035b1b02470a089ad1114427d9b7ae10d48caadc5a"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_PREFLIGHT.sql",
+      "bytes": 2332,
+      "sha256": "e2b1b57fafc8786428b3f6a11f6f5a5895c345c4271f3e09a3add7154563ec4a"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_PRODUCTION_SNAPSHOT.json",
+      "bytes": 785964,
+      "sha256": "26747ed8f065962dce165fd1f11f6b984c9d01f9d60d537111d24cdff49403f5"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_SQL_RESULTS.json",
+      "bytes": 785,
+      "sha256": "adcc5b0e2ab81dccbbd92d6a11494f3d6c21c011a805023a62b37ef19dd7432b"
+    },
+    {
+      "path": "supabase/migrations/1000_bob_manager_v1_complete.sql",
+      "bytes": 268901,
+      "sha256": "ef155d5c3ea1619ae6371ca8c43a78febee695725d8926e1949c4a0e745a9298"
+    },
+    {
+      "path": "supabase/migrations/20260806144500_rc1_treasury_rls_consolidation.sql",
+      "bytes": 4755,
+      "sha256": "0646f86e6b63e71d6049ade8dc626f56c64bbe3eb6d5fa1209cb6374920716f9"
+    },
+    {
+      "path": "supabase/migrations/20260806183000_rc1_global_security_audit.sql",
+      "bytes": 5040,
+      "sha256": "24259fd2a1a360ba0f8b8f5926e3d4bf723ab6cdf407a67522c8d66c761f5489"
+    },
+    {
+      "path": "supabase/migrations/20260811160313_rc1_global_audit_foundation.sql",
+      "bytes": 14609,
+      "sha256": "9945f385d492016e176e41b4594b13501fb62af1577b17bba7e9be3c9cf37c8a"
+    },
+    {
+      "path": "supabase/migrations/20260812165729_rc1_member_history_patches_motorcycle_maintenance.sql",
+      "bytes": 40472,
+      "sha256": "463f273432749631ff141f7f5fa7906fb28e8edd4d3651031269ac6c23c6fe0c"
+    },
+    {
+      "path": "supabase/migrations/20261014141853_rc1_reconciliation_identity_nullability.sql",
+      "bytes": 1264,
+      "sha256": "0a8e0e46c9be26a0db9dc3bfee7466f525af00275cf0dc944fbe1791c161a057"
+    },
+    {
+      "path": "supabase/migrations/20261014141913_rc1_reconciliation_club_access.sql",
+      "bytes": 1548,
+      "sha256": "34c396ddd9c75d9089bca2d5f9d1d5f9dbc926fc2830fa44e43b7925d42c3987"
+    },
+    {
+      "path": "supabase/migrations/20261014151033_rc1_reconciliation_active_bootstrap.sql",
+      "bytes": 5271,
+      "sha256": "ddca51612ed7de71944be313199ccc4d0819e11406acaeb00600f41f97d69eef"
+    },
+    {
+      "path": "supabase/migrations/20261014151034_rc1_reconciliation_slug_uniqueness.sql",
+      "bytes": 1626,
+      "sha256": "7a92ac430a1b4a7a0588abaf1002a6696a2196fd2b598ab650d88f94fbfdc946"
+    },
+    {
+      "path": "supabase/migrations/20261014151050_rc1_reconciliation_timeline_literal.sql",
+      "bytes": 3215,
+      "sha256": "7db94dcafb395fd86e2d3f73afe5a833990b51b41e960cd78d50bca1baca35f1"
+    },
+    {
+      "path": "tools/fixtures/reconciliation_catalog.json",
+      "bytes": 1267108,
+      "sha256": "f530a72d2f42b40e5fa58cb792ab066853e95e79f6a3ddfc6661a0431657f26d"
+    },
+    {
+      "path": "tools/fixtures/reconciliation_catalog.provenance.json",
+      "bytes": 717,
+      "sha256": "a275a91e7291eb59515acfe32c7ef173afdce738f01579c4e81f05b4f31a0cf6"
+    },
+    {
+      "path": "tools/run_reconciliation_suite.mjs",
+      "bytes": 3619,
+      "sha256": "aedee0417bc710e03a3ded5561e56a1590a778e59f06ed3ffe16c5f41a0b8dae"
+    },
+    {
+      "path": "tools/sanitize_catalog.mjs",
+      "bytes": 560,
+      "sha256": "d1106d0b0e525b74f1e8f0600392d7bec2176f91efda1411f86bc2ef80d63270"
+    },
+    {
+      "path": "tools/test_ambiguous_address.mjs",
+      "bytes": 3457,
+      "sha256": "c87aad5b209e14b54141d752a9d56bf55c50add3ecd5c23d64045a156194f538"
+    },
+    {
+      "path": "tools/test_ambiguous_override.mjs",
+      "bytes": 4123,
+      "sha256": "5a7abdcebbc966c96e958f3191312d4ec5046a73d33a588f8f72e0a8bae61deb"
+    },
+    {
+      "path": "tools/test_clean_rebuild.mjs",
+      "bytes": 14831,
+      "sha256": "06ecc3d5ec3e6ef5446b21ad6ff0596b5c7bd94c0afefc3bffa46d1f7c6d7be8"
+    },
+    {
+      "path": "tools/test_consolidated_preflight.mjs",
+      "bytes": 1176,
+      "sha256": "a12174c5be7252bcba3fbda953a00bcbb2a6e90e26e119d74078137bff93d669"
+    },
+    {
+      "path": "tools/test_consolidated_writers.mjs",
+      "bytes": 3653,
+      "sha256": "d6d0ad610d9ac1e45387ba880bb4c2411f6438f17ea06a5a247ba62d4543c659"
+    },
+    {
+      "path": "tools/test_final_contracts.mjs",
+      "bytes": 8313,
+      "sha256": "6f32e4af49cd0fc4a0feae8baaab060251a366a267bd7d41a6ceffd90a7e634b"
+    },
+    {
+      "path": "tools/test_final_event_policies.mjs",
+      "bytes": 5409,
+      "sha256": "543ddf85fc693911c06c36547ad175a18deb50b7b82036ce4755bcf37be62c5f"
+    },
+    {
+      "path": "tools/test_final_policies.mjs",
+      "bytes": 8785,
+      "sha256": "340a45f3c9d598abb9742d0898028c86379f9a83a83185df16cea1eaaebdf232"
+    },
+    {
+      "path": "tools/test_grouped_fees.mjs",
+      "bytes": 7908,
+      "sha256": "78cb1e976037c21fc78c016a7a7ac17ec4fa59b0aeb3567ac98edf7a18d939a2"
+    },
+    {
+      "path": "tools/test_grouped_memberships.mjs",
+      "bytes": 4278,
+      "sha256": "7f8edc5641685af35e4d965a70346beda98e75dcbb6cca2f67dce11972b3c7d2"
+    },
+    {
+      "path": "tools/test_grouped_operations.mjs",
+      "bytes": 6376,
+      "sha256": "770bb20eb9f169d4516c847fa9d8abc9b3e0fb17c81124ea1a5f5653af0487c4"
+    },
+    {
+      "path": "tools/test_high_risk.mjs",
+      "bytes": 16326,
+      "sha256": "ae031c98cd384769cd579b3961c00eab1cd8a19e6af43b9f9ceef0faccfe61b5"
+    },
+    {
+      "path": "tools/test_high_risk_closure.mjs",
+      "bytes": 3816,
+      "sha256": "24d6551eb39a6f8944b518b0188a587f7e2493aa592f3e0abf3f75528ad9262b"
+    },
+    {
+      "path": "tools/test_policy_documents.mjs",
+      "bytes": 7049,
+      "sha256": "e9b22ff5a2d81b412054b0f3c03342bf563376d6acaf7be2ed47d39a220fb76b"
+    },
+    {
+      "path": "tools/test_policy_hardening.mjs",
+      "bytes": 11413,
+      "sha256": "18b3194f3e8b6409d6c7ad29ba9c6145e199651ae26ff617f5c3b4c75cd9c266"
+    },
+    {
+      "path": "tools/test_policy_structural_contracts.mjs",
+      "bytes": 15332,
+      "sha256": "663669d26e2d4c87d76558c101cc678a3e6dab0cff472cdd00ca5eca78175486"
+    },
+    {
+      "path": "tools/test_reconciliation.mjs",
+      "bytes": 10468,
+      "sha256": "3d91bee94751b30a322063062d7f8acc21f8c0bf820bee696348a9f0a4defaba"
+    },
+    {
+      "path": "tools/test_reconciliation_final.mjs",
+      "bytes": 7165,
+      "sha256": "f4c5f79c4ee634ac59d470f5e189512de54dd1d05cdef5d72a24495afea49cf5"
+    },
+    {
+      "path": "tools/test_structural_blockers.mjs",
+      "bytes": 18844,
+      "sha256": "dae2578114ee46b27747da65d78d59620bc653b5e56d391ba72903b5779aeb53"
+    },
+    {
+      "path": "tools/test_structural_drift.mjs",
+      "bytes": 5668,
+      "sha256": "a164e3e8737f1e62d37c0f2cc22860b3b31f292207e093dd3e2925c37d546327"
+    }
+  ]
+}

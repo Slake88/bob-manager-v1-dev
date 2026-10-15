@@ -1,0 +1,2161 @@
+{
+  "scope": "Original local evidence; omitted content preserved outside checkout. Original hashes are not hashes of sanitized files.",
+  "files": [
+    {
+      "path": "apps/mobile/windows/flutter/generated_plugin_registrant.cc",
+      "bytes": 1118,
+      "sha256": "ebd4b202fbcf73f1dd5789c17180791a6b3bd1b9c4f3300324ce28fd88256b25",
+      "disposition": "excluded",
+      "reason": "generated platform output"
+    },
+    {
+      "path": "apps/mobile/windows/flutter/generated_plugin_registrant.h",
+      "bytes": 302,
+      "sha256": "dbc11635d7b1ba1887adf40df5b83d634e9c3ab0bee34510c71528bb4d73602a",
+      "disposition": "excluded",
+      "reason": "generated platform output"
+    },
+    {
+      "path": "apps/mobile/windows/flutter/generated_plugins.cmake",
+      "bytes": 848,
+      "sha256": "57b31719495f11fad387f8410d1336d4f4b79e638f322ff5363dcb9a8b19b272",
+      "disposition": "excluded",
+      "reason": "generated platform output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_ADDRESS_AFTER.json",
+      "bytes": 276,
+      "sha256": "23cfef16f1ab477df5126479fa647ba5177c26a832a5540559461129fa6b56dc",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_ADDRESS_BEFORE.json",
+      "bytes": 335,
+      "sha256": "9571b7439f0dbd9eb45793cc04dd0a1b92e68d16e986860d5141152f301f80db",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_ANALYZE.log",
+      "bytes": 99,
+      "sha256": "9e3e2f781fcfc11596565934f59e199cef773508f6de065768963fbf855a1b1c",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_CATALOG_DELTA.json",
+      "bytes": 589,
+      "sha256": "c4f0137a4643ef06eb9a37c177103135348a5c3abab4f49a937d06bbcff0c2a1",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_CHANGE_MANIFEST.json",
+      "bytes": 8001,
+      "sha256": "d09f0ac18f795fe1607759361328a31943960ed9e9b71aa59fb1cf8da322e0b3",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_CONTRACTS.log",
+      "bytes": 10255,
+      "sha256": "f410141c78c290819c69ae46314d0a50e6ff956eaa1a8966f224bc97312edc12",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_DIFF_CHECK.log",
+      "bytes": 467,
+      "sha256": "79186233803cb4d793a82332179cdeaaaa92444e5d7586998a51577d3803e897",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_DRIFT_CLASSIFICATION.json",
+      "bytes": 9171073,
+      "sha256": "7d0c8b55cfeefb5b99b556f8f4186c4b1f5484b9b3ebd2c6cf0d655b09dfba81",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_DRIFT_REVIEW.md",
+      "bytes": 12899,
+      "sha256": "37b909b406b931379693764bfbb1d4b59c09755dcd8d20bde6b545eb7d28aca4",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_FLUTTER_RESULTS.json",
+      "bytes": 75,
+      "sha256": "cf9c3d0db2f6949d8fc27918856f1969d91d83f37d8ecf84785a84f8da28ae2d",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_FLUTTER_TEST.log",
+      "bytes": 75060,
+      "sha256": "00e328f469899423764eaa3ba361df3b75344db623052e432d4ee49d51174ad2",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_FUTURE_PREFLIGHT.sql",
+      "bytes": 2467,
+      "sha256": "75b4db2d1669b9c65a309d837e211bda67fa7362aab4278484f011fa5935d362",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_GITHUB_SEARCH.json",
+      "bytes": 813,
+      "sha256": "411403ca683bde03076a61972143b324acdbd313b4489db1e122f55aca861d87",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_LEGACY_INVENTORY.json",
+      "bytes": 15425,
+      "sha256": "800b7d4f61a212d73671bb6245e7f76a9f63dec960c3af14dfa89ccd0f50a795",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_LOCAL_SNAPSHOT.json",
+      "bytes": 1427451,
+      "sha256": "720d30db650187a263b1679014d6c11623b603d25aec6ad45cae940ccab23e06",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_OVERRIDE_AFTER.json",
+      "bytes": 247,
+      "sha256": "5abd37ff5b9849fa3e3be6f3ce57436b98da8e7e2e7bf1a182cadf0d93d8667f",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_OVERRIDE_BEFORE.json",
+      "bytes": 153,
+      "sha256": "413539962191e4692ddaf218b0cfc11a99f3f188b0ce96c53f50e087a08e93dc",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_PROVENANCE.json",
+      "bytes": 41513,
+      "sha256": "e6f6ce1a3bc0094269c76f6121ecbe709159c9056f291acf192d58ab6d885120",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_SQL_REGRESSIONS.log",
+      "bytes": 4713,
+      "sha256": "b14961dfafd7889f864ba646758981ea1bc99e4c335244be0707837bc6a58b7e",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_STACK_EVIDENCE.json",
+      "bytes": 5407,
+      "sha256": "92458f8077197f1f38d88e7ff041e3cbdb6218345374aa0f40a75518a19b97f7",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_WEB_BUILD.log",
+      "bytes": 803,
+      "sha256": "8540e0ede1f27e9cc88a884efc981a51e4306178138fb69b7183b67773cfe316",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_AMBIGUOUS_WSL_STATUS.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_ACTIVE_CONTRACTS_PREFLIGHT.sql",
+      "bytes": 874,
+      "sha256": "65cc15a643e32e0df7c38604cc81bd5869071daba9422ae0794486b6c63b1519",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_ACTIVE_CONTRACTS_SNAPSHOT.json",
+      "bytes": 7498,
+      "sha256": "316e770094bcc4ee6761ac25fabc7af1cdf62bca597566e3d70b4da87f7b76f5",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_CHANGE_MANIFEST.json",
+      "bytes": 16126,
+      "sha256": "b16959a73ca4c72e2dff506fba00863422b8c41caec629f55d1926aac7bdbefa",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_COLUMN_CONTRACTS.json",
+      "bytes": 255096,
+      "sha256": "cf59899da63d51b1c42a2e4cb07c5dd8f931384c4aa7cbe5a37163108cc9a371",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_COLUMN_PREFLIGHT.sql",
+      "bytes": 600,
+      "sha256": "0501aab34a5c1abc6c68e5ad5063b8209b254d82c91d4e0d86a1a662af897934",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_FINAL_CANDIDATES_RESULTS.json",
+      "bytes": 861,
+      "sha256": "38fc5ddd7f774af11a0d3f8c4e117ea088a28d5718f5ea6b8ac0d653a41c45a7",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_MISSING_OBJECTS_PREFLIGHT.sql",
+      "bytes": 1339,
+      "sha256": "54a034e9e51f9ec8e02dfc7c73359a0c6fc4fe371cf783a9829f4900bed1ee5c",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_MISSING_OBJECTS_SNAPSHOT.json",
+      "bytes": 37184,
+      "sha256": "2cd88dbbceb8228d04bea39e8ca2317db638a04caff0681a1d2ba02298106292",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_ORIGINAL_REBUILD_RESULTS.json",
+      "bytes": 732,
+      "sha256": "e47ddbfbef75947351431ca5f672322708896a039eb6e0331bcb42bea69cbc7f",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_REBUILD_ATTEMPTS.json",
+      "bytes": 1761407,
+      "sha256": "b764b5f2bb48ddeba56a7fe7ffc291d670a295d2bac9a1599108b7ed1d041e8d",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_REBUILD_RESULTS.json",
+      "bytes": 27189,
+      "sha256": "59e182afe71bb0a8d23f3da1f853f581660273f097acc4bd99072a476ed619e4",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_RECONSTRUCTION_REVIEW.md",
+      "bytes": 16878,
+      "sha256": "569ee0095b6478e9a291312b0e36620fbd3b01271e3abe7dfe23b15d773a6ea2",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_SCHEMA_DIFF.json",
+      "bytes": 99127,
+      "sha256": "7a7091f531c6461177866ed2197f3371888755c74994936bd9654015c497592a",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_STRICT_REBUILD_RESULTS.json",
+      "bytes": 8753,
+      "sha256": "17cb418a82435f029b60a2099ff15855a3e387ebacac46936776c4cfe7758cea",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_TEST_EVIDENCE.md",
+      "bytes": 6027,
+      "sha256": "2db2433c64bb2e79ccd3a1329381dfca97df1062b957d867bc83ee2720168a45",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_BASELINE_TEST_RESULTS.json",
+      "bytes": 1499,
+      "sha256": "890d94fcfc848b57a2e14e72a7961ed932987921731a07b74b2cdd04b99755f8",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_CONTRACTS_AFTER.json",
+      "bytes": 3922,
+      "sha256": "8ccf4850308169e81bd83c7c178d3f6170788551c1497423247e89aa7b10fec0",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_CONTRACTS_BEFORE.json",
+      "bytes": 2019,
+      "sha256": "7ad51cfa80d9b466ff616efe50df9465970bb0a75969da286df990c8f48a8c73",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_FINAL_EVENT_POLICIES.json",
+      "bytes": 253673,
+      "sha256": "ec58e1e138bbcc670d70c78e10c5ced2f9bced3c2658671f0f582cd4f6edaf77",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_AFTER.json",
+      "bytes": 8045,
+      "sha256": "352f4fc9194a62f2c421724a4baddb4f61997816fcb56b1f013c3532355074a4",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_ANALYZE.log",
+      "bytes": 98,
+      "sha256": "cfbe1d760eb83c7289fc31df3891ce2ab56ed353841f5dd2ceef090f4a81da5c",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_BEFORE.json",
+      "bytes": 7799,
+      "sha256": "bf2ef3bfaddfdad3c667712d5cad6829d15650bf9f2383f45d91d81e3d83f085",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_CATALOG_DELTA.json",
+      "bytes": 9235,
+      "sha256": "15c8e6ddc1909fc62bd534d131cce81c39a6725390fad7bd9314f2478dbf46b9",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_CHANGE_MANIFEST.json",
+      "bytes": 10059,
+      "sha256": "fefbf1edb4b9e2c4db9a3ed2b56ce00d38f9a1f630f7549f7e8a5e04bc816502",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_CLASSIFICATION.json",
+      "bytes": 9204521,
+      "sha256": "9714c818865c2588d9afbb15206177e2c791c9fade4cbb060d442718f487ecd1",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_CONTRACTS.log",
+      "bytes": 6838,
+      "sha256": "39545df99583bc36cfc93a6a941220e4eec1bfb1537d3842be0f98f816906115",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_COUNTS.log",
+      "bytes": 2676,
+      "sha256": "2e7a78e8d099d2afa9658f06f4f074b55987794dbed885f4d7e46a0a0ea2bea8",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_DIFF_CHECK.log",
+      "bytes": 467,
+      "sha256": "79186233803cb4d793a82332179cdeaaaa92444e5d7586998a51577d3803e897",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_DIFF_CHECK_EXIT.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_FINAL_PATHS.txt",
+      "bytes": 39490,
+      "sha256": "0b1d9e58898d37d3519b806b91abaee78ddc6a9df79778b9d922d30b583a0cd2",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_FLUTTER_RESULTS.json",
+      "bytes": 75,
+      "sha256": "6cdcb39548ab6142e54f28ea39696e19d8b838832605740bec12543a60f46fde",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_FLUTTER_TEST.log",
+      "bytes": 87852,
+      "sha256": "205b9ca9641ef116a42ef701644e6ff399ab577875dc4968c237cb7f4e4f3ff7",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_GIT_STATE.json",
+      "bytes": 88,
+      "sha256": "22fb740cace57ff1d579f47b641b0baa03c051f7ca61312f18269065842bd782",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_LOCAL_SNAPSHOT.json",
+      "bytes": 1444523,
+      "sha256": "149e9e5db5b07240c0d4f0a5cf0601029a8aeff040717d055a104c0d64054363",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_REPLAY.log",
+      "bytes": 114,
+      "sha256": "296f7afc6b11d7bad4df0f65b60cd5c92e257ba5930e843735659a32182e9020",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_REVIEW.md",
+      "bytes": 11280,
+      "sha256": "f42e4655c1c9ca6df7433665e8758474b84214f36131137289d6609fabe0cdc3",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_SQL_REGRESSIONS.log",
+      "bytes": 8961,
+      "sha256": "1fb69b9c43e1dc17c8954ecc05d3c4600789c9460dc4f1cb021aedbc689ce823",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_SQL_RESULTS.json",
+      "bytes": 396,
+      "sha256": "7d369f168f9c40268b1b893030f86b0e19543af56c6d1509f64c3d00653c5ec9",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_START_HASHES.json",
+      "bytes": 91282,
+      "sha256": "954d37c4d27fd8fa0736ca43b2bcbfff8793db673f208d87235f16eb34873a14",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_FINAL_POLICIES_WEB_BUILD.log",
+      "bytes": 803,
+      "sha256": "acc73188fba5ec4543588ad6150f90f5c523fb6b9ee4cc28e38068d778c311ee",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_ANALYZE.log",
+      "bytes": 98,
+      "sha256": "676508ef09652edc2d45d9960185f0348b16494809ea0da1819f9ccbbf928f89",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_BEFORE_DATABASE.json",
+      "bytes": 27189,
+      "sha256": "2e0a2fb0ddc0a11405f5ccbe9d272b705e7b01ce8d4b61db567819693cb827f3",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_CATALOG_DELTA.json",
+      "bytes": 44178,
+      "sha256": "e141fbf5564b4bcc39d980f26e95a5896c046bedf48a65ce78a583970c90744e",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_CHANGE_MANIFEST.json",
+      "bytes": 9194,
+      "sha256": "be59012eb3b27fcac3fe756885c5ccedb4bf76fbae78dcd28f14f71e413e0bae",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_CONTRACTS.log",
+      "bytes": 6637,
+      "sha256": "16e709cc340e1707ba719ac6e4a8698f4dcee7a8016392c69811f9d83877067b",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_DIFF_CHECK.log",
+      "bytes": 467,
+      "sha256": "79186233803cb4d793a82332179cdeaaaa92444e5d7586998a51577d3803e897",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_DRIFT_CLASSIFICATION.json",
+      "bytes": 9205929,
+      "sha256": "99a8d99d5ee184355ed3bab16e043e5dc26c5043bb0b819e34846454a4bb8d80",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_DRIFT_REVIEW.md",
+      "bytes": 13762,
+      "sha256": "64e8ccd3555f2ceef0a4d3a5897236af1cc803341b853ca73217fcafd7f79ec3",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_EDITS.json",
+      "bytes": 10497,
+      "sha256": "53d85247574409c79eed4c95cf7eca2feb7211f880459117d88eb98b770edcb8",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_FEES_AFTER.json",
+      "bytes": 2030,
+      "sha256": "f2375b2545f3bcf9f96661408b249a6ec4fb9c625a4ac029f0fd83a530b772ea",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_FEES_BEFORE.json",
+      "bytes": 4681,
+      "sha256": "af5d01ad29dae5acdfc43d9b5174ace97728c34ac80ccbae7cb08d499638973e",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_FINAL_PATHS.txt",
+      "bytes": 38275,
+      "sha256": "0a1c3398d4caadef436afccf1bf200e03d9137a706cf9b0f2694a7d78f0cea5b",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_FLUTTER_RESULTS.json",
+      "bytes": 75,
+      "sha256": "68d03357ebc904f5818d00c872b77c16fd6fb383c3c067c6421349bf47f4e58b",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_FLUTTER_TEST.log",
+      "bytes": 87328,
+      "sha256": "aa2c0afdf26b9c6295451c75f658a7265e94eb0ccc68b1a8bcbc598d499fc193",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_GIT_STATE.json",
+      "bytes": 183,
+      "sha256": "c163c08c9fcf5e198b1af25c1533a01837280719c0cdf1f246da84330d9995af",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_HISTORICAL_EVIDENCE.json",
+      "bytes": 1796,
+      "sha256": "67a8fd7362f19e136a80181e643021e025783fbaa58c0060c85eaa38d545a4c1",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_LOCAL_SNAPSHOT.json",
+      "bytes": 1442161,
+      "sha256": "9e9f1080ed9097c5468bd4fc623fc8329019bad78be9ecada8ef7906cfc41613",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_MEMBERSHIPS_AFTER.json",
+      "bytes": 284,
+      "sha256": "44bd613e635251c48d6417cd1e10f481d0e9a067ce854fe6ff78ff6a569670fa",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_MEMBERSHIPS_BEFORE.json",
+      "bytes": 178,
+      "sha256": "4b457e5216f8f327836e5fa20c0fa43cd97806c9ec8bc38776e4cec637eb05b7",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_OPERATIONS_AFTER.json",
+      "bytes": 1365,
+      "sha256": "ed2d13384050b30a2b160923abed6f01601a6b05bf51b871346dc6704bf79953",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_OPERATIONS_BEFORE.json",
+      "bytes": 2858,
+      "sha256": "1c9df1f6c9dd77b513588755348e8e16ed6a1b7e01b9f684474c27f39ff6b82e",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_SQL_REGRESSIONS.log",
+      "bytes": 7984,
+      "sha256": "5191a610b52996733e0d0001348fceb0bf92798d440f21e679a8b1593f585e95",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_SQL_RESULTS.json",
+      "bytes": 302,
+      "sha256": "cb5a2126dd0f7a79b9f5ad5db0636931f2e228b73023d9c5b6676ad24dadf5e1",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_START_HASHES.json",
+      "bytes": 87262,
+      "sha256": "25f284c469f6e4847e2ff7130ad0dc0560f6cb314d06e36ce38ef2d6965d4963",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_START_PATHS.txt",
+      "bytes": 37219,
+      "sha256": "426ea7e3b4116305c1c4bc8d05be27ff7c352f41051495821e3e07ca40ca9319",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_WEB_BUILD.log",
+      "bytes": 803,
+      "sha256": "976782c92dba93b0d9d20e3e6bb912a046b1df119357ecbce36ea122ecf07145",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_AFTER.json",
+      "bytes": 54257,
+      "sha256": "046b02aa762c324cd05f95da52b66d1d4a87c3da657a3bed724404503df27e55",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_ANALYZE.log",
+      "bytes": 3163,
+      "sha256": "db9902fbff31ef0a540f4ef6e1d85d337c7a8faf9e7e4cfaa2f0c9856fcfac8b",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_ANALYZE_EXIT.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_BASELINE_PATCH.sql",
+      "bytes": 70506,
+      "sha256": "09a54e2ecf6066f241e30b7d6bd295bfa88603f7d5f355b2bfdfbb4b697b637c",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_BEFORE.json",
+      "bytes": 13304,
+      "sha256": "d90902e92ac8a96515363b524da372a21e3361dca4366ff9a8448b5d2d3f10ce",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_CATALOG_DELTA.json",
+      "bytes": 143426,
+      "sha256": "161d12d77b803141a1b0da79ddb3cb48438a7e40b6006fa77318ee20bbfd697a",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_CHANGE_MANIFEST.json",
+      "bytes": 315690,
+      "sha256": "4e3fc94816dfbfb6437ddb9be58692a3d60ef95dddfd78ac9c79bc379bab6831",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_CONTRACTS.log",
+      "bytes": 7504,
+      "sha256": "2ff0efdd4319a1085996b559b3815fc58104b61696f6cde1cc59e5099852cce4",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_CONTRACTS_EXIT.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_DIFF_CHECK.log",
+      "bytes": 915,
+      "sha256": "1152eb9b4f387adea86871e09ee8bb1939889a269b09986b456603d260effaf9",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_DIFF_CHECK_EXIT.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_EDITS.json",
+      "bytes": 153458,
+      "sha256": "df077ceaf6fd57d8bda88d274539aa06de87d7f3c7fdb8e033842637dfe73b0d",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_ANALYZE.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_ANALYZE_EXIT.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_ANALYZE_VERIFIED.log",
+      "bytes": 99,
+      "sha256": "9c9c7f6be826c51e21e02ef5825d0b5dc1060de7e0391a447b2f29d21bcdc2bf",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_CLOSURE_BEFORE.json",
+      "bytes": 183678,
+      "sha256": "7d06f613faab04ef3420112a4dfb7deb8416167a7318df6f6724b3fdc93e1225",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_CLOSURE_CATALOG_RESULTS.json",
+      "bytes": 2045154,
+      "sha256": "9d77b4b049f1baf4878f3d0ce6eb2f46a91dc813964d4711695880c758daed1d",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_CLOSURE_RESULTS.json",
+      "bytes": 2046354,
+      "sha256": "f42ad10e16f46228ee9cabb482db29e125633493e851ff24e36688c2da8e329d",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_CLOSURE_REVIEW.md",
+      "bytes": 5076,
+      "sha256": "82b8da1f825e836b80c81243ae311a9ebe020a55a4d822132360f243b702f386",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_CONTRACTS.log",
+      "bytes": 4527,
+      "sha256": "ecc729b6c5ea56f7d9c1d74375324881c185dc5acfacc7ddef22197e7635daf6",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_CONTRACTS_EXIT.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_CONTRACTS_VERIFIED.log",
+      "bytes": 4522,
+      "sha256": "c945147f36f697162af2995850f8eebe37c1eb27ecfb27961e012e2c83ff0d64",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_PATHS.txt",
+      "bytes": 43909,
+      "sha256": "c9ba62706475fa17eb99185a1025fc640296ed6792e8c6c51d76fdd88e48d3ea",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_SQL_RESULTS.json",
+      "bytes": 1108,
+      "sha256": "7db90f3a988ba3f535ca614f4560a7188722617d0315eb4f71db3015bfb53509",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_TEST.log",
+      "bytes": 61491,
+      "sha256": "5e5f8bdc058ea65060596dcdf8ae61bbc29b797550f3ac4da0dadb6811fbaa41",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_TEST_EXIT.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_WEB.log",
+      "bytes": 803,
+      "sha256": "d1a21519e77550650685f74876320ab8ec192e195fec39bc18ab87410e6a3ecd",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_WEB_EXIT.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_test_ambiguous_address.log",
+      "bytes": 252,
+      "sha256": "819f1adeb01dcd51ccce5081c4076119b0cdf000b5447719d4fa1dcd4595123d",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_test_ambiguous_override.log",
+      "bytes": 227,
+      "sha256": "68b2ea8bd7b8d929eac4ec0ca979e9c283842647473778302f21c45de9452e73",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_test_consolidated_preflight.log",
+      "bytes": 253,
+      "sha256": "6dc54515baa1f273fdabd426b1727250f74ed0bc6dc9ea9cb8cb7797d6632d9f",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_test_consolidated_writers.log",
+      "bytes": 30,
+      "sha256": "99b089c1273e72fc550fb6990177f2b8fe2f9dd3abea991af4de63635bcd42c2",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_test_final_contracts.log",
+      "bytes": 30,
+      "sha256": "65feffea7a5638621c978ac153e2e031f279bf3a75289f33e51b122a86f58154",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_test_final_event_policies.log",
+      "bytes": 885,
+      "sha256": "a5083f964bbd29a4550a99f83fcfc5578a55e6cbf01db4777cb4453f101c3580",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_test_final_policies.log",
+      "bytes": 32,
+      "sha256": "c1a1c254b85cb5c198962e85cc4c36f5c5d551f6ebed1430f070286b70df77c4",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_test_grouped_fees.log",
+      "bytes": 1475,
+      "sha256": "b21955113cffaf08d596dc9677fd39e2c810ca535ec0738b48b30f14c571cef4",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_test_grouped_memberships.log",
+      "bytes": 268,
+      "sha256": "cc75b5200fdc2bac4a54456afd66c986a3166adca648d7cb90e9ea27b51f5d9d",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_test_grouped_operations.log",
+      "bytes": 992,
+      "sha256": "9730812fae4c125dc33d9e783a4cd2afd53e3ec7196cde9c0f307decd5f09fea",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_test_policy_documents.log",
+      "bytes": 76,
+      "sha256": "cce55795b9432465fc123c251ba393428a1890ecaf58a2b8c80e36dfc111b660",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_test_policy_hardening.log",
+      "bytes": 1830,
+      "sha256": "cf9dc3ff1ab70dd7564570062ce182ca102341b08acef66c20bafdd6b198f55c",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_test_policy_structural_contracts.log",
+      "bytes": 1327,
+      "sha256": "9157533bc8a0d699b61bc07ff8f585148ea7000302b5836d03b2f70633aa0805",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_test_reconciliation.log",
+      "bytes": 1320,
+      "sha256": "5ba998cedae1d716827dcfea9ad35d37066b88a75c066ef5b3c55e7af7aee7d4",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_test_reconciliation_final.log",
+      "bytes": 880,
+      "sha256": "c393d38ee5505bdd8c4865b50f32b1d62a027ab78671721b97fe81d5fbdf47df",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_test_structural_blockers.log",
+      "bytes": 1537,
+      "sha256": "8ac84826c3c74f0dc9c20ae8e5ca8eb411a0cb249e3c5c61cada36ab52514508",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FIRST_WRITER_FAILURES.json",
+      "bytes": 31022,
+      "sha256": "312ad6b318744ea0be9a838a065923fe9571e54173c898baba9ae2f79ea84f95",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FLUTTER_TEST.log",
+      "bytes": 64795,
+      "sha256": "1d4975b4ee1b691ba688ec5709daea5dae06405036ec3a74b73d135974c6d37f",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_INVENTORY.json",
+      "bytes": 1167102,
+      "sha256": "d65257d2d7147ae30bad506a2cbd1f4e3772d81d09fa6d37dae51d4181c3f871",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_LOCAL_SNAPSHOT.json",
+      "bytes": 1431702,
+      "sha256": "ff6650b798b9ef3c9e9d1f189ba4d6305bbd28e996d1ad194a4b081b51e22648",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_ROOT_CAUSES.json",
+      "bytes": 289,
+      "sha256": "0bb698352591c6adad6d9af550244219e5562943e3822d66388ef5adc2129d1e",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_SEMANTIC_CLASSIFICATION.json",
+      "bytes": 1701061,
+      "sha256": "6cafeddb826981ac1391fb1cb66f8bde0a4d515827a120a464bf401af0e83dbd",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_SEMANTIC_REVIEW.md",
+      "bytes": 7348,
+      "sha256": "1ad4c020f66bc60d21b205bf56f05f18db1bfb782dbd0aa54a200987051ceba5",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_SQL_RESULTS.json",
+      "bytes": 828,
+      "sha256": "a84e388c4650cc3c30f75fdc3695342170a58fb3e1051cb4a555317bc958438b",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_START_HASHES.json",
+      "bytes": 99638,
+      "sha256": "1c54c96a01a0d0ea5d8fe97cb6049f8ecd204d9c3b8080cab1af833989b634ea",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_START_PATHS.txt",
+      "bytes": 42107,
+      "sha256": "d3b597f0c23731b4410a85ee835404b7ddcbe1dca58c1b1398b267fec91a5478",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_TEST_EXIT.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_TRIGGER_EFFECTS.json",
+      "bytes": 39517,
+      "sha256": "dea82bb2050ce1bdb166291809b95ab63fe1442f9e5436b7a9610ae0e4a441e8",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_TRIGGER_EFFECTS_BEFORE_DEDUP.json",
+      "bytes": 52073,
+      "sha256": "03879900a2e5ad01024e5aaeecc40cf014141043dd192e03d78d9c11ac279569",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_WEB_BUILD.log",
+      "bytes": 3868,
+      "sha256": "385f9ec7ff6981f9c8b174d2d510d0be85fabcdb0cb3f46cc701e4e9420fd3e9",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_WEB_EXIT.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_test_ambiguous_address.log",
+      "bytes": 252,
+      "sha256": "0a9488b96ffdbaed9bf8af6e3f7c8abddad5be16227fe32b9a695d20a5a31617",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_test_ambiguous_override.log",
+      "bytes": 227,
+      "sha256": "79f815cf93c3ec88ee95a31254e080da6b4b5d2f362ae02b7c1729d731fa8775",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_test_final_contracts.log",
+      "bytes": 30,
+      "sha256": "65feffea7a5638621c978ac153e2e031f279bf3a75289f33e51b122a86f58154",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_test_final_event_policies.log",
+      "bytes": 885,
+      "sha256": "a5083f964bbd29a4550a99f83fcfc5578a55e6cbf01db4777cb4453f101c3580",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_test_final_policies.log",
+      "bytes": 32,
+      "sha256": "c1a1c254b85cb5c198962e85cc4c36f5c5d551f6ebed1430f070286b70df77c4",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_test_grouped_fees.log",
+      "bytes": 1475,
+      "sha256": "b21955113cffaf08d596dc9677fd39e2c810ca535ec0738b48b30f14c571cef4",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_test_grouped_memberships.log",
+      "bytes": 268,
+      "sha256": "0db5f55fd34a2443086d2bd4a0c773f6b7413b1839b57a5cf8627c88d282cc5d",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_test_grouped_operations.log",
+      "bytes": 992,
+      "sha256": "9730812fae4c125dc33d9e783a4cd2afd53e3ec7196cde9c0f307decd5f09fea",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_test_policy_documents.log",
+      "bytes": 76,
+      "sha256": "cce55795b9432465fc123c251ba393428a1890ecaf58a2b8c80e36dfc111b660",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_test_policy_hardening.log",
+      "bytes": 1830,
+      "sha256": "cf9dc3ff1ab70dd7564570062ce182ca102341b08acef66c20bafdd6b198f55c",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_test_policy_structural_contracts.log",
+      "bytes": 1327,
+      "sha256": "9157533bc8a0d699b61bc07ff8f585148ea7000302b5836d03b2f70633aa0805",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_test_structural_blockers.log",
+      "bytes": 1537,
+      "sha256": "8ac84826c3c74f0dc9c20ae8e5ca8eb411a0cb249e3c5c61cada36ab52514508",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_POLICY_DOCUMENTS_SQL_RESULTS.json",
+      "bytes": 5922,
+      "sha256": "e8fe38179bdbcfd5a420ad11001fc9de4f9ccaaa6c8f6dd92289950b4037426d",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_POLICY_HARDENING_ANALYZE.log",
+      "bytes": 98,
+      "sha256": "743a8a9ce349db486d41a2db32e81e12bc4aada6dc2ceca710999735d0500802",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_POLICY_HARDENING_CHANGE_MANIFEST.json",
+      "bytes": 4773,
+      "sha256": "8b4f3afd57e30805121cd517132201df1a3a35280e547e045dbbf29f6cf2c0d3",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_POLICY_HARDENING_CLASSIFICATION.json",
+      "bytes": 401512,
+      "sha256": "9390d84ba076e754ea9422df06cbfd634aeafe636daa9372270be2ee99aaaf42",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_POLICY_HARDENING_CONTRACTS.log",
+      "bytes": 6637,
+      "sha256": "fb855a0eda34f6b28537503cff28428432ff382327107b374ea75a965a96e995",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_POLICY_HARDENING_EDITS.json",
+      "bytes": 12642,
+      "sha256": "b63eb541b2e0ff871128c7fd5a4c4ebc6db177a0bb9e46b3f0cc58873d5304f0",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_POLICY_HARDENING_FLUTTER_RESULTS.json",
+      "bytes": 58,
+      "sha256": "ac549b0c5ee4f8202813865a2ea2244d22c435f1edfa7f949f2e109d6984f134",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_POLICY_HARDENING_FLUTTER_TEST.log",
+      "bytes": 81279,
+      "sha256": "03106f9fb6c1a71c4f0c79d8602f2e52dda34cc5ea6e7acc15295929da53d370",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_POLICY_HARDENING_LOCAL_SNAPSHOT.json",
+      "bytes": 1426491,
+      "sha256": "2bee0a2dd942d0b44df6fe77eadcb03729401abe5c49452b430e01f7c063122d",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_POLICY_HARDENING_PREFLIGHT.sql",
+      "bytes": 2633,
+      "sha256": "167c4b68f3c0b4a8cf34f5d57ca2218839404722b8b6f02e6b8bcb972ad38ce1",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_POLICY_HARDENING_REPLAY_RESULTS.json",
+      "bytes": 27189,
+      "sha256": "c59259b5219afaeb5c0befd89fadd119dc10db09628f6e20abbe50deb9179f22",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_POLICY_HARDENING_RESULTS.json",
+      "bytes": 97437,
+      "sha256": "668b1733502050653de539a3884319b6328e2cf1e375a5e05f5bc243be11d451",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_POLICY_HARDENING_REVIEW.md",
+      "bytes": 16378,
+      "sha256": "358120be0136925df92e74f17fbd3516b8962c6bc115f274ab17ca6b89a32d7a",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_POLICY_HARDENING_WEB_BUILD.log",
+      "bytes": 803,
+      "sha256": "5fee337291f31aa12c3ab03198d5c3c13633544b964e4d124fe02523a2d6acde",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_POLICY_STRUCTURAL_SQL_RESULTS.json",
+      "bytes": 1818,
+      "sha256": "77e88d49c621c25a9d081940403a188f2ce566a9ab0fe1ce541fac2d72e98ce6",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_BASELINE_ACCUMULATED.diff",
+      "bytes": 100114,
+      "sha256": "856f2d7b1c122b0903d938709841a42cde7ea8560e06379807e176c94efc5659",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_BODY_DIFFS.txt",
+      "bytes": 14179,
+      "sha256": "a11b970df089b5496694bf17cafe7cc8245b0ae2ec4820d596e96780cc1a4044",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_ANALYZE.log",
+      "bytes": 99,
+      "sha256": "ccb273059e703d561968b114aa99d7bba69faff6bc85eb54949012dc84eeb09b",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_ANALYZE_EXIT.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_CATALOG_DELTA.json",
+      "bytes": 2128,
+      "sha256": "2babdea1e4426012011f2dd8c133163f0834cba8b0bba5e5c03b4f48d34a8511",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_CLASSIFICATION.json",
+      "bytes": 2296482,
+      "sha256": "40e48825ea39d3b9f9732c8fd262e57ddd1dedb9c8541ca37a6da2593e28bde2",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_CONTRACTS.log",
+      "bytes": 6838,
+      "sha256": "46c3ad88e2b58485d733ecf3adf2b66b9bbac27bb72ae10eaf263c62b19524c1",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_CONTRACTS_EXIT.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_DIFF_CHECK.log",
+      "bytes": 467,
+      "sha256": "79186233803cb4d793a82332179cdeaaaa92444e5d7586998a51577d3803e897",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_DIFF_CHECK_EXIT.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_FLUTTER_TEST.log",
+      "bytes": 86211,
+      "sha256": "58e4aa7d3c0473be901ca34fd6e280e798af3008ea310f27218abe91a1d9fdf3",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_LEGACY.json",
+      "bytes": 16429,
+      "sha256": "142d673bb0b47ddd3477978b4828b024fcd947bbe5b19fe625e59fcaab380a5e",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_LEGACY_FULL_HISTORY.txt",
+      "bytes": 238,
+      "sha256": "c719d73b5529d5921f70fd68242a3fa6966acc78ab547ebebf36ebea2e205d56",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_LEGACY_HISTORY.txt",
+      "bytes": 84,
+      "sha256": "ae7745b2191606416a9090ce9bbfe0e7d91f0847a006ef4e878ae27be72fca62",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_LEGACY_REFERENCES.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_LOCAL_SNAPSHOT.json",
+      "bytes": 1445773,
+      "sha256": "2d1913f45c2d04052b72668d3fe39a00f4b5e1605d82bb5760e40b02e17f7fe8",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_PATHS.txt",
+      "bytes": 9983,
+      "sha256": "165736a33d0edeefaf3f490dfee4b99d8cf3296813542fc3d06bbeb142cea934",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_PREFLIGHT_RESULTS.json",
+      "bytes": 277,
+      "sha256": "34cc97d0f9867ff15cdeb94a932d93156e86cc8525be604107bbf602bac57743",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_PROVENANCE.json",
+      "bytes": 46946,
+      "sha256": "bc02123970b3fe7c2eb9b167d625036585da37f82d82590e5cac11adeb364e70",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_REVIEW.md",
+      "bytes": 19072,
+      "sha256": "107075f8c3bae1fafec36a0d396af769a771961170a7ede6584ec04356828868",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_SQL_RESULTS.json",
+      "bytes": 828,
+      "sha256": "a84e388c4650cc3c30f75fdc3695342170a58fb3e1051cb4a555317bc958438b",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_START_HASHES.json",
+      "bytes": 21233,
+      "sha256": "fb764f208412e0a01d4d6c16d7f1eea37f049b07373c8b26c3ec1e58bda863ec",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_TEST_EXIT.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_WEB_BUILD.log",
+      "bytes": 803,
+      "sha256": "19254e574fdedbad52d3700814f674ac2ae3cc3f2598d5884ed08d05827de6da",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_WEB_EXIT.txt",
+      "bytes": 3,
+      "sha256": "13bf7b3039c63bf5a50491fa3cfd8eb4e699d1ba1436315aef9cbe5711530354",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_WRITERS_AFTER.json",
+      "bytes": 1614,
+      "sha256": "45c9c01ef6aa8dd12f3ddec4a77f876b253937ab91ca5d311e84d1cf4a7fe0b6",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_WRITERS_BEFORE.json",
+      "bytes": 1485,
+      "sha256": "7f9abb49c3c0e846a6d0fd333887f3007451e2abfd14249895b98c27cff55b0e",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_test_ambiguous_address.log",
+      "bytes": 252,
+      "sha256": "826aa50a992c9d21d73f755ab6a49670295fe4587ee13d4c4b5a250285ea38b3",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_test_ambiguous_override.log",
+      "bytes": 227,
+      "sha256": "e878089ff010ddeb6dd4543bbbfd4f9ce1168dabb2071139fc2fed964c6f2331",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_test_final_contracts.log",
+      "bytes": 30,
+      "sha256": "65feffea7a5638621c978ac153e2e031f279bf3a75289f33e51b122a86f58154",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_test_final_event_policies.log",
+      "bytes": 885,
+      "sha256": "a5083f964bbd29a4550a99f83fcfc5578a55e6cbf01db4777cb4453f101c3580",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_test_final_policies.log",
+      "bytes": 32,
+      "sha256": "c1a1c254b85cb5c198962e85cc4c36f5c5d551f6ebed1430f070286b70df77c4",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_test_grouped_fees.log",
+      "bytes": 1475,
+      "sha256": "b21955113cffaf08d596dc9677fd39e2c810ca535ec0738b48b30f14c571cef4",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_test_grouped_memberships.log",
+      "bytes": 268,
+      "sha256": "50731e2f59afc97230c4c46348b298814cab44c6bd2fc37468e395df940e0c4a",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_test_grouped_operations.log",
+      "bytes": 992,
+      "sha256": "9730812fae4c125dc33d9e783a4cd2afd53e3ec7196cde9c0f307decd5f09fea",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_test_policy_documents.log",
+      "bytes": 76,
+      "sha256": "cce55795b9432465fc123c251ba393428a1890ecaf58a2b8c80e36dfc111b660",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_test_policy_hardening.log",
+      "bytes": 1830,
+      "sha256": "cf9dc3ff1ab70dd7564570062ce182ca102341b08acef66c20bafdd6b198f55c",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_test_policy_structural_contracts.log",
+      "bytes": 1327,
+      "sha256": "9157533bc8a0d699b61bc07ff8f585148ea7000302b5836d03b2f70633aa0805",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_CONSOLIDATED_test_structural_blockers.log",
+      "bytes": 1537,
+      "sha256": "8ac84826c3c74f0dc9c20ae8e5ca8eb411a0cb249e3c5c61cada36ab52514508",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_FINAL_CHANGE_MANIFEST.json",
+      "bytes": 89414,
+      "sha256": "d48564256cb515631a2df6a9eac94fe48990929b59b00c5f2b8c2021000ef04e",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_FINAL_CLOSURE_MANIFEST.json",
+      "bytes": 64773,
+      "sha256": "c9296ace7504113a344ea9cdfa3ec09b73c8d56a83f2ea237ca9cc4fc70ac785",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_FINAL_INCREMENTAL_PREFLIGHT.sql",
+      "bytes": 6532,
+      "sha256": "dcbfab0517a3977c20d05105daa3a85780d0284a89e311f4e81201160f63ee67",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_FOLLOWUP_PREFLIGHT.sql",
+      "bytes": 1821,
+      "sha256": "13992a1a9239a3cef22fe71e86ddcc06812f102f7603f61633436dfc5c9b2d8c",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_FOLLOWUP_RESULTS.json",
+      "bytes": 2055,
+      "sha256": "41562278379b3501257f5617ab2fe727cd75b583def6ec8582ec8c0f49fedbe2",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_INVENTORY.md",
+      "bytes": 132851,
+      "sha256": "f7cab0c14f5b5938946178d8b208b9c054dca5213f12b7dd9cdebcc40e494b7a",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_PREFLIGHT.sql",
+      "bytes": 5704,
+      "sha256": "2b4a574b5193c2b54044cee7b4c2003d0a5bd4217d6130adb63871bc23aece60",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_PRODUCTION_SNAPSHOT.json",
+      "bytes": 203834,
+      "sha256": "e7503659df3c67af29256093c74c286c2b34de07f477979260ffc7b02b81e17a",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_READY_FOR_COMMIT_REVIEW.md",
+      "bytes": 3388,
+      "sha256": "ce1218448757c5166abe4b9298970944798176cc100a241bf0ac8a30de24d19a",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_REPLAY_PROBE.json",
+      "bytes": 400,
+      "sha256": "351db55f547d2566648ae35cbaef16f27b6f59646de36534ddc036b58a86ef66",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_REPOSITORY_INVENTORY.json",
+      "bytes": 559411,
+      "sha256": "3337601f5879e1ef782593d87c1fdbf24e3a3ae4a377e42aa8fe57b9ced7a5ef",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_REVIEW.md",
+      "bytes": 26117,
+      "sha256": "c6ef7773b012a6f2ba3a3510cded3e0a654b1285ab080e3fd9e7d01fe81d361d",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_SQL_RESULTS.json",
+      "bytes": 1298,
+      "sha256": "4a61662399db2fcc5e268c026aa0b6242e6d95e6a700f71757b32f9584af4ca1",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_SUPPLEMENTAL_PREFLIGHT.sql",
+      "bytes": 1326,
+      "sha256": "62bd03fd9d800d1ff42dd80f9ae9a52a65ffc2d86a9fdcbd313f3a685f0597fc",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_SUPPLEMENTAL_RESULTS.json",
+      "bytes": 252,
+      "sha256": "de2ec59539457202d22f63e9a5b3b46770706c3fe5b52c2044e7b5f1a8789353",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_RECONCILIATION_TEST_EVIDENCE.md",
+      "bytes": 5026,
+      "sha256": "d424168765e7a25e5b55b7d784e058e40500567dbe326b31b9a27aba6cc70b2e",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_ANALYZE.log",
+      "bytes": 98,
+      "sha256": "2ef7f0e43d87890ccbf7b686f2d0e46d5db7a83d319fa112374963ea9882e1bc",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_BLOCKERS_AFTER.json",
+      "bytes": 2078,
+      "sha256": "f69c1d254ef6381894d191d3d7bb393d7ede92162f94fbff3b5c652a48f1e5b6",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_BLOCKERS_ANALYZE.log",
+      "bytes": 98,
+      "sha256": "e2b239f2a2afe000bc2aab7ed5a9d10b64a53df121ad3b61b22630230e6d44ed",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_BLOCKERS_BEFORE.json",
+      "bytes": 1946,
+      "sha256": "b7df4982dcf6f6b7fffbfdcf55f9f6ba0a5503e7970e2ce1790028164f418f93",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_BLOCKERS_CHANGE_MANIFEST.json",
+      "bytes": 5715,
+      "sha256": "654740226168b638666d3392602cca08cf853ac38171712f0a79e0898d0e6820",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_BLOCKERS_CONTRACTS.log",
+      "bytes": 6637,
+      "sha256": "4a087e62afc5a7d167a60f86eaf3c4d34a02d0c60789453c149ae6e716394269",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_BLOCKERS_DIFF_CHECK.log",
+      "bytes": 467,
+      "sha256": "79186233803cb4d793a82332179cdeaaaa92444e5d7586998a51577d3803e897",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_BLOCKERS_FLUTTER_RESULTS.json",
+      "bytes": 75,
+      "sha256": "cf9c3d0db2f6949d8fc27918856f1969d91d83f37d8ecf84785a84f8da28ae2d",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_BLOCKERS_FLUTTER_TEST.log",
+      "bytes": 82334,
+      "sha256": "ecfefdc2847b604f12527c40b995cd96cdbae8b4252e7ed353000b600d9d6d6b",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_BLOCKERS_LOCAL_SNAPSHOT.json",
+      "bytes": 1427597,
+      "sha256": "5bb19b8f9bcac0f868086549aa529afc66195499e976ba50b3421fd6cd19e5d3",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_BLOCKERS_RESULTS.json",
+      "bytes": 3257,
+      "sha256": "dcee9d3efde4a85fb56cd68ef306b7893cfbdd3b3cb69c1075a5ed91eeaa58d1",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_BLOCKERS_REVIEW.md",
+      "bytes": 10068,
+      "sha256": "7ce248f13377aa5ebb22d46f15b60b1d2dcc782656b89ce130ab300325d8ae41",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_BLOCKERS_TRIAGE.json",
+      "bytes": 8396019,
+      "sha256": "d9d1dd342756ff533160d899d5bc21c4775478aed7ce259b5fd4b87df9fab98d",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_BLOCKERS_TRIAGE_BEFORE.json",
+      "bytes": 8403998,
+      "sha256": "16410816e1d5ee58c7213fa47c1ca9a0f7641f452f58d1ca72014ae1af5f753d",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_BLOCKERS_WEB_BUILD.log",
+      "bytes": 803,
+      "sha256": "b6e54038aa4dd6310d211166adbd417a0c1c99f30cb18cf038ab787d04a3a8b1",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_CHANGE_MANIFEST.json",
+      "bytes": 4470,
+      "sha256": "4d78843de13bd47dd041347ae9158b77b3dbe356423650a6ab5ae4559a4af812",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_CONTRACTS.log",
+      "bytes": 6637,
+      "sha256": "68e7b8cec9143ef3c6bc4b17a7920aa87e2b24e56019399031e79100c2daaf44",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "bytes": 8718748,
+      "sha256": "b80426babda92a6a681098acf98a9b7ce18d556a1d47fe56bfb908498a528848",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_PREFLIGHT.sql",
+      "bytes": 2332,
+      "sha256": "e2b1b57fafc8786428b3f6a11f6f5a5895c345c4271f3e09a3add7154563ec4a",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_REVIEW.md",
+      "bytes": 15217,
+      "sha256": "2e3057fe19ac675038841c6fc30c72ee30c042f0ccd5d09f89fd75de3dd6e7ae",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_FLUTTER_TEST.log",
+      "bytes": 86315,
+      "sha256": "61e6b961134569e26bf54b0e8dac920c92f34f30e7f5e09515745d10732a84b2",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_LEGACY_PREFLIGHT_RESULTS.json",
+      "bytes": 7251,
+      "sha256": "2a8886a6a3e56f45e109586d4300d621f090aee0ea30886c103307e4a81331e5",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_LOCAL_SNAPSHOT.json",
+      "bytes": 1426758,
+      "sha256": "1b848fb1a005239c9b22ca562941fb17c0240a20af28ef2cc3eecb37d30f6752",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_MIGRATION_HISTORY.json",
+      "bytes": 16246,
+      "sha256": "ff0f379e82b6ea4edea912eb406ad56bcfb18736674dbfe0f53cd474d323241a",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_PRODUCTION_SNAPSHOT.json",
+      "bytes": 1066388,
+      "sha256": "cd4654fd04baeb8a2cb2c9908829450c0e81a2100be24349c252504c3ea25e9d",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_SQL_RESULTS.json",
+      "bytes": 992,
+      "sha256": "75f698ff71d1617d078ee894849c6105be2809e2e0e6b53f4f56fa64d461d16c",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_WEB_BUILD.log",
+      "bytes": 803,
+      "sha256": "e307e2555b0ce5d18fdcca805473d1065909d00dbd51b2a78e49387e1083e621",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "supabase/migrations/1000_bob_manager_v1_complete.sql",
+      "bytes": 268901,
+      "sha256": "ef155d5c3ea1619ae6371ca8c43a78febee695725d8926e1949c4a0e745a9298",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "supabase/migrations/20260806144500_rc1_treasury_rls_consolidation.sql",
+      "bytes": 4755,
+      "sha256": "0646f86e6b63e71d6049ade8dc626f56c64bbe3eb6d5fa1209cb6374920716f9",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "supabase/migrations/20260806183000_rc1_global_security_audit.sql",
+      "bytes": 5040,
+      "sha256": "24259fd2a1a360ba0f8b8f5926e3d4bf723ab6cdf407a67522c8d66c761f5489",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "supabase/migrations/20260811160313_rc1_global_audit_foundation.sql",
+      "bytes": 14609,
+      "sha256": "9945f385d492016e176e41b4594b13501fb62af1577b17bba7e9be3c9cf37c8a",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "supabase/migrations/20260812165729_rc1_member_history_patches_motorcycle_maintenance.sql",
+      "bytes": 40472,
+      "sha256": "463f273432749631ff141f7f5fa7906fb28e8edd4d3651031269ac6c23c6fe0c",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "supabase/migrations/20261014141853_rc1_reconciliation_identity_nullability.sql",
+      "bytes": 1264,
+      "sha256": "0a8e0e46c9be26a0db9dc3bfee7466f525af00275cf0dc944fbe1791c161a057",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "supabase/migrations/20261014141913_rc1_reconciliation_club_access.sql",
+      "bytes": 1548,
+      "sha256": "34c396ddd9c75d9089bca2d5f9d1d5f9dbc926fc2830fa44e43b7925d42c3987",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "supabase/migrations/20261014151033_rc1_reconciliation_active_bootstrap.sql",
+      "bytes": 5271,
+      "sha256": "ddca51612ed7de71944be313199ccc4d0819e11406acaeb00600f41f97d69eef",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "supabase/migrations/20261014151034_rc1_reconciliation_slug_uniqueness.sql",
+      "bytes": 1626,
+      "sha256": "7a92ac430a1b4a7a0588abaf1002a6696a2196fd2b598ab650d88f94fbfdc946",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "supabase/migrations/20261014151050_rc1_reconciliation_timeline_literal.sql",
+      "bytes": 3215,
+      "sha256": "7db94dcafb395fd86e2d3f73afe5a833990b51b41e960cd78d50bca1baca35f1",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/apply_policy_baseline_hardening.mjs",
+      "bytes": 3107,
+      "sha256": "b29960fb597e7e6bea07e0cf4dd4b3ec7a85aabb2f308501f4a154ad5d6fb6c7",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "tools/capture_ambiguous_local.mjs",
+      "bytes": 3500,
+      "sha256": "60c238230afb8aa61bcd57b579bf305e83af6b98583d08aa06e45b862cd9782d",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "tools/compare_rebuilt_schema.mjs",
+      "bytes": 2739,
+      "sha256": "82ec795a101edb0f626d87d0d59796fbe7cdc0c68bea12db019b8ad213b44d79",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "tools/finalize_high_risk.mjs",
+      "bytes": 16138,
+      "sha256": "cf25aedfa33fa3438d989a679f2d6d77ce4e6fb326c379922cbb5e823a664c6b",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "tools/finalize_high_risk_closure.mjs",
+      "bytes": 9953,
+      "sha256": "bea0bf814a6711b3e688ee74fff3579058e67ee60a3fb7bf2809f08cb1433176",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "tools/manifest_ambiguous_phase.mjs",
+      "bytes": 3133,
+      "sha256": "27ae1b172c339b635c9ebd50ddb3229aee550f01a59c8560d4203252511c159b",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "tools/manifest_consolidated.mjs",
+      "bytes": 3223,
+      "sha256": "6bee65dcd307fac065a8a8fa1a09176e65bc3640603e0e31f04dbc8b0488093e",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "tools/manifest_final_policies.mjs",
+      "bytes": 3351,
+      "sha256": "d77e8f2dbd328eefd261046cc4305b4497f60a2716b5ea39897533408fea8abe",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "tools/manifest_grouped_phase.mjs",
+      "bytes": 2854,
+      "sha256": "7ef1f2878adbd8459efbb05bc7679af0c4fd46c93234f522ce626585fc7cdf52",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "tools/prepare_high_risk_baseline.mjs",
+      "bytes": 7035,
+      "sha256": "af4edabd524b35fffb351bef7abdaa3f6140fd48b349c0e8170bcadc1e92b434",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "tools/review_ambiguous_drift.mjs",
+      "bytes": 10179,
+      "sha256": "ce327af7a78e5523936f6a0818ed53113463cd7e611f0a3cac08cc146c372349",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "tools/review_consolidated.mjs",
+      "bytes": 8773,
+      "sha256": "451427ded3f04ee05f13c84b58785a150aa80cd0dac063cfe33695b584892a58",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "tools/review_final_policies.mjs",
+      "bytes": 9530,
+      "sha256": "7dd6bd18ee4bf9c8ec9beffb9d7a289000d2b194e0b36ce47811f1f16ccbc27f",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "tools/review_grouped_drift.mjs",
+      "bytes": 10743,
+      "sha256": "80e5877468a5b22d524855706a19d8e704b80f140713d677b65d8a79351cb511",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "tools/review_high_risk.mjs",
+      "bytes": 2089,
+      "sha256": "a1926d414131ba62aec7a717ae21b3adcb631c273051f49168ca1a6206e998a7",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "tools/review_policy_hardening.mjs",
+      "bytes": 6998,
+      "sha256": "401ba9a9f505ee377db15c5073d81d86a9cec84932961d78928dad11ce2dc00f",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "tools/review_structural_blockers_drift.mjs",
+      "bytes": 12861,
+      "sha256": "5a8e6d59c8a664537c7c1a0f1ad20dcd9c6fc76d4bb8a942517ca14470ae300c",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "tools/review_structural_drift.mjs",
+      "bytes": 12648,
+      "sha256": "359bc91b33027793a6e9841adf8d09a60e477e0cd59e6680b3d7eb671359c578",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "tools/summarize_structural_blockers.mjs",
+      "bytes": 3395,
+      "sha256": "b2fdbecdaabb17df6a92ed66e90a72f8e04948e765f418ef60c5bba68e2db279",
+      "disposition": "excluded",
+      "reason": "redundant report, raw log or regenerable output"
+    },
+    {
+      "path": "tools/test_ambiguous_address.mjs",
+      "bytes": 3457,
+      "sha256": "c87aad5b209e14b54141d752a9d56bf55c50add3ecd5c23d64045a156194f538",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/test_ambiguous_override.mjs",
+      "bytes": 4123,
+      "sha256": "5a7abdcebbc966c96e958f3191312d4ec5046a73d33a588f8f72e0a8bae61deb",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/test_clean_rebuild.mjs",
+      "bytes": 14831,
+      "sha256": "06ecc3d5ec3e6ef5446b21ad6ff0596b5c7bd94c0afefc3bffa46d1f7c6d7be8",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/test_consolidated_preflight.mjs",
+      "bytes": 1176,
+      "sha256": "a12174c5be7252bcba3fbda953a00bcbb2a6e90e26e119d74078137bff93d669",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/test_consolidated_writers.mjs",
+      "bytes": 3655,
+      "sha256": "7eef36af66e18dd5a5be761ceb5aa2f33ea8158c448fa249ec32cd278da048f2",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/test_final_contracts.mjs",
+      "bytes": 8313,
+      "sha256": "6f32e4af49cd0fc4a0feae8baaab060251a366a267bd7d41a6ceffd90a7e634b",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/test_final_event_policies.mjs",
+      "bytes": 5409,
+      "sha256": "543ddf85fc693911c06c36547ad175a18deb50b7b82036ce4755bcf37be62c5f",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/test_final_policies.mjs",
+      "bytes": 8785,
+      "sha256": "340a45f3c9d598abb9742d0898028c86379f9a83a83185df16cea1eaaebdf232",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/test_grouped_fees.mjs",
+      "bytes": 7913,
+      "sha256": "c367c7eaac34c2e08e09e2f38fe7d4d41deb596223778f34617224dd69139243",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/test_grouped_memberships.mjs",
+      "bytes": 4278,
+      "sha256": "7f8edc5641685af35e4d965a70346beda98e75dcbb6cca2f67dce11972b3c7d2",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/test_grouped_operations.mjs",
+      "bytes": 6379,
+      "sha256": "71ca64f571596f64394f58bf148a91158a1beb35ebf0fb4159a72b2c57f7b25e",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/test_high_risk.mjs",
+      "bytes": 16134,
+      "sha256": "06a2b059e2c53ef669c81912c3f462dcd88d763b615678482de452dfda2ad7ec",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/test_high_risk_closure.mjs",
+      "bytes": 3816,
+      "sha256": "24d6551eb39a6f8944b518b0188a587f7e2493aa592f3e0abf3f75528ad9262b",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/test_policy_documents.mjs",
+      "bytes": 7049,
+      "sha256": "e9b22ff5a2d81b412054b0f3c03342bf563376d6acaf7be2ed47d39a220fb76b",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/test_policy_hardening.mjs",
+      "bytes": 11413,
+      "sha256": "18b3194f3e8b6409d6c7ad29ba9c6145e199651ae26ff617f5c3b4c75cd9c266",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/test_policy_structural_contracts.mjs",
+      "bytes": 15332,
+      "sha256": "663669d26e2d4c87d76558c101cc678a3e6dab0cff472cdd00ca5eca78175486",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/test_reconciliation.mjs",
+      "bytes": 10315,
+      "sha256": "d77e9a2c5cdbdd94c088f07af9f351352ce0e3abb6eb2dd371c654f623d69e0a",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/test_reconciliation_final.mjs",
+      "bytes": 7046,
+      "sha256": "9641a9453c5e92da344748609f7711402830adf20bb5bc26af2bf1b2f811ddc1",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/test_structural_blockers.mjs",
+      "bytes": 18844,
+      "sha256": "dae2578114ee46b27747da65d78d59620bc653b5e56d391ba72903b5779aeb53",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    },
+    {
+      "path": "tools/test_structural_drift.mjs",
+      "bytes": 5505,
+      "sha256": "c0d568f959c808fbf73974f255205d4a5d10d20a6514e9c955bcd73e5ad90fcc",
+      "disposition": "retained",
+      "reason": "test dependency, SQL, tool or final evidence"
+    }
+  ]
+}

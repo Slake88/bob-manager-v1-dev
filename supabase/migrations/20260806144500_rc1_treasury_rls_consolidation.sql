@@ -149,9 +149,17 @@ revoke all on function public.create_transaction_v1(uuid,text,uuid,uuid,text,num
 revoke all on function public.create_transaction_v1(uuid,text,uuid,uuid,text,numeric) from anon;
 grant execute on function public.create_transaction_v1(uuid,text,uuid,uuid,text,numeric) to authenticated;
 
+-- This RPC is first versioned in 20261012110000, which also sets its ACL.
+-- Preserve the original grants when present; do not invent its missing legacy body.
+do $optional_rpc$ begin
+ if to_regprocedure('public.treasury_account_balances_v1(uuid)') is not null then
 revoke all on function public.treasury_account_balances_v1(uuid) from public;
 revoke all on function public.treasury_account_balances_v1(uuid) from anon;
 grant execute on function public.treasury_account_balances_v1(uuid) to authenticated;
+
+
+ end if;
+end $optional_rpc$;
 
 revoke all on function public.treasury_account_balance_v1(uuid) from public;
 revoke all on function public.treasury_account_balance_v1(uuid) from anon;

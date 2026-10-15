@@ -1,0 +1,9 @@
+{
+  "source": "Archived phase2c1 schema catalog; local metadata only; no new external retrieval",
+  "source_sha256": "0d9e25cffc9914a2cd961a8e8c3c62261b52ee8f06151f4cf56a5f5cd9e83cde",
+  "fixture_sha256": "f530a72d2f42b40e5fa58cb792ab066853e95e79f6a3ddfc6661a0431657f26d",
+  "format": "restoreCatalog schema metadata: enums, domains, schemas, functions, relations, sequences",
+  "transform": "Select six restore fields; replace project endpoints; omit runtime capture metadata; compact UTF-8 JSON",
+  "reproduction": "Versioned frozen fixture; SHA-256 verified by runner. Historical capture cannot be regenerated from current migrations without changing baseline test semantics.",
+  "contains_rows": false
+}

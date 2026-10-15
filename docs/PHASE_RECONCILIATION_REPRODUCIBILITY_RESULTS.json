@@ -1,0 +1,302 @@
+{
+  "status": "passed",
+  "scope": "18 original checks including replay, plus two catalog restore harnesses; loopback only",
+  "fixture_sha256": "f530a72d2f42b40e5fa58cb792ab066853e95e79f6a3ddfc6661a0431657f26d",
+  "external_catalog_dependency": "Eliminated at runtime using versioned frozen schema fixture; historical provenance retained",
+  "rounds": [
+    [
+      {
+        "harness": "test_clean_rebuild",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_policy_hardening",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_ambiguous_address",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_ambiguous_override",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_consolidated_preflight",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_consolidated_writers",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_final_contracts",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_final_policies",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_grouped_fees",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_grouped_memberships",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_grouped_operations",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_high_risk",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_high_risk_closure",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_policy_documents",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_policy_structural_contracts",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_structural_blockers",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_structural_drift",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_final_event_policies",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_reconciliation",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_reconciliation_final",
+        "exit": 0,
+        "status": "passed"
+      }
+    ],
+    [
+      {
+        "harness": "test_clean_rebuild",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_policy_hardening",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_ambiguous_address",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_ambiguous_override",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_consolidated_preflight",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_consolidated_writers",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_final_contracts",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_final_policies",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_grouped_fees",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_grouped_memberships",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_grouped_operations",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_high_risk",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_high_risk_closure",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_policy_documents",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_policy_structural_contracts",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_structural_blockers",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_structural_drift",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_final_event_policies",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_reconciliation",
+        "exit": 0,
+        "status": "passed"
+      },
+      {
+        "harness": "test_reconciliation_final",
+        "exit": 0,
+        "status": "passed"
+      }
+    ]
+  ],
+  "snapshot_hashes": [
+    "ea8e69e043979fd728fed87b891b1c43282a23189851d21ba26057aa5816d8f5",
+    "ea8e69e043979fd728fed87b891b1c43282a23189851d21ba26057aa5816d8f5"
+  ],
+  "isolated_hashes": [
+    "ea8e69e043979fd728fed87b891b1c43282a23189851d21ba26057aa5816d8f5"
+  ],
+  "isolated_cases": [
+    {
+      "harness": "test_structural_drift",
+      "exit": 0,
+      "status": "passed"
+    },
+    {
+      "harness": "test_high_risk",
+      "exit": 0,
+      "status": "passed"
+    },
+    {
+      "harness": "test_high_risk_closure",
+      "exit": 0,
+      "status": "passed"
+    },
+    {
+      "harness": "test_reconciliation",
+      "exit": 0,
+      "status": "passed"
+    },
+    {
+      "harness": "test_reconciliation_final",
+      "exit": 0,
+      "status": "passed"
+    }
+  ],
+  "snapshot_byte_identical": true,
+  "replay": {
+    "total": 154,
+    "applied": 154,
+    "status": "passed",
+    "adapters": true
+  },
+  "separate_process_cases": [
+    {
+      "harness": "test_structural_drift",
+      "exit": 0
+    },
+    {
+      "harness": "test_high_risk",
+      "exit": 0
+    },
+    {
+      "harness": "test_high_risk_closure",
+      "exit": 0
+    },
+    {
+      "harness": "test_reconciliation",
+      "exit": 0
+    },
+    {
+      "harness": "test_reconciliation_final",
+      "exit": 0
+    }
+  ],
+  "separate_process_snapshot_sha256": "ea8e69e043979fd728fed87b891b1c43282a23189851d21ba26057aa5816d8f5",
+  "before_cases": [
+    {
+      "harness": "test_high_risk",
+      "exit": 0
+    },
+    {
+      "harness": "test_high_risk_closure",
+      "exit": 1
+    },
+    {
+      "harness": "test_reconciliation",
+      "exit": 1
+    },
+    {
+      "harness": "test_reconciliation_final",
+      "exit": 1
+    },
+    {
+      "harness": "test_structural_drift",
+      "exit": 1,
+      "code": "23502"
+    }
+  ],
+  "functional_application_changes": false,
+  "production_access": false,
+  "staging_commit_push_deploy": false
+}

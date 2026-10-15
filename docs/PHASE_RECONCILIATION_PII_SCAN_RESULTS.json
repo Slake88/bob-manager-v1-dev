@@ -1,0 +1,564 @@
+{
+  "status": "READY TO COMMIT",
+  "review_scope": {
+    "initial_candidates": 82,
+    "final_candidates": 84,
+    "source": "Exact allowlist; no excluded artifact added"
+  },
+  "contextual_review": {
+    "uuid_occurrences_original_candidates": 560,
+    "uuid_unique": 12,
+    "uuid_classification": "All twelve literal UUIDs use zero-prefix synthetic fixture family; linked to test INSERTs and generated id helpers. No production row UUID found.",
+    "email_occurrences_original_candidates": 30,
+    "email_unique": 20,
+    "email_nonfixture": 0,
+    "full_names_real": 0,
+    "phones_real": 0,
+    "addresses_real": 0,
+    "fiscal_ids_real": 0,
+    "project_refs_real": 0,
+    "identity_json_value_fields": 0,
+    "basis": [
+      "JSON catalog traversal: no personal row values in identity fields; names are schema objects, columns, constraints and fixture labels.",
+      "SQL and harness literals define Synthetic, Address fixture, Policy fixture and similar labels; Rua original and Rua da Liberdade are test-created address inputs, not captured personal addresses.",
+      "Snapshots contain schema metadata, code definitions and synthetic regression results; numeric dates, versions, OIDs and hashes are technical identifiers.",
+      "Project snapshot project_id is a placeholder; raw and decoded JSON endpoint scans run."
+    ],
+    "unnecessary_real_pii_found": 0,
+    "pii_replacements": []
+  },
+  "metadata_encoding_repairs": [
+    {
+      "path": "docs/PHASE_GROUPED_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_registration_guests.event_registration_guests_delete",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_registration_guests.event_registration_guests_delete",
+      "field": "next_action",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_registration_guests.event_registration_guests_insert",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_registration_guests.event_registration_guests_insert",
+      "field": "next_action",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_registration_guests.event_registration_guests_update",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_registration_guests.event_registration_guests_update",
+      "field": "next_action",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_registrations.event_registrations_delete",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_registrations.event_registrations_delete",
+      "field": "next_action",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_registrations.event_registrations_insert",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_registrations.event_registrations_insert",
+      "field": "next_action",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_registrations.event_registrations_update",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_GROUPED_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_registrations.event_registrations_update",
+      "field": "next_action",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:annual_book_items.annual_book_items_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:annual_books.annual_books_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:club_positions.club_positions_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:cost_centers.cost_centers_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:document_access_log.document_access_log_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:document_approvals.document_approvals_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:document_ocr.document_ocr_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_bands.event_bands_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_exhibitors.event_exhibitors_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_guests.event_guests_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_incidents.event_incidents_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_octane_configs.event_octane_configs_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_program.event_program_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_proposals.event_proposals_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_routes.event_routes_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_shift_members.event_shift_members_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_shifts.event_shifts_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_sponsors.event_sponsors_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_task_assignees.event_task_assignees_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:event_tasks.event_tasks_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:events.events_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:fee_adjustments.fee_adjustments_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:fee_credits.fee_credits_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:fee_exemptions.fee_exemptions_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:fee_obligations.fee_obligations_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:fee_payment_allocations.fee_payment_allocations_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:fee_payments.fee_payments_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:fee_plans.fee_plans_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:maintenance_attachments.maintenance_attachments_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:maintenance_records.maintenance_records_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:member_patch_awards.member_patch_awards_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:member_positions.member_positions_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:member_status_history.member_status_history_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:member_timeline.member_timeline_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:members.members_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:product_variants.product_variants_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:products.products_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:reported_payments.reported_payments_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:stock_lots.stock_lots_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:stock_movements.stock_movements_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "id": "policy:stock_reservations.stock_reservations_tenant",
+      "field": "reason",
+      "change": "Restore original UTF-8 explanatory metadata; no policy data changed"
+    }
+  ],
+  "compacted_inputs": [
+    {
+      "path": "docs/PHASE_GROUPED_DRIFT_CLASSIFICATION.json",
+      "selected_records": 6,
+      "exact_selected_records_equal": true
+    },
+    {
+      "path": "docs/PHASE_STRUCTURAL_DRIFT_CLASSIFICATION.json",
+      "selected_records": 41,
+      "exact_selected_records_equal": true
+    }
+  ],
+  "execution": {
+    "driver": "postgres 3.4.9 supplied as argv[2] file path; Node 24.19.0",
+    "endpoint": "127.0.0.1:55440",
+    "isolated_workspace": true,
+    "functional_source_modified": false,
+    "harnesses": [
+      {
+        "harness": "test_policy_hardening",
+        "exit": 0,
+        "seconds": 11.84
+      },
+      {
+        "harness": "test_ambiguous_address",
+        "exit": 0,
+        "seconds": 0.35
+      },
+      {
+        "harness": "test_ambiguous_override",
+        "exit": 0,
+        "seconds": 0.35
+      },
+      {
+        "harness": "test_consolidated_preflight",
+        "exit": 0,
+        "seconds": 0.33
+      },
+      {
+        "harness": "test_consolidated_writers",
+        "exit": 0,
+        "seconds": 0.34
+      },
+      {
+        "harness": "test_final_contracts",
+        "exit": 0,
+        "seconds": 0.41
+      },
+      {
+        "harness": "test_final_policies",
+        "exit": 0,
+        "seconds": 0.55
+      },
+      {
+        "harness": "test_grouped_fees",
+        "exit": 0,
+        "seconds": 0.6
+      },
+      {
+        "harness": "test_grouped_memberships",
+        "exit": 0,
+        "seconds": 0.32
+      },
+      {
+        "harness": "test_grouped_operations",
+        "exit": 0,
+        "seconds": 0.52
+      },
+      {
+        "harness": "test_high_risk",
+        "exit": 0,
+        "seconds": 1.36
+      },
+      {
+        "harness": "test_high_risk_closure",
+        "exit": 0,
+        "seconds": 0.4,
+        "rerun": "passed against preserved sanitized input; 19 checks and 390 retained triggers",
+        "sequence_issue": "test_high_risk regenerates unsanitized snapshot from local catalog; sequence needs explicit sanitization before parity"
+      },
+      {
+        "harness": "test_policy_documents",
+        "exit": 0,
+        "seconds": 0.49
+      },
+      {
+        "harness": "test_policy_structural_contracts",
+        "exit": 0,
+        "seconds": 0.5
+      },
+      {
+        "harness": "test_structural_blockers",
+        "exit": 0,
+        "seconds": 0.57
+      },
+      {
+        "harness": "test_structural_drift",
+        "exit": 1,
+        "seconds": 0.3,
+        "failure": "23502: fixture INSERT into announcements omits required body column"
+      },
+      {
+        "harness": "test_final_event_policies",
+        "exit": 0,
+        "policies": 6,
+        "cases_per_catalog_per_policy": 96
+      },
+      {
+        "harness": "test_clean_rebuild --allow-extension-adapters",
+        "exit": 0,
+        "migrations": 154,
+        "scope": "fresh local database; SQL adapters only"
+      }
+    ],
+    "not_rerun": [
+      "test_reconciliation",
+      "test_reconciliation_final"
+    ],
+    "syntax_checked": 20,
+    "syntax_failures": 0,
+    "literal_doc_dependencies_missing_from_allowlist": 0,
+    "dependency_scope": "Static literal dependencies checked against allowlist; imports/migrations checked against tracked base. Dynamic catalog argv[3] not closed.",
+    "blockers": [
+      "B1: test_structural_drift fails with SQLSTATE 23502: announcement fixture omits NOT NULL body. Repair and rerun the harness under a separately validated test change.",
+      "B2: test_high_risk regenerates PHASE_HIGH_RISK_LOCAL_SNAPSHOT.json with original endpoint from local database; subsequent test_high_risk_closure fails against sanitized comparison input. Standalone closure passes with preserved sanitized input. Add a deterministic sanitization step to the replay pipeline and verify the sequence.",
+      "B3: test_reconciliation and test_reconciliation_final require a schema catalog as argv[3]. Historical external catalog is outside candidates; no generation recipe from the 82 candidates was validated. Tracked restore_weekly_officer_catalog.mjs is available in base commit. Validate a sanitized catalog or reproducible generation recipe before asserting full dependency closure."
+    ]
+  },
+  "verification": {
+    "initial_manifest_hashes_verified": 81,
+    "initial_hash_mismatches": [],
+    "functional_files_compared": 41,
+    "functional_byte_mismatches": [],
+    "manifest_self_hash": "omitted to avoid circular hash",
+    "scans": {
+      "local_paths": 0,
+      "real_supabase_urls": 0,
+      "secrets": 0
+    },
+    "git_diff_check_exit": 0,
+    "staging_empty": true,
+    "candidate_total_bytes": 12043210
+  },
+  "limitations": [
+    "This is a content review of candidate evidence, not production/data-service validation.",
+    "275 medium F and 39 provenance gaps remain historical limitations.",
+    "Successful local adapter tests do not prove real Supabase stack or external consumers."
+  ],
+  "current_phase": {
+    "application_sql_files_byte_identical": [
+      "docs/PHASE_AMBIGUOUS_FUTURE_PREFLIGHT.sql",
+      "docs/PHASE_BASELINE_ACTIVE_CONTRACTS_PREFLIGHT.sql",
+      "docs/PHASE_BASELINE_COLUMN_PREFLIGHT.sql",
+      "docs/PHASE_BASELINE_MISSING_OBJECTS_PREFLIGHT.sql",
+      "docs/PHASE_HIGH_RISK_BASELINE_PATCH.sql",
+      "docs/PHASE_POLICY_HARDENING_PREFLIGHT.sql",
+      "docs/PHASE_RECONCILIATION_FINAL_INCREMENTAL_PREFLIGHT.sql",
+      "docs/PHASE_RECONCILIATION_FOLLOWUP_PREFLIGHT.sql",
+      "docs/PHASE_RECONCILIATION_PREFLIGHT.sql",
+      "docs/PHASE_RECONCILIATION_SUPPLEMENTAL_PREFLIGHT.sql",
+      "docs/PHASE_STRUCTURAL_DRIFT_PREFLIGHT.sql",
+      "supabase/migrations/1000_bob_manager_v1_complete.sql",
+      "supabase/migrations/20260806144500_rc1_treasury_rls_consolidation.sql",
+      "supabase/migrations/20260806183000_rc1_global_security_audit.sql",
+      "supabase/migrations/20260811160313_rc1_global_audit_foundation.sql",
+      "supabase/migrations/20260812165729_rc1_member_history_patches_motorcycle_maintenance.sql",
+      "supabase/migrations/20261014141853_rc1_reconciliation_identity_nullability.sql",
+      "supabase/migrations/20261014141913_rc1_reconciliation_club_access.sql",
+      "supabase/migrations/20261014151033_rc1_reconciliation_active_bootstrap.sql",
+      "supabase/migrations/20261014151034_rc1_reconciliation_slug_uniqueness.sql",
+      "supabase/migrations/20261014151050_rc1_reconciliation_timeline_literal.sql"
+    ],
+    "previous_executable_candidates_unchanged": 37,
+    "intentional_harness_changes": [
+      "tools/test_high_risk.mjs",
+      "tools/test_reconciliation.mjs",
+      "tools/test_reconciliation_final.mjs",
+      "tools/test_structural_drift.mjs"
+    ],
+    "exact_changed_files": [
+      "docs/PHASE_HIGH_RISK_LOCAL_SNAPSHOT.json",
+      "docs/PHASE_RECONCILIATION_COMMIT_ALLOWLIST.txt",
+      "docs/PHASE_RECONCILIATION_COMMIT_READINESS.md",
+      "docs/PHASE_RECONCILIATION_FINAL_CLOSURE_MANIFEST.json",
+      "docs/PHASE_RECONCILIATION_PII_SCAN_RESULTS.json",
+      "docs/PHASE_RECONCILIATION_REPRODUCIBILITY_RESULTS.json",
+      "tools/fixtures/reconciliation_catalog.json",
+      "tools/fixtures/reconciliation_catalog.provenance.json",
+      "tools/run_reconciliation_suite.mjs",
+      "tools/sanitize_catalog.mjs",
+      "tools/test_high_risk.mjs",
+      "tools/test_reconciliation.mjs",
+      "tools/test_reconciliation_final.mjs",
+      "tools/test_structural_drift.mjs"
+    ],
+    "result": "20/20 per round including 18 original checks; two rounds plus isolated blocker cases; replay 154/154",
+    "external_catalog": "versioned sanitized schema-only fixture; provenance and SHA-256 verified",
+    "historical_execution_note": "The execution field below describes the prior review only; superseded by current_phase and reproducibility report.",
+    "scans": {
+      "local_paths": 0,
+      "real_supabase_urls": 0,
+      "secrets": 0
+    },
+    "uuid_occurrences": 560,
+    "uuid_unique": 12,
+    "email_unique": 20,
+    "unnecessary_real_pii": 0,
+    "fixture_review": "Schema definitions only; no email or UUID literals; no row payloads. Existing synthetic fixture names/addresses unchanged.",
+    "diff_check": "passed",
+    "staging_empty": true,
+    "candidate_files": 89,
+    "candidate_total_bytes": 13703563,
+    "manifest_hashes": 88
+  }
+}

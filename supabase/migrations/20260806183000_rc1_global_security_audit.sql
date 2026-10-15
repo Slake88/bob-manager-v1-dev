@@ -18,7 +18,12 @@ end
 $$;
 
 revoke execute on function public.handle_new_user() from authenticated;
-revoke execute on function public.protect_profile_privileges() from authenticated;
+-- Broken production legacy is deliberately excluded from clean bootstrap.
+do $$ begin
+ if to_regprocedure('public.protect_profile_privileges()') is not null then
+  revoke execute on function public.protect_profile_privileges() from authenticated;
+ end if;
+end $$;
 revoke execute on function public.validate_treasury_transaction_v1() from authenticated;
 
 alter table public.member_motorcycles enable row level security;
