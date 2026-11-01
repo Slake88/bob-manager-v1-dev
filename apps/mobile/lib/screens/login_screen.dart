@@ -1,8 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/app_config.dart';
 import '../services/auth_service.dart';
+import '../widgets/environment_banner.dart';
 import 'shell_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -130,6 +133,19 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _openOtherEnvironment() async {
+    final uri = AppConfig.otherEnvironmentUri;
+    if (uri == null) return;
+    final opened = await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication,
+      webOnlyWindowName: kIsWeb ? '_blank' : null,
+    );
+    if (!opened && mounted) {
+      setState(() => error = 'Não foi possível abrir o outro ambiente.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final demo = AppConfig.explicitDemoMode;
@@ -143,6 +159,8 @@ class _LoginScreenState extends State<LoginScreen> {
             child: AutofillGroup(
               child: Column(
                 children: [
+                  const EnvironmentBanner(),
+                  const SizedBox(height: 18),
                   const Icon(Icons.shield, size: 80),
                   const SizedBox(height: 12),
                   Text(
@@ -156,6 +174,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     const Chip(
                       avatar: Icon(Icons.science_outlined),
                       label: Text('MODO DEMONSTRAÇÃO'),
+                    ),
+                  ],
+                  if (AppConfig.otherEnvironmentUri != null) ...[
+                    const SizedBox(height: 12),
+                    TextButton.icon(
+                      onPressed: loading ? null : _openOtherEnvironment,
+                      icon: const Icon(Icons.open_in_new),
+                      label: const Text('Abrir outro ambiente'),
                     ),
                   ],
                   const SizedBox(height: 24),

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -9,6 +10,7 @@ import 'screens/login_screen.dart';
 import 'screens/password_setup_screen.dart';
 import 'screens/shell_screen.dart';
 import 'services/auth_service.dart';
+import 'widgets/environment_banner.dart';
 
 bool _initialPasswordRecovery = false;
 
@@ -20,15 +22,16 @@ bool _isPasswordRecoveryUri(Uri uri) {
       fragment.contains('&type=recovery');
 }
 
-Future<void> main() async {
+Future<void> main({http.Client? httpClient}) async {
   WidgetsFlutterBinding.ensureInitialized();
   _initialPasswordRecovery = _isPasswordRecoveryUri(Uri.base);
 
-  if (!AppConfig.demoMode) {
+  if (AppConfig.configurationError == null && !AppConfig.demoMode) {
     AppConfig.validateForRealMode();
     await Supabase.initialize(
       url: AppConfig.supabaseUrl,
       publishableKey: AppConfig.supabasePublishableKey,
+      httpClient: httpClient,
     );
   }
 
@@ -85,8 +88,10 @@ class _AppBootstrapState extends State<_AppBootstrap> {
   @override
   void initState() {
     super.initState();
-    _restoreFuture = AuthService.instance.restore();
-    if (!AppConfig.demoMode) {
+    _restoreFuture = AppConfig.configurationError == null && !AppConfig.demoMode
+        ? AuthService.instance.restore()
+        : Future<bool>.value(false);
+    if (AppConfig.configurationError == null && !AppConfig.demoMode) {
       _authSubscription =
           Supabase.instance.client.auth.onAuthStateChange.listen((state) {
         if (!mounted) return;
@@ -115,8 +120,9 @@ class _AppBootstrapState extends State<_AppBootstrap> {
 
   @override
   Widget build(BuildContext context) {
-    if (AppConfig.implicitDemoMode) {
-      return const _ConfigurationErrorScreen();
+    final configurationError = AppConfig.configurationError;
+    if (configurationError != null) {
+      return _ConfigurationErrorScreen(message: configurationError);
     }
 
     if (!AppConfig.demoMode &&
@@ -140,6 +146,33 @@ class _AppBootstrapState extends State<_AppBootstrap> {
           );
         }
 
+        if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.cloud_off_outlined, size: 42),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Não foi possível restaurar a sessão. Verifica a ligação e tenta novamente.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: _retryRestore,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Tentar novamente'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
         if (snapshot.data == true) {
           return const ShellScreen();
         }
@@ -148,10 +181,19 @@ class _AppBootstrapState extends State<_AppBootstrap> {
       },
     );
   }
+
+  void _retryRestore() {
+    if (!mounted) return;
+    setState(() {
+      _restoreFuture = AuthService.instance.restore();
+    });
+  }
 }
 
 class _ConfigurationErrorScreen extends StatelessWidget {
-  const _ConfigurationErrorScreen();
+  const _ConfigurationErrorScreen({required this.message});
+
+  final String message;
 
   @override
   Widget build(BuildContext context) {
@@ -167,33 +209,34 @@ class _ConfigurationErrorScreen extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    const EnvironmentBanner(),
+                    const SizedBox(height: 16),
                     const Icon(Icons.shield, size: 64),
                     const SizedBox(height: 12),
                     Text(
                       'BOB MANAGER',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
+                      style:
+                          Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                fontWeight: FontWeight.w900,
+                              ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      'Configuração Supabase em falta',
+                      'Configuração da aplicação inválida',
                       style: Theme.of(context).textTheme.headlineSmall,
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'Executa a aplicação com SUPABASE_URL e '
-                      'SUPABASE_PUBLISHABLE_KEY. O modo Demo deixou de ser '
-                      'ativado silenciosamente.',
+                    Text(
+                      message,
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 16),
                     const SelectableText(
-                      'flutter run -d chrome '
-                      '--dart-define=SUPABASE_URL=... '
-                      '--dart-define=SUPABASE_PUBLISHABLE_KEY=...',
+                      'Define APP_ENV=TESTE ou APP_ENV=REAL na build. '
+                      'Uma build REAL também exige SUPABASE_URL e '
+                      'SUPABASE_PUBLISHABLE_KEY.',
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 12),
