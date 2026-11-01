@@ -16,16 +16,10 @@ class ClubExportScreen extends StatefulWidget {
 class _ClubExportScreenState extends State<ClubExportScreen> {
   final ClubExportRepository _repository = ClubExportRepository();
   final ClubExportService _service = ClubExportService();
-  final Set<ClubExportSection> _selected = ClubExportSection.values.toSet();
-
-  bool _includeSensitive = false;
-  bool _includeFiles = false;
+  final Set<ClubExportSection> _selected = {...pilotClubExportSections};
   bool _busy = false;
   String _progress = '';
   late Future<List<Map<String, dynamic>>> _history;
-
-  bool get _canSensitive =>
-      ClubExportPolicy.canIncludeSensitive(AppSession.instance);
 
   @override
   void initState() {
@@ -37,7 +31,7 @@ class _ClubExportScreenState extends State<ClubExportScreen> {
     setState(() {
       _selected
         ..clear()
-        ..addAll(ClubExportSection.values);
+        ..addAll(pilotClubExportSections);
     });
   }
 
@@ -54,14 +48,11 @@ class _ClubExportScreenState extends State<ClubExportScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Gerar exportação integral?'),
+        title: const Text('Gerar exportação do piloto?'),
         content: Text(
           [
-            '${_selected.length} áreas selecionadas.',
-            if (_includeSensitive)
-              'Inclui dados altamente sensíveis de membros/documentos.',
-            if (_includeFiles)
-              'Inclui ficheiros armazenados e pode criar um ZIP de grande dimensão.',
+            '${_selected.length} áreas validadas selecionadas.',
+            'O pacote inclui apenas os 14 datasets aprovados. Ficheiros e dados sensíveis não são incluídos.',
             'A operação fica registada na auditoria do clube.',
           ].join('\n\n'),
         ),
@@ -87,8 +78,8 @@ class _ClubExportScreenState extends State<ClubExportScreen> {
     try {
       final package = await _service.generate(
         sections: _selected,
-        includeSensitive: _includeSensitive,
-        includeFiles: _includeFiles,
+        includeSensitive: false,
+        includeFiles: false,
         onProgress: (message) {
           if (!mounted) return;
           setState(() => _progress = message);
@@ -179,7 +170,7 @@ class _ClubExportScreenState extends State<ClubExportScreen> {
               TextButton(onPressed: _busy ? null : _clearAll, child: const Text('Nenhuma')),
             ],
           ),
-          ...ClubExportSection.values.map(
+          ...pilotClubExportSections.map(
             (section) => Card(
               child: CheckboxListTile(
                 value: _selected.contains(section),
@@ -201,43 +192,14 @@ class _ClubExportScreenState extends State<ClubExportScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Text(
-            'Opções protegidas',
-            style: Theme.of(context)
-                .textTheme
-                .titleLarge
-                ?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 6),
-          Card(
-            child: SwitchListTile(
-              value: _includeSensitive,
-              onChanged: !_canSensitive || _busy
-                  ? null
-                  : (value) => setState(() => _includeSensitive = value),
-              title: const Text('Incluir dados altamente sensíveis'),
+          const Card(
+            child: ListTile(
+              leading: Icon(Icons.security_outlined),
+              title: Text('Escopo limitado do piloto'),
               subtitle: Text(
-                _canSensitive
-                    ? 'NIF, morada, contacto de emergência/notas privadas e '
-                        'metadata/documentos marcados como sensíveis.'
-                    : 'Exige simultaneamente permissão para Emergência e '
-                        'Documentos Sensíveis.',
+                'Apenas 14 datasets aprovados de Pedidos & Pagamentos, Quotas e Euromilhões. '
+                'Outras áreas, dados sensíveis e ficheiros estão desativados.',
               ),
-              secondary: const Icon(Icons.security_outlined),
-            ),
-          ),
-          Card(
-            child: SwitchListTile(
-              value: _includeFiles,
-              onChanged: _busy
-                  ? null
-                  : (value) => setState(() => _includeFiles = value),
-              title: const Text('Incluir ficheiros armazenados'),
-              subtitle: const Text(
-                'Inclui fotografias e anexos conhecidos através das mesmas '
-                'regras de Storage/RLS. Limite de proteção: 200 MB.',
-              ),
-              secondary: const Icon(Icons.folder_zip_outlined),
             ),
           ),
           const SizedBox(height: 12),

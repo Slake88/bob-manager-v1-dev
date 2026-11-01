@@ -6,14 +6,17 @@ import '../core/permissions.dart';
 import '../repositories/assets_operations_repository.dart';
 
 class AssetsPhase2Screen extends StatefulWidget {
-  const AssetsPhase2Screen({super.key});
+  AssetsPhase2Screen({super.key, AssetsOperationsRepository? repository})
+    : repository = repository ?? AssetsOperationsRepository();
+
+  final AssetsOperationsRepository repository;
 
   @override
   State<AssetsPhase2Screen> createState() => _AssetsPhase2ScreenState();
 }
 
 class _AssetsPhase2ScreenState extends State<AssetsPhase2Screen> {
-  final _repository = AssetsOperationsRepository();
+  late final _repository = widget.repository;
   late Future<_Phase2Data> _future;
 
   bool get _canManage => AppSession.instance.can(AppPermission.manageAssets);
@@ -94,31 +97,6 @@ class _AssetsPhase2ScreenState extends State<AssetsPhase2Screen> {
     }
   }
 
-  Future<void> _newMaintenance(_Phase2Data data, {String? presetType}) async {
-    final result = await showDialog<_MaintenanceInput>(
-      context: context,
-      builder: (_) => _MaintenanceDialog(data: data, presetType: presetType),
-    );
-    if (result == null) return;
-    try {
-      await _repository.maintenance(
-        assetId: result.assetId,
-        type: result.type,
-        date: result.date,
-        description: result.description,
-        cost: result.cost,
-        supplier: result.supplier,
-        nextDue: result.nextDue,
-        accountId: result.accountId,
-        paymentMethod: result.paymentMethod,
-        postFinancial: result.postFinancial,
-      );
-      if (mounted) setState(_reload);
-    } catch (error) {
-      _error(error);
-    }
-  }
-
   Future<void> _newKit(_Phase2Data data, [Map<String, dynamic>? kit]) async {
     final result = await showDialog<_KitInput>(
       context: context,
@@ -185,15 +163,11 @@ class _AssetsPhase2ScreenState extends State<AssetsPhase2Screen> {
                     ),
                     _MaintenanceTab(
                       rows: data.maintenance,
-                      canManage: _canManage,
-                      onAdd: () => _newMaintenance(data),
                       onRefresh: _refresh,
                     ),
                     _InspectionTab(
                       assets: data.assets,
                       dueCount: inspectionsDue,
-                      canManage: _canManage,
-                      onAdd: () => _newMaintenance(data, presetType: 'inspection'),
                       onRefresh: _refresh,
                     ),
                     _KitsTab(
@@ -247,10 +221,8 @@ class _LoansTab extends StatelessWidget {
 }
 
 class _MaintenanceTab extends StatelessWidget {
-  const _MaintenanceTab({required this.rows,required this.canManage,required this.onAdd,required this.onRefresh});
+  const _MaintenanceTab({required this.rows,required this.onRefresh});
   final List<Map<String,dynamic>> rows;
-  final bool canManage;
-  final VoidCallback onAdd;
   final Future<void> Function() onRefresh;
   @override
   Widget build(BuildContext context) {
@@ -259,7 +231,7 @@ class _MaintenanceTab extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16,16,16,96),
         children: [
-          if (canManage) Align(alignment: Alignment.centerLeft,child: FilledButton.icon(onPressed: onAdd,icon: const Icon(Icons.add),label: const Text('Registar intervenção'))),
+          const Card(child: ListTile(leading: Icon(Icons.info_outline),title: Text('Registo de intervenções desativado no piloto.'),subtitle: Text('O histórico permanece disponível para consulta.'))),
           const SizedBox(height: 12),
           if (rows.isEmpty) const Card(child: ListTile(title: Text('Ainda não existem manutenções ou reparações registadas.')))
           else for (final row in rows) _MaintenanceCard(row: row),
@@ -270,11 +242,9 @@ class _MaintenanceTab extends StatelessWidget {
 }
 
 class _InspectionTab extends StatelessWidget {
-  const _InspectionTab({required this.assets,required this.dueCount,required this.canManage,required this.onAdd,required this.onRefresh});
+  const _InspectionTab({required this.assets,required this.dueCount,required this.onRefresh});
   final List<Map<String,dynamic>> assets;
   final int dueCount;
-  final bool canManage;
-  final VoidCallback onAdd;
   final Future<void> Function() onRefresh;
   @override
   Widget build(BuildContext context) {
@@ -288,8 +258,8 @@ class _InspectionTab extends StatelessWidget {
           Wrap(spacing:10,runSpacing:10,children:[
             _Metric('Com inspeção','${rows.length}',Icons.fact_check_outlined),
             _Metric('Próximas / vencidas','$dueCount',Icons.notification_important_outlined),
-            if (canManage) FilledButton.icon(onPressed: onAdd,icon: const Icon(Icons.add_task),label: const Text('Registar inspeção')),
           ]),
+          const Card(child: ListTile(leading: Icon(Icons.info_outline),title: Text('Registo de inspeções desativado no piloto.'),subtitle: Text('Os requisitos e prazos permanecem disponíveis para consulta.'))),
           const SizedBox(height:16),
           if (rows.isEmpty) const Card(child: ListTile(title: Text('Nenhum bem exige inspeção periódica.')))
           else for (final asset in rows) _InspectionCard(asset: asset),
@@ -437,9 +407,6 @@ class _LoanDialogState extends State<_LoanDialog> {
 class _ReturnDialog extends StatefulWidget { const _ReturnDialog(); @override State<_ReturnDialog> createState()=>_ReturnDialogState(); }
 class _ReturnDialogState extends State<_ReturnDialog>{String condition='good';final notes=TextEditingController();@override void dispose(){notes.dispose();super.dispose();}@override Widget build(BuildContext context)=>AlertDialog(title:const Text('Devolver bem'),content:Column(mainAxisSize:MainAxisSize.min,children:[DropdownButtonFormField<String>(initialValue:condition,decoration:const InputDecoration(labelText:'Estado na devolução',border:OutlineInputBorder()),items:const [DropdownMenuItem(value:'excellent',child:Text('Excelente')),DropdownMenuItem(value:'good',child:Text('Bom')),DropdownMenuItem(value:'regular',child:Text('Regular')),DropdownMenuItem(value:'maintenance',child:Text('Necessita manutenção')),DropdownMenuItem(value:'damaged',child:Text('Avariado'))],onChanged:(v)=>setState(()=>condition=v??condition)),const SizedBox(height:12),TextField(controller:notes,maxLines:2,decoration:const InputDecoration(labelText:'Notas da devolução',border:OutlineInputBorder()))]),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancelar')),FilledButton(onPressed:()=>Navigator.pop(context,_ReturnInput(condition,notes.text)),child:const Text('Confirmar devolução'))]);}
 
-class _MaintenanceDialog extends StatefulWidget {const _MaintenanceDialog({required this.data,this.presetType});final _Phase2Data data;final String? presetType;@override State<_MaintenanceDialog> createState()=>_MaintenanceDialogState();}
-class _MaintenanceDialogState extends State<_MaintenanceDialog>{String? assetId;late String type;DateTime date=DateTime.now();DateTime? nextDue;final description=TextEditingController();final cost=TextEditingController(text:'0');final supplier=TextEditingController();String? accountId;String payment='Dinheiro';bool financial=false;@override void initState(){super.initState();type=widget.presetType??'maintenance';final caixa=widget.data.accounts.where((a)=>a['name']?.toString().toLowerCase()=='caixa');if(caixa.isNotEmpty){accountId=caixa.first['id'].toString();}else if(widget.data.accounts.isNotEmpty){accountId=widget.data.accounts.first['id'].toString();}}@override void dispose(){description.dispose();cost.dispose();supplier.dispose();super.dispose();}@override Widget build(BuildContext context)=>AlertDialog(title:const Text('Registar intervenção'),content:SizedBox(width:560,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[_dropdown('Bem',assetId,widget.data.assets.map((e)=>e['id'].toString()).toList(),(v)=>'${widget.data.assets.firstWhere((e)=>e['id'].toString()==v)['asset_number']} · ${widget.data.assets.firstWhere((e)=>e['id'].toString()==v)['name']}',(v)=>setState(()=>assetId=v)),const SizedBox(height:12),DropdownButtonFormField<String>(initialValue:type,decoration:const InputDecoration(labelText:'Tipo',border:OutlineInputBorder()),items:const [DropdownMenuItem(value:'maintenance',child:Text('Manutenção')),DropdownMenuItem(value:'repair',child:Text('Reparação')),DropdownMenuItem(value:'inspection',child:Text('Inspeção'))],onChanged:(v)=>setState(()=>type=v??type)),const SizedBox(height:12),TextField(controller:description,maxLines:2,decoration:const InputDecoration(labelText:'Descrição',border:OutlineInputBorder())),const SizedBox(height:12),TextField(controller:supplier,decoration:const InputDecoration(labelText:'Fornecedor / oficina',border:OutlineInputBorder())),const SizedBox(height:12),TextField(controller:cost,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Custo (€)',border:OutlineInputBorder())),const SizedBox(height:12),ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.event),title:Text('Data: ${DateFormat('dd/MM/yyyy').format(date)}'),trailing:IconButton(icon:const Icon(Icons.calendar_month),onPressed:() async {final d=await showDatePicker(context:context,initialDate:date,firstDate:DateTime(2020),lastDate:DateTime.now().add(const Duration(days:3650)));if(d!=null){setState(()=>date=d);}})),ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.update),title:Text(nextDue==null?'Próxima intervenção (opcional)':'Próxima: ${DateFormat('dd/MM/yyyy').format(nextDue!)}'),trailing:IconButton(icon:const Icon(Icons.calendar_month),onPressed:() async {final d=await showDatePicker(context:context,initialDate:date.add(const Duration(days:180)),firstDate:date,lastDate:DateTime.now().add(const Duration(days:3650)));if(d!=null){setState(()=>nextDue=d);}})),SwitchListTile(contentPadding:EdgeInsets.zero,value:financial,onChanged:(v)=>setState(()=>financial=v),title:const Text('Registar despesa na Tesouraria')),if(financial&&widget.data.accounts.isNotEmpty)...[const SizedBox(height:8),_dropdown('Conta / fundo',accountId,widget.data.accounts.map((e)=>e['id'].toString()).toList(),(v)=>widget.data.accounts.firstWhere((e)=>e['id'].toString()==v)['name'].toString(),(v)=>setState(()=>accountId=v)),const SizedBox(height:12),DropdownButtonFormField<String>(initialValue:payment,decoration:const InputDecoration(labelText:'Pagamento',border:OutlineInputBorder()),items:const ['Dinheiro','MB Way','Transferência bancária'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>setState(()=>payment=v??payment))]]))),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancelar')),FilledButton(onPressed:assetId==null?null:()=>Navigator.pop(context,_MaintenanceInput(assetId!,type,date,description.text,_parse(cost.text),supplier.text,nextDue,accountId,payment,financial)),child:const Text('Registar'))]);}
-
 class _KitDialog extends StatefulWidget {const _KitDialog({required this.assets,this.kit});final List<Map<String,dynamic>> assets;final Map<String,dynamic>? kit;@override State<_KitDialog> createState()=>_KitDialogState();}
 class _KitDialogState extends State<_KitDialog>{late final TextEditingController name;late final TextEditingController description;final selected=<String>{};@override void initState(){super.initState();name=TextEditingController(text:widget.kit?['name']?.toString()??'');description=TextEditingController(text:widget.kit?['description']?.toString()??'');final items=widget.kit?['asset_kit_items'];if(items is List){for(final item in items){if(item is Map&&item['asset_id']!=null){selected.add(item['asset_id'].toString());}}}}@override void dispose(){name.dispose();description.dispose();super.dispose();}@override Widget build(BuildContext context)=>AlertDialog(title:Text(widget.kit==null?'Novo Kit':'Editar Kit'),content:SizedBox(width:560,height:520,child:Column(children:[TextField(controller:name,decoration:const InputDecoration(labelText:'Nome do Kit',border:OutlineInputBorder())),const SizedBox(height:12),TextField(controller:description,decoration:const InputDecoration(labelText:'Descrição',border:OutlineInputBorder())),const SizedBox(height:12),const Align(alignment:Alignment.centerLeft,child:Text('Equipamentos',style:TextStyle(fontWeight:FontWeight.w700))),const SizedBox(height:6),Expanded(child:ListView(children:[for(final asset in widget.assets) CheckboxListTile(value:selected.contains(asset['id'].toString()),onChanged:(v)=>setState((){final id=asset['id'].toString();if(v==true){selected.add(id);}else{selected.remove(id);}}),title:Text('${asset['asset_number']} · ${asset['name']}'),subtitle:Text(asset['category']?.toString()??''))]))])),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancelar')),FilledButton(onPressed:()=>Navigator.pop(context,_KitInput(name.text,description.text,selected.toList())),child:Text(widget.kit==null?'Guardar Kit':'Guardar alterações'))]);}
 
@@ -449,13 +416,11 @@ class _Metric extends StatelessWidget{const _Metric(this.label,this.value,this.i
 class _Phase2Data{const _Phase2Data({required this.assets,required this.members,required this.events,required this.accounts,required this.loans,required this.maintenance,required this.kits});final List<Map<String,dynamic>> assets,members,events,accounts,loans,maintenance,kits;}
 class _LoanInput{const _LoanInput(this.assetId,this.borrowerType,this.memberId,this.eventId,this.externalName,this.expectedReturn,this.notes);final String assetId,borrowerType;final String? memberId,eventId;final String externalName,notes;final DateTime? expectedReturn;}
 class _ReturnInput{const _ReturnInput(this.condition,this.notes);final String condition,notes;}
-class _MaintenanceInput{const _MaintenanceInput(this.assetId,this.type,this.date,this.description,this.cost,this.supplier,this.nextDue,this.accountId,this.paymentMethod,this.postFinancial);final String assetId,type,description,supplier,paymentMethod;final DateTime date;final double cost;final DateTime? nextDue;final String? accountId;final bool postFinancial;}
 class _KitInput{const _KitInput(this.name,this.description,this.assetIds);final String name,description;final List<String> assetIds;}
 
 String _memberName(Map<dynamic,dynamic> row){final full=row['full_name']?.toString()??'';final nick=row['nickname']?.toString()??'';return nick.isEmpty?full:'$full ($nick)';}
 String _formatDate(Object? value){final d=DateTime.tryParse(value?.toString()??'');return d==null?'—':DateFormat('dd/MM/yyyy').format(d);}
 String _money(Object? value)=>'${_double(value).toStringAsFixed(2).replaceAll('.', ',')} €';
 double _double(Object? value)=>value is num?value.toDouble():double.tryParse(value?.toString().replaceAll(',','.')??'')??0;
-double _parse(String value)=>double.tryParse(value.replaceAll(',','.'))??0;
 String _maintenanceLabel(String? type)=>switch(type){'inspection'=>'Inspeção','repair'=>'Reparação',_=>'Manutenção'};
 IconData _maintenanceIcon(String? type)=>switch(type){'inspection'=>Icons.fact_check_outlined,'repair'=>Icons.handyman_outlined,_=>Icons.build_outlined};

@@ -11,7 +11,7 @@ class AssetsModuleScreen extends StatelessWidget {
     return DefaultTabController(
       length: 2,
       child: Column(
-        children: const [
+        children: [
           Material(
             child: TabBar(
               tabs: [

@@ -25,6 +25,31 @@ enum ClubExportSection {
   final String description;
 }
 
+/// The pilot exposes only datasets that passed the R13 behavioral checks.
+/// Keep this set aligned with the server-side migration allowlist.
+const Set<String> pilotClubExportDatasetPaths = {
+  'financeiro/pedidos.csv',
+  'financeiro/pedidos_anexos.csv',
+  'financeiro/documentos_movimentos.csv',
+  'quotas/planos.csv',
+  'quotas/obrigacoes.csv',
+  'quotas/pagamentos.csv',
+  'euromilhoes/participantes.csv',
+  'euromilhoes/sorteios.csv',
+  'euromilhoes/chaves.csv',
+  'euromilhoes/participacoes.csv',
+  'euromilhoes/resultados.csv',
+  'euromilhoes/cobrancas.csv',
+  'euromilhoes/multas.csv',
+  'euromilhoes/premios.csv',
+};
+
+const Set<ClubExportSection> pilotClubExportSections = {
+  ClubExportSection.financial,
+  ClubExportSection.fees,
+  ClubExportSection.lottery,
+};
+
 class ClubExportPolicy {
   const ClubExportPolicy._();
 

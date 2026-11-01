@@ -20,6 +20,11 @@ class ClubExportRepository {
     required bool includeSensitive,
     required bool includeFiles,
   }) async {
+    _validatePilotScope(
+      sections: sections,
+      includeSensitive: includeSensitive,
+      includeFiles: includeFiles,
+    );
     _ensureProduction();
     if (!ClubExportPolicy.canExport(AppSession.instance)) {
       throw const ClubExportFailure(
@@ -97,6 +102,11 @@ class ClubExportRepository {
     required bool includeSensitive,
     required bool includeFiles,
   }) async {
+    _validatePilotScope(
+      sections: sections,
+      includeSensitive: includeSensitive,
+      includeFiles: includeFiles,
+    );
     _ensureProduction();
     if (!ClubExportPolicy.canExport(AppSession.instance)) {
       throw const ClubExportFailure(
@@ -123,7 +133,9 @@ class ClubExportRepository {
 
     final datasets = <ClubExportDataset>[];
     final filesByKey = <String, ClubExportFileRef>{};
-    for (final spec in _allExportSpecs) {
+    for (final spec in _allExportSpecs.where(
+      (spec) => pilotClubExportDatasetPaths.contains(spec.path),
+    )) {
       if (!sections.contains(spec.section)) continue;
       if (spec.sensitive && !includeSensitive) continue;
 
@@ -212,6 +224,25 @@ class ClubExportRepository {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '');
+  }
+
+  void _validatePilotScope({
+    required Set<ClubExportSection> sections,
+    required bool includeSensitive,
+    required bool includeFiles,
+  }) {
+    if (sections.isEmpty || !pilotClubExportSections.containsAll(sections)) {
+      throw const ClubExportFailure(
+        'pilot_scope_disabled',
+        'Esta área de exportação não está disponível no piloto.',
+      );
+    }
+    if (includeSensitive || includeFiles) {
+      throw const ClubExportFailure(
+        'pilot_scope_disabled',
+        'Dados sensíveis e ficheiros estão desativados no piloto.',
+      );
+    }
   }
 
   void _ensureProduction() {

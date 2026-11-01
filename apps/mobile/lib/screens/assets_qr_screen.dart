@@ -150,35 +150,6 @@ class _AssetsQrScreenState extends State<AssetsQrScreen> {
     }
   }
 
-  Future<void> _intervention(String type) async {
-    final asset = _asset;
-    if (asset == null) return;
-    try {
-      final accounts = await _qr.accounts();
-      if (!mounted) return;
-      final input = await showDialog<_QrMaintenanceInput>(
-        context: context,
-        builder: (_) => _QrMaintenanceDialog(type: type, accounts: accounts),
-      );
-      if (input == null) return;
-      await _operations.maintenance(
-        assetId: asset['id'].toString(),
-        type: type,
-        date: input.date,
-        description: input.description,
-        cost: input.cost,
-        supplier: input.supplier,
-        nextDue: input.nextDue,
-        accountId: input.accountId,
-        paymentMethod: input.paymentMethod,
-        postFinancial: input.postFinancial,
-      );
-      await _reloadCurrent();
-    } catch (error) {
-      _error(error);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return ListView(
@@ -336,10 +307,6 @@ class _AssetsQrScreenState extends State<AssetsQrScreen> {
                 FilledButton.icon(onPressed: _loanAsset, icon: const Icon(Icons.output), label: const Text('Emprestar')),
               if (_canManage && loan != null)
                 FilledButton.icon(onPressed: _returnAsset, icon: const Icon(Icons.assignment_return), label: const Text('Devolver')),
-              if (_canManage)
-                OutlinedButton.icon(onPressed: () => _intervention('maintenance'), icon: const Icon(Icons.build_outlined), label: const Text('Manutenção')),
-              if (_canManage)
-                OutlinedButton.icon(onPressed: () => _intervention('inspection'), icon: const Icon(Icons.fact_check_outlined), label: const Text('Inspeção')),
               OutlinedButton.icon(onPressed: _reloadCurrent, icon: const Icon(Icons.refresh), label: const Text('Atualizar')),
             ]),
           ],
@@ -503,119 +470,29 @@ class _QrReturnDialogState extends State<_QrReturnDialog> {
       );
 }
 
-class _QrMaintenanceDialog extends StatefulWidget {
-  const _QrMaintenanceDialog({required this.type, required this.accounts});
-  final String type;
-  final List<Map<String, dynamic>> accounts;
-
-  @override
-  State<_QrMaintenanceDialog> createState() => _QrMaintenanceDialogState();
+String _memberName(Map<dynamic, dynamic> row) {
+  final full = row['full_name']?.toString() ?? '';
+  final nick = row['nickname']?.toString() ?? '';
+  return nick.isEmpty ? full : '$full ($nick)';
 }
 
-class _QrMaintenanceDialogState extends State<_QrMaintenanceDialog> {
-  DateTime date = DateTime.now();
-  DateTime? nextDue;
-  final description = TextEditingController();
-  final cost = TextEditingController(text: '0');
-  final supplier = TextEditingController();
-  String? accountId;
-  String paymentMethod = 'Dinheiro';
-  bool postFinancial = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final caixa = widget.accounts.where((e) => e['name']?.toString().toLowerCase() == 'caixa');
-    if (caixa.isNotEmpty) {
-      accountId = caixa.first['id'].toString();
-    } else if (widget.accounts.isNotEmpty) {
-      accountId = widget.accounts.first['id'].toString();
-    }
-  }
-
-  @override
-  void dispose() {
-    description.dispose();
-    cost.dispose();
-    supplier.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final inspection = widget.type == 'inspection';
-    return AlertDialog(
-      title: Text(inspection ? 'Registar inspeção' : 'Registar manutenção'),
-      content: SizedBox(
-        width: 520,
-        child: SingleChildScrollView(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            TextField(controller: description, maxLines: 2, decoration: InputDecoration(labelText: inspection ? 'Resultado / observações' : 'Descrição', border: const OutlineInputBorder())),
-            const SizedBox(height: 12),
-            TextField(controller: supplier, decoration: const InputDecoration(labelText: 'Fornecedor / oficina', border: OutlineInputBorder())),
-            const SizedBox(height: 12),
-            TextField(controller: cost, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Custo (€)', border: OutlineInputBorder())),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.event),
-              title: Text('Data: ${DateFormat('dd/MM/yyyy').format(date)}'),
-              trailing: IconButton(
-                icon: const Icon(Icons.calendar_month),
-                onPressed: () async {
-                  final d = await showDatePicker(context: context, initialDate: date, firstDate: DateTime(2020), lastDate: DateTime.now().add(const Duration(days: 3650)));
-                  if (d != null) setState(() => date = d);
-                },
-              ),
-            ),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.update),
-              title: Text(nextDue == null ? 'Próxima intervenção (opcional)' : 'Próxima: ${DateFormat('dd/MM/yyyy').format(nextDue!)}'),
-              trailing: IconButton(
-                icon: const Icon(Icons.calendar_month),
-                onPressed: () async {
-                  final d = await showDatePicker(context: context, initialDate: date.add(const Duration(days: 180)), firstDate: date, lastDate: DateTime.now().add(const Duration(days: 3650)));
-                  if (d != null) setState(() => nextDue = d);
-                },
-              ),
-            ),
-            SwitchListTile(contentPadding: EdgeInsets.zero, value: postFinancial, onChanged: (v) => setState(() => postFinancial = v), title: const Text('Registar despesa na Tesouraria')),
-            if (postFinancial && widget.accounts.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              _drop('Conta / fundo', accountId, widget.accounts, (e) => e['name']?.toString() ?? '', (v) => setState(() => accountId = v)),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: paymentMethod,
-                decoration: const InputDecoration(labelText: 'Pagamento', border: OutlineInputBorder()),
-                items: const ['Dinheiro', 'MB Way', 'Transferência bancária'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
-                onChanged: (v) => setState(() => paymentMethod = v ?? paymentMethod),
-              ),
-            ],
-          ]),
-        ),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-        FilledButton(
-          onPressed: () => Navigator.pop(
-            context,
-            _QrMaintenanceInput(
-              date,
-              description.text,
-              _parse(cost.text),
-              supplier.text,
-              nextDue,
-              accountId,
-              paymentMethod,
-              postFinancial,
-            ),
-          ),
-          child: const Text('Registar'),
-        ),
-      ],
-    );
-  }
+String _loanDestination(Map<String, dynamic> loan) {
+  final member = loan['members'];
+  final event = loan['events'];
+  if (member is Map) return _memberName(member);
+  if (event is Map) return event['name']?.toString() ?? 'Evento';
+  return loan['external_name']?.toString() ?? 'Externo';
 }
+
+String _conditionLabel(String? value) => switch (value) {
+  'excellent' => 'Excelente',
+  'good' => 'Bom',
+  'regular' => 'Regular',
+  'maintenance' => 'Necessita manutenção',
+  'damaged' => 'Avariado',
+  'retired' => 'Abatido',
+  _ => 'Bom',
+};
 
 Widget _drop(
   String label,
@@ -648,42 +525,6 @@ class _QrReturnInput {
   final String notes;
 }
 
-class _QrMaintenanceInput {
-  const _QrMaintenanceInput(this.date, this.description, this.cost, this.supplier, this.nextDue, this.accountId, this.paymentMethod, this.postFinancial);
-  final DateTime date;
-  final String description;
-  final double cost;
-  final String supplier;
-  final DateTime? nextDue;
-  final String? accountId;
-  final String paymentMethod;
-  final bool postFinancial;
-}
-
-String _memberName(Map<dynamic, dynamic> row) {
-  final full = row['full_name']?.toString() ?? '';
-  final nick = row['nickname']?.toString() ?? '';
-  return nick.isEmpty ? full : '$full ($nick)';
-}
-
-String _loanDestination(Map<String, dynamic> loan) {
-  final member = loan['members'];
-  final event = loan['events'];
-  if (member is Map) return _memberName(member);
-  if (event is Map) return event['name']?.toString() ?? 'Evento';
-  return loan['external_name']?.toString() ?? 'Externo';
-}
-
-String _conditionLabel(String? value) => switch (value) {
-      'excellent' => 'Excelente',
-      'good' => 'Bom',
-      'regular' => 'Regular',
-      'maintenance' => 'Necessita manutenção',
-      'damaged' => 'Avariado',
-      'retired' => 'Abatido',
-      _ => 'Bom',
-    };
-
 String _date(Object? value) {
   final d = DateTime.tryParse(value?.toString() ?? '');
   return d == null ? '—' : DateFormat('dd/MM/yyyy').format(d);
@@ -693,5 +534,3 @@ String _dateTime(Object? value) {
   final d = DateTime.tryParse(value?.toString() ?? '');
   return d == null ? '—' : DateFormat('dd/MM/yyyy HH:mm').format(d.toLocal());
 }
-
-double _parse(String value) => double.tryParse(value.replaceAll(',', '.')) ?? 0;

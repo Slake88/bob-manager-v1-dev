@@ -4,7 +4,10 @@ import '../core/app_session.dart';
 import '../core/permissions.dart';
 
 class AssetsOperationsRepository {
-  SupabaseClient get _client => Supabase.instance.client;
+  AssetsOperationsRepository({SupabaseClient? client}) : _clientOverride = client;
+
+  final SupabaseClient? _clientOverride;
+  SupabaseClient get _client => _clientOverride ?? Supabase.instance.client;
   String get _clubId => AppSession.instance.clubId;
 
   void _require(AppPermission permission) {
@@ -138,20 +141,9 @@ class AssetsOperationsRepository {
     String paymentMethod = 'Dinheiro',
     bool postFinancial = false,
   }) async {
-    _require(AppPermission.manageAssets);
-    await _client.rpc('asset_maintenance_v1', params: {
-      'target_club': _clubId,
-      'p_asset': assetId,
-      'p_type': type,
-      'p_date': date.toIso8601String().split('T').first,
-      'p_description': description,
-      'p_cost': cost,
-      'p_supplier': supplier,
-      'p_next_due': nextDue?.toIso8601String().split('T').first,
-      'p_account': accountId,
-      'p_payment_method': paymentMethod,
-      'p_post_financial': postFinancial,
-    });
+    throw UnsupportedError(
+      'Registo de manutenção está desativado no piloto RC1.',
+    );
   }
 
   Future<void> saveKit({
