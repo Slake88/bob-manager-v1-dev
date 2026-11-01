@@ -1,6 +1,8 @@
 import 'app_role.dart';
 
 enum AppPermission {
+  viewDashboard,
+  viewActivity,
   viewMembers,
   editOwnMemberProfile,
   manageMembers,
@@ -15,6 +17,8 @@ enum AppPermission {
   manageCashSessions,
   approveCashDifferences,
   reverseTreasuryMovement,
+  viewFinancialRequests,
+  manageOwnFinancialRequests,
   viewFees,
   manageFees,
   viewLottery,
@@ -47,6 +51,11 @@ enum AppPermission {
   viewCommunication,
   manageCommunication,
   acknowledgeCommunication,
+  viewWeeklyOfficer,
+  manageWeeklyOfficer,
+  viewAgenda,
+  viewDirectionAgenda,
+  manageAgenda,
   manageImports,
   manageUserAccess,
   manageSettings,
@@ -55,23 +64,100 @@ enum AppPermission {
 extension AppPermissionMeta on AppPermission {
   String get key => name;
 
+  static const Set<String> _knownMembershipRoleKeys = {
+    'president',
+    'vice_president',
+    'admin',
+    'administrator',
+    'treasurer',
+    'secretary',
+    'road_captain',
+    'sergeant_at_arms',
+    'inventory_manager',
+    'event_manager',
+    'events_manager',
+    'euromillions_manager',
+    'prospect',
+    'member',
+    'super_admin',
+    // Values accepted by AppRole.fromValue in Portuguese installations.
+    'presidente',
+    'vice_presidente',
+    'administrador',
+    'tesoureiro',
+    'secretario',
+    'responsavel_de_inventario',
+    'responsavel_inventario',
+    'responsavel_de_eventos',
+    'responsavel_eventos',
+    'responsavel_euromilhoes',
+    'sargento_de_armas',
+    'sargento_armas',
+    'full_color',
+  };
+
+  bool? defaultAllowedForRole(String roleKey) {
+    final role =
+        roleKey.trim().toLowerCase().replaceAll('-', '_').replaceAll(' ', '_');
+    return switch (this) {
+      AppPermission.viewDashboard ||
+      AppPermission.viewActivity ||
+      AppPermission.viewFinancialRequests ||
+      AppPermission.manageOwnFinancialRequests ||
+      AppPermission.viewWeeklyOfficer ||
+      AppPermission.viewAgenda =>
+        _knownMembershipRoleKeys.contains(role),
+      AppPermission.viewDirectionAgenda => const {
+          'president',
+          'vice_president',
+          'secretary',
+          'treasurer',
+          'admin',
+          'administrator',
+          'super_admin',
+        }.contains(role),
+      AppPermission.manageAgenda => const {
+          'president',
+          'vice_president',
+          'secretary',
+          'admin',
+          'administrator',
+        }.contains(role),
+      AppPermission.manageWeeklyOfficer => const {
+          'president',
+          'vice_president',
+          'super_admin',
+        }.contains(role),
+      _ => null,
+    };
+  }
+
   String get module => switch (this) {
+        AppPermission.viewDashboard => 'Dashboard',
+        AppPermission.viewActivity => 'Atividade',
         AppPermission.viewMembers ||
         AppPermission.editOwnMemberProfile ||
-        AppPermission.manageMembers => 'Membros',
+        AppPermission.manageMembers =>
+          'Membros',
         AppPermission.viewEmergencyData => 'Emergência',
         AppPermission.viewTreasury ||
         AppPermission.createTreasuryMovement ||
         AppPermission.transferBetweenAccounts ||
         AppPermission.manageFinancialAccounts ||
-        AppPermission.approveExpenseRequests ||
         AppPermission.viewFinancialReports ||
         AppPermission.manageTreasuryPlanning ||
         AppPermission.manageCashSessions ||
         AppPermission.approveCashDifferences ||
-        AppPermission.reverseTreasuryMovement => 'Tesouraria',
+        AppPermission.reverseTreasuryMovement =>
+          'Tesouraria',
+        AppPermission.viewFinancialRequests ||
+        AppPermission.manageOwnFinancialRequests ||
+        AppPermission.approveExpenseRequests =>
+          'Pedidos & Pagamentos',
         AppPermission.viewFees || AppPermission.manageFees => 'Quotas',
-        AppPermission.viewLottery || AppPermission.manageLottery => 'Euromilhões',
+        AppPermission.viewLottery ||
+        AppPermission.manageLottery =>
+          'Euromilhões',
         AppPermission.viewEvents ||
         AppPermission.manageEvents ||
         AppPermission.manageEventParticipants ||
@@ -80,32 +166,47 @@ extension AppPermissionMeta on AppPermission {
         AppPermission.manageEventRoadbook ||
         AppPermission.manageEventOperations ||
         AppPermission.manageRockRide ||
-        AppPermission.manageEventFinance => 'Eventos',
+        AppPermission.manageEventFinance =>
+          'Eventos',
         AppPermission.viewBar ||
         AppPermission.manageBar ||
-        AppPermission.selectBarFinancialAccount => 'Bar',
+        AppPermission.selectBarFinancialAccount =>
+          'Bar',
         AppPermission.viewInventory ||
         AppPermission.manageInventory ||
         AppPermission.sellInventory ||
         AppPermission.manageMerchandising ||
         AppPermission.manageAssets ||
-        AppPermission.performInventoryCount => 'Património & Inventário',
+        AppPermission.performInventoryCount =>
+          'Património & Inventário',
         AppPermission.viewDocuments ||
         AppPermission.viewSensitiveDocuments ||
         AppPermission.manageDocuments ||
         AppPermission.approveDocuments ||
         AppPermission.runDocumentOcr ||
         AppPermission.manageEventGallery ||
-        AppPermission.manageAnnualBooks => 'Documentos',
+        AppPermission.manageAnnualBooks =>
+          'Documentos',
         AppPermission.viewCommunication ||
         AppPermission.manageCommunication ||
-        AppPermission.acknowledgeCommunication => 'Comunicação',
+        AppPermission.acknowledgeCommunication =>
+          'Comunicação',
+        AppPermission.viewWeeklyOfficer ||
+        AppPermission.manageWeeklyOfficer =>
+          'Oficial da Semana',
+        AppPermission.viewAgenda ||
+        AppPermission.viewDirectionAgenda ||
+        AppPermission.manageAgenda =>
+          'Agenda',
         AppPermission.manageImports ||
         AppPermission.manageUserAccess ||
-        AppPermission.manageSettings => 'Administração',
+        AppPermission.manageSettings =>
+          'Administração',
       };
 
   String get label => switch (this) {
+        AppPermission.viewDashboard => 'Consultar Dashboard',
+        AppPermission.viewActivity => 'Consultar atividade',
         AppPermission.viewMembers => 'Ver membros',
         AppPermission.editOwnMemberProfile => 'Editar o próprio perfil',
         AppPermission.manageMembers => 'Criar e editar membros',
@@ -113,20 +214,26 @@ extension AppPermissionMeta on AppPermission {
         AppPermission.viewTreasury => 'Ver tesouraria',
         AppPermission.createTreasuryMovement => 'Criar receitas e despesas',
         AppPermission.transferBetweenAccounts => 'Transferir entre contas',
-        AppPermission.manageFinancialAccounts => 'Gerir contas e centros de custo',
+        AppPermission.manageFinancialAccounts =>
+          'Gerir contas e centros de custo',
         AppPermission.approveExpenseRequests => 'Aprovar pedidos de despesa',
         AppPermission.viewFinancialReports => 'Ver relatórios financeiros',
         AppPermission.manageTreasuryPlanning => 'Gerir planeamento financeiro',
         AppPermission.manageCashSessions => 'Gerir sessões de caixa',
         AppPermission.approveCashDifferences => 'Aprovar diferenças de caixa',
-        AppPermission.reverseTreasuryMovement => 'Reverter movimentos de tesouraria',
+        AppPermission.reverseTreasuryMovement =>
+          'Reverter movimentos de tesouraria',
+        AppPermission.viewFinancialRequests => 'Consultar pedidos e pagamentos',
+        AppPermission.manageOwnFinancialRequests =>
+          'Criar e gerir os próprios pedidos',
         AppPermission.viewFees => 'Ver quotas',
         AppPermission.manageFees => 'Gerir quotas e pagamentos',
         AppPermission.viewLottery => 'Ver Euromilhões',
         AppPermission.manageLottery => 'Gerir Euromilhões e pagamentos',
         AppPermission.viewEvents => 'Ver eventos',
         AppPermission.manageEvents => 'Criar e editar eventos',
-        AppPermission.manageEventParticipants => 'Gerir participantes e voluntários',
+        AppPermission.manageEventParticipants =>
+          'Gerir participantes e voluntários',
         AppPermission.proposeEvents => 'Propor eventos',
         AppPermission.approveEventProposals => 'Aprovar propostas de eventos',
         AppPermission.manageEventRoadbook => 'Gerir roadbook de eventos',
@@ -135,7 +242,8 @@ extension AppPermissionMeta on AppPermission {
         AppPermission.manageEventFinance => 'Gerir área financeira de eventos',
         AppPermission.viewBar => 'Ver Bar',
         AppPermission.manageBar => 'Gerir Bar, stock e vendas',
-        AppPermission.selectBarFinancialAccount => 'Escolher conta financeira do Bar',
+        AppPermission.selectBarFinancialAccount =>
+          'Escolher conta financeira do Bar',
         AppPermission.viewInventory => 'Ver Património & Inventário',
         AppPermission.manageInventory => 'Gerir inventário geral',
         AppPermission.sellInventory => 'Registar vendas',
@@ -152,10 +260,43 @@ extension AppPermissionMeta on AppPermission {
         AppPermission.viewCommunication => 'Ver comunicação',
         AppPermission.manageCommunication => 'Gerir comunicação',
         AppPermission.acknowledgeCommunication => 'Confirmar leitura',
+        AppPermission.viewWeeklyOfficer => 'Consultar Oficial da Semana',
+        AppPermission.manageWeeklyOfficer => 'Gerir Oficial da Semana',
+        AppPermission.viewAgenda => 'Consultar Agenda',
+        AppPermission.viewDirectionAgenda => 'Ver itens da Direção na Agenda',
+        AppPermission.manageAgenda => 'Gerir Agenda',
         AppPermission.manageImports => 'Importar dados por ficheiro',
-        AppPermission.manageUserAccess => 'Gerir contas e acessos de utilizadores',
+        AppPermission.manageUserAccess =>
+          'Gerir contas e acessos de utilizadores',
         AppPermission.manageSettings => 'Gerir configurações',
       };
+}
+
+Set<String> resolveEffectivePermissionKeys({
+  required String roleKey,
+  required Iterable<Map<String, dynamic>> roleRows,
+  required Iterable<Map<String, dynamic>> userOverrides,
+}) {
+  final roleValues = <String, bool>{
+    for (final row in roleRows)
+      row['permission_key'].toString(): row['allowed'] == true,
+  };
+  final effective = <String>{};
+  for (final permission in AppPermission.values) {
+    final configured = roleValues[permission.key];
+    if (configured ?? permission.defaultAllowedForRole(roleKey) ?? false) {
+      effective.add(permission.key);
+    }
+  }
+  for (final row in userOverrides) {
+    final key = row['permission_key'].toString();
+    if (row['allowed'] == true) {
+      effective.add(key);
+    } else {
+      effective.remove(key);
+    }
+  }
+  return effective;
 }
 
 class PermissionPolicy {
@@ -192,6 +333,20 @@ class PermissionPolicy {
 
     if (_legacyFullAccessRoles.contains(role)) return true;
     return switch (permission) {
+      AppPermission.viewDashboard ||
+      AppPermission.viewActivity ||
+      AppPermission.viewFinancialRequests ||
+      AppPermission.viewWeeklyOfficer ||
+      AppPermission.viewAgenda ||
+      AppPermission.manageOwnFinancialRequests =>
+        role != AppRole.unknown,
+      AppPermission.viewDirectionAgenda =>
+        role == AppRole.secretary || role == AppRole.treasurer,
+      AppPermission.manageWeeklyOfficer =>
+        role == AppRole.president || role == AppRole.vicePresident,
+      AppPermission.manageAgenda => role == AppRole.president ||
+          role == AppRole.vicePresident ||
+          role == AppRole.secretary,
       AppPermission.viewMembers => role != AppRole.unknown,
       AppPermission.editOwnMemberProfile => role != AppRole.unknown,
       AppPermission.viewEmergencyData => role != AppRole.unknown,
@@ -213,18 +368,17 @@ class PermissionPolicy {
       AppPermission.viewEvents => role != AppRole.unknown,
       AppPermission.manageEvents =>
         role == AppRole.secretary || role == AppRole.eventsManager,
-      AppPermission.manageEventParticipants =>
-        role == AppRole.secretary ||
-        role == AppRole.roadCaptain ||
-        role == AppRole.eventsManager,
+      AppPermission.manageEventParticipants => role == AppRole.secretary ||
+          role == AppRole.roadCaptain ||
+          role == AppRole.eventsManager,
       AppPermission.proposeEvents => role != AppRole.unknown,
       AppPermission.approveEventProposals =>
         role == AppRole.secretary || role == AppRole.treasurer,
       AppPermission.manageEventRoadbook ||
       AppPermission.manageEventOperations =>
         role == AppRole.secretary ||
-        role == AppRole.roadCaptain ||
-        role == AppRole.eventsManager,
+            role == AppRole.roadCaptain ||
+            role == AppRole.eventsManager,
       AppPermission.manageRockRide =>
         role == AppRole.secretary || role == AppRole.eventsManager,
       AppPermission.manageEventFinance =>
@@ -237,7 +391,8 @@ class PermissionPolicy {
       AppPermission.manageInventory ||
       AppPermission.manageMerchandising ||
       AppPermission.manageAssets ||
-      AppPermission.performInventoryCount => role == AppRole.inventoryManager,
+      AppPermission.performInventoryCount =>
+        role == AppRole.inventoryManager,
       AppPermission.sellInventory =>
         role == AppRole.inventoryManager || role == AppRole.treasurer,
       AppPermission.viewDocuments => role != AppRole.unknown,
@@ -256,7 +411,8 @@ class PermissionPolicy {
       AppPermission.manageFinancialAccounts ||
       AppPermission.manageImports ||
       AppPermission.manageUserAccess ||
-      AppPermission.manageSettings => false,
+      AppPermission.manageSettings =>
+        false,
     };
   }
 

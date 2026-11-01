@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_session.dart';
+import '../core/module_access_policy.dart';
 import '../core/module_definition.dart';
 import 'activity_screen.dart';
 import 'agenda_screen.dart';
@@ -26,6 +28,12 @@ class ModuleRouter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!ModuleAccessPolicy.canView(module, AppSession.instance)) {
+      return const Center(
+        child: Text('Não tem permissão para consultar este módulo.'),
+      );
+    }
+
     return switch (module.code) {
       'dashboard' => const DashboardScreen(),
       'activity' => const ActivityScreen(),

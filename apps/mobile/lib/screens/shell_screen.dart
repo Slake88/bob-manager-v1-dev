@@ -5,22 +5,25 @@ import 'package:flutter/material.dart';
 import '../core/adaptive_layout.dart';
 import '../core/app_navigation.dart';
 import '../core/app_session.dart';
-import '../core/club_export.dart';
-import '../core/importing.dart';
 import '../core/module_definition.dart';
+import '../core/module_order_policy.dart';
 import '../core/notification_center.dart';
-import '../core/permissions.dart';
-import '../core/reporting.dart';
 import '../repositories/activity_repository.dart';
+import '../repositories/module_order_repository.dart';
 import '../services/auth_service.dart';
 import '../services/push_notification_service.dart';
 import 'activity_screen.dart';
 import 'global_search_screen.dart';
 import 'login_screen.dart';
 import 'module_router.dart';
+import '../widgets/module_order_editor.dart';
+import '../widgets/environment_banner.dart';
+import '../core/app_config.dart';
 
 class ShellScreen extends StatefulWidget {
-  const ShellScreen({super.key});
+  const ShellScreen({super.key, this.moduleOrderStore});
+
+  final ModuleOrderStore? moduleOrderStore;
 
   @override
   State<ShellScreen> createState() => _ShellScreenState();
@@ -35,11 +38,18 @@ class _ShellScreenState extends State<ShellScreen> {
   Timer? _badgeTimer;
   StreamSubscription<PushMessageEvent>? _foregroundPushSubscription;
   StreamSubscription<String>? _openedPushSubscription;
+  late List<String> _moduleOrderCodes;
+  bool _hasSavedModuleOrder = false;
+
+  ModuleOrderStore get _moduleOrderStore =>
+      widget.moduleOrderStore ?? SupabaseModuleOrderStore();
 
   @override
   void initState() {
     super.initState();
-    _unreadFuture = _activity.unreadCount();
+    _moduleOrderCodes = SupabaseModuleOrderStore.canonicalCodes;
+    _unreadFuture = _loadUnreadCount();
+    _loadModuleOrder();
     _badgeTimer = Timer.periodic(
       const Duration(seconds: 30),
       (_) => _refreshUnread(),
@@ -55,34 +65,72 @@ class _ShellScreenState extends State<ShellScreen> {
     super.dispose();
   }
 
-  List<ModuleDefinition> get _visibleModules {
-    return appModules.where(_canViewModule).toList();
+  List<ModuleDefinition> get _navigationModules {
+    final byCode = {for (final module in appModules) module.code: module};
+    final ordered = <ModuleDefinition>[];
+    for (final code in _moduleOrderCodes) {
+      final module = byCode.remove(code);
+      if (module != null) ordered.add(module);
+    }
+    ordered.addAll(byCode.values);
+    return ordered;
   }
 
-  bool _canViewModule(ModuleDefinition module) {
-    final session = AppSession.instance;
-    return switch (module.code) {
-      'dashboard' || 'activity' || 'financial' || 'weekly_officer' || 'agenda' =>
-        session.authenticated,
-      'members' => session.can(AppPermission.viewMembers),
-      'treasury' => session.can(AppPermission.viewTreasury),
-      'fees' => session.can(AppPermission.viewFees),
-      'lottery' => session.can(AppPermission.viewLottery),
-      'events' => session.can(AppPermission.viewEvents),
-      'bar' => session.can(AppPermission.viewBar),
-      'inventory' => session.can(AppPermission.viewInventory),
-      'documents' => session.can(AppPermission.viewDocuments),
-      'communication' => session.can(AppPermission.viewCommunication),
-      'reports' =>
-        ReportCatalog.canOpenCenter(session.can) ||
-            ClubExportPolicy.canExport(session) ||
-            ImportCatalog.canOpen(session),
-      'settings' =>
-        session.can(AppPermission.manageSettings) ||
-        session.can(AppPermission.manageUserAccess),
-      'emergency' => session.can(AppPermission.viewEmergencyData),
-      _ => false,
-    };
+  Future<void> _loadModuleOrder() async {
+    if (AppConfig.demoMode && widget.moduleOrderStore == null) return;
+    try {
+      final saved = await _moduleOrderStore.load();
+      if (!mounted || saved == null) return;
+      setState(() {
+        _moduleOrderCodes = normalizeModuleOrder(
+          saved,
+          appModules.map((module) => module.code),
+        );
+        _hasSavedModuleOrder = true;
+        _selectedCode = AppNavigationPolicy.resolveSelected(
+          _navigationModules,
+          _selectedCode,
+        ).code;
+      });
+    } catch (_) {
+      // A falha de rede não afeta a navegação: mantém-se a ordem original.
+    }
+  }
+
+  Future<void> _openModuleOrderEditor({bool closeDrawer = false}) async {
+    if (closeDrawer) Navigator.pop(context);
+    final result = await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => FractionallySizedBox(
+        heightFactor: 0.92,
+        child: ModuleOrderEditor(
+          modules: appModules,
+          initialOrder: _moduleOrderCodes,
+          onSave: (order) async {
+            final canonical = SupabaseModuleOrderStore.canonicalCodes;
+            if (isCanonicalModuleOrder(order, canonical)) {
+              await _moduleOrderStore.reset();
+            } else {
+              await _moduleOrderStore.save(order);
+            }
+          },
+        ),
+      ),
+    );
+    if (!mounted || result == null) return;
+    final normalized = normalizeModuleOrder(
+      result,
+      appModules.map((module) => module.code),
+    );
+    setState(() {
+      _moduleOrderCodes = normalized;
+      _hasSavedModuleOrder = !isCanonicalModuleOrder(
+        normalized,
+        SupabaseModuleOrderStore.canonicalCodes,
+      );
+    });
   }
 
   Future<void> _configurePush() async {
@@ -115,19 +163,30 @@ class _ShellScreenState extends State<ShellScreen> {
 
   void _refreshUnread() {
     if (!mounted) return;
-    setState(() => _unreadFuture = _activity.unreadCount());
+    final unreadFuture = _loadUnreadCount();
+    if (!mounted) return;
+    setState(() {
+      _unreadFuture = unreadFuture;
+    });
+  }
+
+  Future<int> _loadUnreadCount() async {
+    try {
+      return await _activity.unreadCount();
+    } catch (_) {
+      // A falha de rede não deve interromper a navegação; o badge fica a zero.
+      return 0;
+    }
   }
 
   Future<void> _refreshPermissions() async {
     await AuthService.instance.refreshPermissions();
     if (!mounted) return;
     setState(() {
-      _unreadFuture = _activity.unreadCount();
-      final modules = _visibleModules;
-      if (modules.isNotEmpty) {
-        _selectedCode =
-            AppNavigationPolicy.resolveSelected(modules, _selectedCode).code;
-      }
+      _unreadFuture = _loadUnreadCount();
+      final modules = _navigationModules;
+      _selectedCode =
+          AppNavigationPolicy.resolveSelected(modules, _selectedCode).code;
     });
   }
 
@@ -166,7 +225,7 @@ class _ShellScreenState extends State<ShellScreen> {
 
   void _selectModuleCode(String code) {
     if (!mounted) return;
-    final modules = _visibleModules;
+    final modules = _navigationModules;
     if (!modules.any((module) => module.code == code)) return;
     setState(() => _selectedCode = code);
   }
@@ -206,6 +265,7 @@ class _ShellScreenState extends State<ShellScreen> {
 
   PreferredSizeWidget _buildAppBar(String title) {
     return AppBar(
+      bottom: const EnvironmentBanner(appBarStrip: true),
       title: Text(
         title,
         maxLines: 1,
@@ -222,7 +282,8 @@ class _ShellScreenState extends State<ShellScreen> {
           builder: (context, snapshot) {
             final count = snapshot.data ?? 0;
             return IconButton(
-              tooltip: count > 0 ? '$count notificações por ler' : 'Notificações',
+              tooltip:
+                  count > 0 ? '$count notificações por ler' : 'Notificações',
               onPressed: _openNotifications,
               icon: Badge(
                 isLabelVisible: count > 0,
@@ -295,14 +356,16 @@ class _ShellScreenState extends State<ShellScreen> {
               Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                    backgroundColor:
+                        Theme.of(context).colorScheme.primaryContainer,
                     child: const Icon(Icons.shield_outlined),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Text(
                       'BOB MANAGER',
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+                      style:
+                          TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
                     ),
                   ),
                 ],
@@ -327,10 +390,25 @@ class _ShellScreenState extends State<ShellScreen> {
         ...modules.map(
           (item) => NavigationDrawerDestination(
             icon: Icon(item.icon),
-            label: Text(item.title),
+            label: SizedBox(
+              width: 220,
+              child: Tooltip(
+                message: item.title,
+                child: Text(
+                  item.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
           ),
         ),
         const Divider(),
+        ListTile(
+          leading: const Icon(Icons.reorder),
+          title: const Text('Personalizar menu'),
+          onTap: () => _openModuleOrderEditor(closeDrawer: closeOnSelect),
+        ),
         ListTile(
           leading: const Icon(Icons.refresh),
           title: const Text('Atualizar permissões'),
@@ -399,9 +477,19 @@ class _ShellScreenState extends State<ShellScreen> {
       },
       leading: Padding(
         padding: const EdgeInsets.only(bottom: 16),
-        child: CircleAvatar(
-          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-          child: const Icon(Icons.shield_outlined),
+        child: Column(
+          children: [
+            CircleAvatar(
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+              child: const Icon(Icons.shield_outlined),
+            ),
+            const SizedBox(height: 8),
+            IconButton(
+              tooltip: 'Personalizar menu',
+              onPressed: _openModuleOrderEditor,
+              icon: const Icon(Icons.reorder),
+            ),
+          ],
         ),
       ),
       destinations: [
@@ -423,16 +511,14 @@ class _ShellScreenState extends State<ShellScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final modules = _visibleModules;
-    if (modules.isEmpty) {
-      return const Scaffold(
-        body: Center(child: Text('Não existem módulos disponíveis.')),
-      );
-    }
+    final modules = _navigationModules;
 
     final current = AppNavigationPolicy.resolveSelected(modules, _selectedCode);
     _selectedCode = current.code;
-    final plan = AppNavigationPolicy.plan(modules);
+    final plan = AppNavigationPolicy.plan(
+      modules,
+      useProvidedOrderForCompact: _hasSavedModuleOrder,
+    );
     final layout = AppBreakpoints.of(context);
     final content = ModuleRouter(module: current);
 
@@ -467,7 +553,7 @@ class _ShellScreenState extends State<ShellScreen> {
       body: Row(
         children: [
           SizedBox(
-            width: 292,
+            width: 360,
             child: _navigationPanel(
               modules: modules,
               selectedCode: current.code,
@@ -597,8 +683,10 @@ class _MoreModulesSheet extends StatelessWidget {
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             module.title,
@@ -616,7 +704,9 @@ class _MoreModulesSheet extends StatelessWidget {
                                             module.description,
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
-                                            style: Theme.of(context).textTheme.bodySmall,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall,
                                           ),
                                         ],
                                       ),

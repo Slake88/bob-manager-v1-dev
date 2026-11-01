@@ -24,6 +24,33 @@ class PermissionsAdminRepository {
       result.putIfAbsent(row['role_key'].toString(), () => <String, bool>{})[
           row['permission_key'].toString()] = row['allowed'] == true;
     }
+
+    const roleKeys = {
+      'president',
+      'vice_president',
+      'admin',
+      'administrator',
+      'treasurer',
+      'secretary',
+      'road_captain',
+      'sergeant_at_arms',
+      'inventory_manager',
+      'event_manager',
+      'events_manager',
+      'euromillions_manager',
+      'prospect',
+      'member',
+      'super_admin',
+    };
+    final permissionRoles = {...result.keys, ...roleKeys};
+    for (final roleKey in permissionRoles) {
+      final rolePermissions = result.putIfAbsent(roleKey, () => <String, bool>{});
+      for (final permission in AppPermission.values) {
+        if (rolePermissions.containsKey(permission.key)) continue;
+        final fallback = permission.defaultAllowedForRole(roleKey);
+        if (fallback != null) rolePermissions[permission.key] = fallback;
+      }
+    }
     return result;
   }
 

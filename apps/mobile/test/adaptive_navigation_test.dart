@@ -43,6 +43,27 @@ void main() {
       );
     });
 
+    test('aplica a preferência aos quatro destinos compactos', () {
+      final ordered = <ModuleDefinition>[
+        appModules.firstWhere((module) => module.code == 'inventory'),
+        appModules.firstWhere((module) => module.code == 'treasury'),
+        ...appModules.where(
+          (module) => !{'inventory', 'treasury'}.contains(module.code),
+        ),
+      ];
+
+      final plan = AppNavigationPolicy.plan(
+        ordered,
+        useProvidedOrderForCompact: true,
+      );
+
+      expect(
+        plan.primary.map((module) => module.code).toList(),
+        ['inventory', 'treasury', 'dashboard', 'activity'],
+      );
+      expect(plan.primary.length + plan.secondary.length, 17);
+    });
+
     test('preenche destinos principais quando faltam prioridades', () {
       final visible = appModules
           .where(

@@ -27,15 +27,22 @@ class AppNavigationPolicy {
     'events',
   ];
 
-  static AppNavigationPlan plan(List<ModuleDefinition> visibleModules) {
+  static AppNavigationPlan plan(
+    List<ModuleDefinition> visibleModules, {
+    bool useProvidedOrderForCompact = false,
+  }) {
     final byCode = <String, ModuleDefinition>{
       for (final module in visibleModules) module.code: module,
     };
 
     final primary = <ModuleDefinition>[];
-    for (final code in compactPriorityCodes) {
-      final module = byCode[code];
-      if (module != null) primary.add(module);
+    if (useProvidedOrderForCompact) {
+      primary.addAll(visibleModules.take(maxCompactDestinations));
+    } else {
+      for (final code in compactPriorityCodes) {
+        final module = byCode[code];
+        if (module != null) primary.add(module);
+      }
     }
 
     for (final module in visibleModules) {
