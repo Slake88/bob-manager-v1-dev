@@ -22,6 +22,7 @@ class _FinancialRequestsScreenState extends State<FinancialRequestsScreen> {
   String _filter = 'open';
 
   bool get _manager => _repository.canManage;
+  bool get _canEditOwn => _repository.canEditOwnRequests;
 
   @override
   void initState() {
@@ -107,7 +108,8 @@ class _FinancialRequestsScreenState extends State<FinancialRequestsScreen> {
         dueDate: draft.dueDate,
       );
       if (!mounted) return;
-      _message('${result['count'] ?? draft.memberIds.length} cobrança(s) criada(s).');
+      _message(
+          '${result['count'] ?? draft.memberIds.length} cobrança(s) criada(s).');
       await _refresh();
     } catch (error) {
       if (mounted) _message(_errorText(error), error: true);
@@ -181,9 +183,7 @@ class _FinancialRequestsScreenState extends State<FinancialRequestsScreen> {
     String? note;
     if (action != 'approve') {
       note = await _askNote(
-        action == 'reject'
-            ? 'Motivo da rejeição'
-            : 'Informação em falta',
+        action == 'reject' ? 'Motivo da rejeição' : 'Informação em falta',
       );
       if (note == null) return;
     }
@@ -414,9 +414,11 @@ class _FinancialRequestsScreenState extends State<FinancialRequestsScreen> {
           final status = row['status']?.toString();
           return status == 'pending_review' || status == 'awaiting_validation';
         }).length;
-        final awaitingPayment = allRows.where(
-          (row) => row['status']?.toString() == 'awaiting_payment',
-        ).length;
+        final awaitingPayment = allRows
+            .where(
+              (row) => row['status']?.toString() == 'awaiting_payment',
+            )
+            .length;
 
         return RefreshIndicator(
           onRefresh: _refresh,
@@ -435,10 +437,12 @@ class _FinancialRequestsScreenState extends State<FinancialRequestsScreen> {
                       children: [
                         Text(
                           'Pedidos & Pagamentos',
-                          style:
-                              Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                  ),
+                          style: Theme.of(context)
+                              .textTheme
+                              .headlineSmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.w900,
+                              ),
                         ),
                         const SizedBox(height: 4),
                         const Text(
@@ -447,11 +451,12 @@ class _FinancialRequestsScreenState extends State<FinancialRequestsScreen> {
                       ],
                     ),
                   ),
-                  FilledButton.icon(
-                    onPressed: _newReimbursement,
-                    icon: const Icon(Icons.receipt_long_outlined),
-                    label: const Text('Novo reembolso'),
-                  ),
+                  if (_canEditOwn)
+                    FilledButton.icon(
+                      onPressed: _newReimbursement,
+                      icon: const Icon(Icons.receipt_long_outlined),
+                      label: const Text('Novo reembolso'),
+                    ),
                   if (_manager)
                     FilledButton.tonalIcon(
                       onPressed: _newCharge,
@@ -536,6 +541,7 @@ class _FinancialRequestsScreenState extends State<FinancialRequestsScreen> {
         row: row,
         manager: _manager,
         owner: _isOwner(row),
+        canEditOwn: _canEditOwn,
         euro: _euro,
         onOpenAttachment: _openAttachment,
         onAddReimbursementInfo: () => _addAndSubmitReimbursement(row),
@@ -610,6 +616,7 @@ class _RequestDetailSheet extends StatelessWidget {
     required this.row,
     required this.manager,
     required this.owner,
+    required this.canEditOwn,
     required this.euro,
     required this.onOpenAttachment,
     required this.onAddReimbursementInfo,
@@ -627,6 +634,7 @@ class _RequestDetailSheet extends StatelessWidget {
   final Map<String, dynamic> row;
   final bool manager;
   final bool owner;
+  final bool canEditOwn;
   final NumberFormat euro;
   final Future<void> Function(Map<String, dynamic>) onOpenAttachment;
   final VoidCallback onAddReimbursementInfo;
@@ -728,6 +736,7 @@ class _RequestDetailSheet extends StatelessWidget {
               children: [
                 if (type == 'reimbursement' &&
                     owner &&
+                    canEditOwn &&
                     (status == 'draft' || status == 'needs_info'))
                   FilledButton.icon(
                     onPressed: onAddReimbursementInfo,
@@ -773,15 +782,14 @@ class _RequestDetailSheet extends StatelessWidget {
                 ],
                 if (type == 'charge' &&
                     owner &&
+                    canEditOwn &&
                     status == 'awaiting_payment')
                   FilledButton.icon(
                     onPressed: onAddChargeProof,
                     icon: const Icon(Icons.upload_file_outlined),
                     label: const Text('Enviar comprovativo'),
                   ),
-                if (type == 'charge' &&
-                    manager &&
-                    status == 'awaiting_payment')
+                if (type == 'charge' && manager && status == 'awaiting_payment')
                   OutlinedButton.icon(
                     onPressed: onCashCharge,
                     icon: const Icon(Icons.money_outlined),
@@ -1064,7 +1072,8 @@ class _ChargeDialogState extends State<_ChargeDialog> {
                         } else {
                           _selected
                             ..clear()
-                            ..addAll(widget.members.map((m) => m['id'].toString()));
+                            ..addAll(
+                                widget.members.map((m) => m['id'].toString()));
                         }
                       });
                     },
@@ -1256,7 +1265,8 @@ class _PaymentDialogState extends State<_PaymentDialog> {
                     _PaymentDraft(
                       accountId: _accountId!,
                       method: _method,
-                      note: _note.text.trim().isEmpty ? null : _note.text.trim(),
+                      note:
+                          _note.text.trim().isEmpty ? null : _note.text.trim(),
                     ),
                   ),
           child: const Text('Confirmar'),

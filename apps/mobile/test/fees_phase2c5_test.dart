@@ -77,4 +77,40 @@ void main() {
     await expectLater(repo.prepareYear(2099), throwsStateError);
     expect(calls.length, 1);
   }, skip: AppConfig.demoMode);
+
+  test('obligations use the installed member foreign-key name', () async {
+    session.clubId = '22000000-0000-0000-0000-000000000001';
+    session.applyPermissions(['viewFees']);
+    final calls = <http.Request>[];
+    final client = SupabaseClient('https://example.supabase.co', 'test-key',
+        httpClient: MockClient((request) async {
+      calls.add(request);
+      return http.Response('[]', 200,
+          headers: {'content-type': 'application/json'}, request: request);
+    }));
+    addTearDown(client.dispose);
+
+    await FeesRepository(client: client).listObligations(year: 2026);
+
+    expect(calls, hasLength(1));
+    expect(
+      calls.single.url.queryParameters['select'],
+      '*,member:members!fk_fee_obligations_member_id(full_name)',
+    );
+    expect(calls.single.url.queryParameters['club_id'], 'eq.${session.clubId}');
+    expect(calls.single.url.queryParameters['reference_year'], 'eq.2026');
+  }, skip: AppConfig.demoMode);
+
+  testWidgets('empty annual map shows its explicit empty state',
+      (tester) async {
+    session.role = 'Administrador';
+    session.applyPermissions(['viewFees']);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: FeesScreen(repository: FakeFees())),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Mapa anual'), findsWidgets);
+    expect(find.text('Sem inscrições registadas neste ano.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  }, skip: AppConfig.demoMode);
 }

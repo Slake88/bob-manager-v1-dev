@@ -83,7 +83,7 @@ class FeesRepository {
 
     var query = _supabase
         .from('fee_obligations')
-        .select('*, member:members!fee_obligations_member_id_fkey(full_name)')
+        .select('*, member:members!fk_fee_obligations_member_id(full_name)')
         .eq('club_id', AppSession.instance.clubId);
     if (year != null) query = query.eq('reference_year', year);
     final response = await query

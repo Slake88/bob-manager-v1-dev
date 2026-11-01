@@ -16,6 +16,11 @@ class FinancialRequestsRepository {
   bool get canManage =>
       AppSession.instance.can(AppPermission.approveExpenseRequests);
 
+  bool get canManageOwnRequests =>
+      AppSession.instance.can(AppPermission.manageOwnFinancialRequests);
+
+  bool get canEditOwnRequests => canManage || canManageOwnRequests;
+
   Future<List<Map<String, dynamic>>> listRequests() async {
     if (AppConfig.demoMode) return const <Map<String, dynamic>>[];
 
@@ -38,13 +43,17 @@ class FinancialRequestsRepository {
   }
 
   Future<List<Map<String, dynamic>>> eligibleMembers() async {
+    if (!canManage) {
+      throw StateError('Sem permissão para consultar membros elegíveis.');
+    }
     if (AppConfig.demoMode) return const <Map<String, dynamic>>[];
 
     final response = await _client
         .from('members')
         .select('id,full_name,nickname,status,profile_id')
         .eq('club_id', _clubId)
-        .inFilter('status', const ['active', 'prospect', 'full_color', 'honorary'])
+        .inFilter(
+            'status', const ['active', 'prospect', 'full_color', 'honorary'])
         .order('member_number')
         .order('full_name');
 
@@ -80,6 +89,9 @@ class FinancialRequestsRepository {
     required double amount,
     required String description,
   }) async {
+    if (!canEditOwnRequests) {
+      throw StateError('Sem permissão para criar pedidos de reembolso.');
+    }
     final response = await _client.rpc(
       'create_reimbursement_draft_v1',
       params: {
@@ -97,6 +109,9 @@ class FinancialRequestsRepository {
     required double amount,
     required String description,
   }) async {
+    if (!canEditOwnRequests) {
+      throw StateError('Sem permissão para editar pedidos de reembolso.');
+    }
     await _client.rpc(
       'update_reimbursement_draft_v1',
       params: {
@@ -109,6 +124,9 @@ class FinancialRequestsRepository {
   }
 
   Future<void> submitReimbursement(String requestId) async {
+    if (!canEditOwnRequests) {
+      throw StateError('Sem permissão para submeter pedidos de reembolso.');
+    }
     await _client.rpc(
       'submit_reimbursement_v1',
       params: {
@@ -160,6 +178,9 @@ class FinancialRequestsRepository {
     required String description,
     DateTime? dueDate,
   }) async {
+    if (!canManage) {
+      throw StateError('Sem permissão para criar cobranças.');
+    }
     final response = await _client.rpc(
       'create_member_charges_v1',
       params: {
@@ -175,6 +196,9 @@ class FinancialRequestsRepository {
   }
 
   Future<void> submitChargeProof(String requestId) async {
+    if (!canEditOwnRequests) {
+      throw StateError('Sem permissão para submeter comprovativos.');
+    }
     await _client.rpc(
       'submit_charge_proof_v1',
       params: {
@@ -211,6 +235,9 @@ class FinancialRequestsRepository {
     required String kind,
     required List<PlatformFile> files,
   }) async {
+    if (!canEditOwnRequests) {
+      throw StateError('Sem permissão para alterar pedidos e anexos.');
+    }
     final uploaded = <Map<String, dynamic>>[];
 
     for (final file in files) {
@@ -325,9 +352,8 @@ class FinancialRequestsRepository {
     return safe.isEmpty ? 'ficheiro' : safe;
   }
 
-  static String _mimeType(String? extension) => switch (
-        extension?.toLowerCase()
-      ) {
+  static String _mimeType(String? extension) =>
+      switch (extension?.toLowerCase()) {
         'jpg' || 'jpeg' => 'image/jpeg',
         'png' => 'image/png',
         'webp' => 'image/webp',

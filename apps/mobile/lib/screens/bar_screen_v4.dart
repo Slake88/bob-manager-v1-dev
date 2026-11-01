@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -20,10 +22,12 @@ class BarScreenV4 extends StatefulWidget {
 }
 
 class _BarScreenV4State extends State<BarScreenV4> {
+  static const _loadTimeout = Duration(seconds: 20);
   final BarRepository _repository = BarRepository();
   final BarSalesRepository _salesRepository = BarSalesRepository();
   final FinancialOcrRepository _ocrRepository = FinancialOcrRepository();
   late Future<_BarData> _future;
+  int _salesRevision = 0;
 
   bool get _canManage => AppSession.instance.can(AppPermission.manageBar);
   bool get _canSelectAccount =>
@@ -44,29 +48,31 @@ class _BarScreenV4State extends State<BarScreenV4> {
       _canSelectAccount
           ? _repository.treasuryAccounts()
           : Future<List<Map<String, dynamic>>>.value(const []),
-    ]).then(
-      (values) => _BarData(
-        products: List<Map<String, dynamic>>.from(values[0] as List),
-        events: List<Map<String, dynamic>>.from(values[1] as List),
-        operations: List<Map<String, dynamic>>.from(values[2] as List),
-        sales: List<Map<String, dynamic>>.from(values[3] as List),
-        accounts: List<Map<String, dynamic>>.from(values[4] as List),
-      ),
-    );
+    ]).timeout(_loadTimeout).then(
+          (values) => _BarData(
+            products: List<Map<String, dynamic>>.from(values[0] as List),
+            events: List<Map<String, dynamic>>.from(values[1] as List),
+            operations: List<Map<String, dynamic>>.from(values[2] as List),
+            sales: List<Map<String, dynamic>>.from(values[3] as List),
+            accounts: List<Map<String, dynamic>>.from(values[4] as List),
+          ),
+        );
   }
 
   Future<void> _refresh() async {
     setState(() {
+      _salesRevision++;
       _reload();
     });
     await _future;
   }
 
-  void _refreshAfterSale() {
+  Future<void> _refreshAfterSale() async {
     if (!mounted) return;
     setState(() {
       _reload();
     });
+    await _future;
   }
 
   void _error(Object error) {
@@ -284,7 +290,26 @@ class _BarScreenV4State extends State<BarScreenV4> {
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Center(child: Text('Erro: ${snapshot.error}'));
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Não foi possível atualizar os dados do Bar. Verifica a ligação e tenta novamente.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: () {
+                    if (!mounted) return;
+                    setState(() => _reload());
+                  },
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Tentar novamente'),
+                ),
+              ],
+            ),
+          );
         }
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
@@ -362,8 +387,10 @@ class _BarScreenV4State extends State<BarScreenV4> {
                         const SizedBox(height: 10),
                         Card(
                           child: ListTile(
-                            leading: const Icon(Icons.document_scanner_outlined),
-                            title: const Text('Registar compra por talão / fatura'),
+                            leading:
+                                const Icon(Icons.document_scanner_outlined),
+                            title: const Text(
+                                'Registar compra por talão / fatura'),
                             subtitle: const Text(
                               'O OCR propõe os dados e só atualiza stock e Tesouraria depois da confirmação.',
                             ),
@@ -403,7 +430,10 @@ class _BarScreenV4State extends State<BarScreenV4> {
                     ],
                   ),
                 ),
-                BarSalesAdvancedScreen(onSaleCompleted: _refreshAfterSale),
+                BarSalesAdvancedScreen(
+                  key: ValueKey(_salesRevision),
+                  onSaleCompleted: _refreshAfterSale,
+                ),
                 RefreshIndicator(
                   onRefresh: _refresh,
                   child: ListView(
@@ -494,9 +524,10 @@ class _ProductCard extends StatelessWidget {
                     children: [
                       Text(
                         product['name']?.toString() ?? 'Artigo',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w900,
+                                ),
                       ),
                       Text(product['category']?.toString() ?? 'Bebidas'),
                     ],
@@ -548,7 +579,8 @@ class _ProductCard extends StatelessWidget {
                 ),
                 Chip(
                   avatar: const Icon(Icons.sync_alt_outlined, size: 18),
-                  label: Text('1 $purchaseUnit = ${_number(conversion)} $stockUnit'),
+                  label: Text(
+                      '1 $purchaseUnit = ${_number(conversion)} $stockUnit'),
                 ),
                 Chip(
                   avatar: const Icon(Icons.calculate_outlined, size: 18),
@@ -571,7 +603,8 @@ class _ProductCard extends StatelessWidget {
                 children: [
                   for (final option in options)
                     Chip(
-                      avatar: const Icon(Icons.point_of_sale_outlined, size: 18),
+                      avatar:
+                          const Icon(Icons.point_of_sale_outlined, size: 18),
                       label: Text(
                         '${option['name']} · ${_number(option['stock_quantity'])} $stockUnit · Público ${_money(option['public_price'])} · Membro ${_money(option['member_price'])}',
                       ),
@@ -598,9 +631,8 @@ class _OperationCard extends StatelessWidget {
     final transaction = operation['treasury_transactions'];
     final actor = operation['actor'];
     final type = operation['operation_type']?.toString() ?? '';
-    final productName = product is Map
-        ? product['name']?.toString() ?? 'Artigo'
-        : 'Artigo';
+    final productName =
+        product is Map ? product['name']?.toString() ?? 'Artigo' : 'Artigo';
     final unit = product is Map
         ? product['consumption_unit']?.toString() ?? 'unid.'
         : 'unid.';
@@ -685,8 +717,9 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
       final preferred = widget.accounts.where(
         (account) => account['name']?.toString().toLowerCase() == 'caixa',
       );
-      _accountId = (preferred.isNotEmpty ? preferred.first : widget.accounts.first)['id']
-          ?.toString();
+      _accountId =
+          (preferred.isNotEmpty ? preferred.first : widget.accounts.first)['id']
+              ?.toString();
     }
   }
 
@@ -702,7 +735,8 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
   Widget build(BuildContext context) {
     final conversion = _double(widget.product['units_per_purchase']);
     final purchase = widget.product['purchase_unit']?.toString() ?? 'embalagem';
-    final stockUnit = widget.product['consumption_unit']?.toString() ?? 'unidade';
+    final stockUnit =
+        widget.product['consumption_unit']?.toString() ?? 'unidade';
     final quantity = _parse(_units.text);
     final cost = _parse(_cost.text);
 
@@ -717,7 +751,8 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
               TextField(
                 controller: _units,
                 onChanged: (_) => setState(() {}),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
                   labelText: 'Quantos $purchase compraste?',
                   border: const OutlineInputBorder(),
@@ -737,7 +772,8 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
               TextField(
                 controller: _cost,
                 onChanged: (_) => setState(() {}),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
                 decoration: InputDecoration(
                   labelText: 'Preço de 1 $purchase (€)',
                   border: const OutlineInputBorder(),
@@ -819,9 +855,8 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
                 purchaseUnits: units,
                 costPerPurchaseUnit: unitCost,
                 eventId: _eventId,
-                accountId: _financial && widget.canSelectAccount
-                    ? _accountId
-                    : null,
+                accountId:
+                    _financial && widget.canSelectAccount ? _accountId : null,
                 paymentMethod: _payment,
                 notes: _notes.text,
                 postFinancial: _financial,
@@ -866,7 +901,8 @@ class _ConsumptionDialogState extends State<_ConsumptionDialog> {
   Widget build(BuildContext context) {
     final stockUnit = widget.product['consumption_unit']?.toString() ?? 'unid.';
     return AlertDialog(
-      title: Text('${_operationLabel(widget.operation)} · ${widget.product['name']}'),
+      title: Text(
+          '${_operationLabel(widget.operation)} · ${widget.product['name']}'),
       content: SizedBox(
         width: 500,
         child: Column(
@@ -878,7 +914,8 @@ class _ConsumptionDialogState extends State<_ConsumptionDialog> {
             const SizedBox(height: 12),
             TextField(
               controller: _quantity,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
                 labelText: 'Quantidade ($stockUnit)',
                 border: const OutlineInputBorder(),

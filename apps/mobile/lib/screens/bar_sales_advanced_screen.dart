@@ -1,16 +1,25 @@
+import 'dart:async';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../repositories/bar_sales_repository.dart';
 import '../widgets/dinner_association_field.dart';
 
 class BarSalesAdvancedScreen extends StatefulWidget {
   const BarSalesAdvancedScreen(
-      {super.key, this.onSaleCompleted, this.repository});
+      {super.key,
+      this.onSaleCompleted,
+      this.repository,
+      this.loadTimeout = const Duration(seconds: 20),
+      this.writeTimeout = const Duration(seconds: 45)});
 
-  final VoidCallback? onSaleCompleted;
+  final Future<void> Function()? onSaleCompleted;
   final BarSalesRepository? repository;
+  final Duration loadTimeout;
+  final Duration writeTimeout;
 
   @override
   State<BarSalesAdvancedScreen> createState() => _BarSalesAdvancedScreenState();
@@ -36,6 +45,10 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
   bool _dinnerInitialized = false;
   String? _draftSaleId;
   bool _busy = false;
+  bool _refreshingAfterMutation = false;
+  bool _draftCreationUncertain = false;
+  bool _saleOutcomeUncertain = false;
+  String? _uncertainSaleId;
 
   @override
   void initState() {
@@ -60,7 +73,7 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
       _repository.treasuryAccounts(),
       _repository.members(),
       _repository.dinners(),
-    ]);
+    ]).timeout(widget.loadTimeout);
     final dinners = List<Map<String, dynamic>>.from(values[5] as List);
     if (!_dinnerInitialized) {
       _dinnerInitialized = true;
@@ -76,6 +89,29 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
       members: List<Map<String, dynamic>>.from(values[4] as List),
       dinners: dinners,
     );
+  }
+
+  Future<void> _refreshSaleData() async {
+    setState(() {
+      _refreshingAfterMutation = true;
+      _future = _load();
+    });
+    try {
+      await _future;
+    } finally {
+      if (mounted) {
+        setState(() {
+          _refreshingAfterMutation = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _retryLoad() async {
+    if (!mounted) return;
+    setState(() {
+      _future = _load();
+    });
   }
 
   Future<void> _editPreset([Map<String, dynamic>? preset]) async {
@@ -100,15 +136,17 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
   Future<String> _ensureDraft() async {
     final existing = _draftSaleId;
     if (existing != null) return existing;
-    final id = await _repository.createDraft(
-      sourceMode: _mode,
-      customerLabel: _customer.text,
-      customerType: _customerType,
-      memberId: _memberId,
-      eventId: _eventId,
-      weeklyDinnerId: _dinnerId,
-      notes: _notes.text,
-    );
+    final id = await _repository
+        .createDraft(
+          sourceMode: _mode,
+          customerLabel: _customer.text,
+          customerType: _customerType,
+          memberId: _memberId,
+          eventId: _eventId,
+          weeklyDinnerId: _dinnerId,
+          notes: _notes.text,
+        )
+        .timeout(widget.writeTimeout);
     if (mounted) {
       setState(() {
         _draftSaleId = id;
@@ -272,6 +310,45 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
     });
   }
 
+  Future<void> _verifyUncertainSale() async {
+    final saleId = _uncertainSaleId;
+    if (saleId == null || _busy) return;
+    setState(() => _busy = true);
+    try {
+      final history =
+          await _repository.saleHistory(limit: 250).timeout(widget.loadTimeout);
+      final sale = history.where((row) => row['id']?.toString() == saleId);
+      if (sale.isEmpty ||
+          !const {'completed', 'reversed'}.contains(sale.first['status'])) {
+        _message(
+          'Ainda não foi possível confirmar o resultado. Não repitas a venda; volta a verificar mais tarde.',
+        );
+        return;
+      }
+      if (!mounted) return;
+      setState(() {
+        _saleOutcomeUncertain = false;
+        _uncertainSaleId = null;
+      });
+      _resetLocal();
+      try {
+        await _refreshSaleData();
+        await widget.onSaleCompleted?.call();
+        _message('Venda confirmada. Stock e histórico atualizados.');
+      } catch (_) {
+        _message(
+          'Venda confirmada. Não foi possível atualizar os dados; utiliza Atualizar para voltar a carregá-los.',
+        );
+      }
+    } catch (_) {
+      _message(
+        'Não foi possível verificar o resultado. Não repitas a venda; tenta verificar novamente.',
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   List<Map<String, dynamic>> _buildLines(_SaleData data) {
     final lines = <Map<String, dynamic>>[];
     for (final product in data.products) {
@@ -412,32 +489,76 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
     );
     if (payment == null) return;
 
+    var saleRequestStarted = false;
     setState(() {
       _busy = true;
     });
     try {
-      final saleId = await _ensureDraft();
-      final result = await _repository.completeSale(
-        saleId: saleId,
-        lines: lines,
-        paymentMethod: payment.method,
-        customerType: _customerType,
-        memberId: _memberId,
-        accountId: payment.accountId,
-        customerLabel: _customer.text,
-        eventId: _eventId,
-        weeklyDinnerId: _dinnerId,
-        notes: _notes.text,
-      );
+      final saleId = await _ensureDraft().timeout(widget.writeTimeout);
+      saleRequestStarted = true;
+      final result = await _repository
+          .completeSale(
+            saleId: saleId,
+            lines: lines,
+            paymentMethod: payment.method,
+            customerType: _customerType,
+            memberId: _memberId,
+            accountId: payment.accountId,
+            customerLabel: _customer.text,
+            eventId: _eventId,
+            weeklyDinnerId: _dinnerId,
+            notes: _notes.text,
+          )
+          .timeout(widget.writeTimeout);
       if (!mounted) return;
       final finalTotal = _double(result['total']);
       _resetLocal();
-      setState(() {
-        _future = _load();
-      });
-      widget.onSaleCompleted?.call();
-      _message('Venda concluída · ${_money(finalTotal)}. Stock atualizado.');
+      try {
+        await _refreshSaleData();
+        await widget.onSaleCompleted?.call();
+        _message('Venda concluída · ${_money(finalTotal)}. Stock atualizado.');
+      } catch (_) {
+        _message(
+          'Venda concluída · ${_money(finalTotal)}. A atualização do stock não terminou; utiliza Atualizar para confirmar os valores.',
+        );
+      }
+    } on TimeoutException {
+      if (!mounted) return;
+      if (saleRequestStarted) {
+        setState(() {
+          _saleOutcomeUncertain = true;
+          _uncertainSaleId = _draftSaleId;
+        });
+        _message(
+          'A resposta da venda demorou. O resultado pode já estar registado. Não repitas a operação; verifica o estado da venda.',
+        );
+      } else {
+        setState(() => _draftCreationUncertain = true);
+        _message(
+          'Não foi possível confirmar a criação do rascunho. Não repitas a operação; sai e confirma o estado antes de iniciar outra venda.',
+        );
+      }
     } catch (error) {
+      if (saleRequestStarted) {
+        // A falha de transporte pode ocorrer depois do commit no servidor.
+        // Never unlock a second financial submission until history confirms
+        // that the original request completed or was rejected by Postgres.
+        final code = error is PostgrestException ? error.code : null;
+        final definiteDatabaseRejection =
+            code != null && RegExp(r'^(?:22|23|28|40|42|P0001)').hasMatch(code);
+        if (!definiteDatabaseRejection) {
+          if (mounted) {
+            setState(() {
+              _saleOutcomeUncertain = true;
+              _uncertainSaleId = _draftSaleId;
+            });
+          }
+          _message(
+            'Não foi possível confirmar a resposta da venda. Não repitas a operação; verifica o estado da venda.',
+          );
+          return;
+        }
+      }
       _message(_friendly(error));
     } finally {
       if (mounted) {
@@ -482,9 +603,25 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Center(child: Text('Erro: ${snapshot.error}'));
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Não foi possível carregar os dados da venda. Verifica a ligação e tenta novamente.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: _retryLoad,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Atualizar'),
+                ),
+              ],
+            ),
+          );
         }
-        if (!snapshot.hasData) {
+        if (!snapshot.hasData || _refreshingAfterMutation) {
           return const Center(child: CircularProgressIndicator());
         }
         final data = snapshot.data!;
@@ -505,6 +642,33 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                 children: [
+                  if (_saleOutcomeUncertain || _draftCreationUncertain)
+                    Card(
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              _saleOutcomeUncertain
+                                  ? 'Resultado da venda por confirmar. Não submetas outra vez.'
+                                  : 'Criação do rascunho por confirmar. Não inicies outra venda até verificares o estado.',
+                            ),
+                            if (_saleOutcomeUncertain) ...[
+                              const SizedBox(height: 8),
+                              OutlinedButton.icon(
+                                onPressed: _busy ? null : _verifyUncertainSale,
+                                icon: const Icon(Icons.fact_check_outlined),
+                                label: const Text('Verificar estado da venda'),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  if (_saleOutcomeUncertain || _draftCreationUncertain)
+                    const SizedBox(height: 8),
                   Text(
                     'Nova venda',
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -873,8 +1037,12 @@ class _BarSalesAdvancedScreenState extends State<BarSalesAdvancedScreen> {
                         ),
                       ),
                       FilledButton.icon(
-                        onPressed:
-                            _busy || total <= 0 ? null : () => _complete(data),
+                        onPressed: _busy ||
+                                total <= 0 ||
+                                _saleOutcomeUncertain ||
+                                _draftCreationUncertain
+                            ? null
+                            : () => _complete(data),
                         icon: _busy
                             ? const SizedBox.square(
                                 dimension: 18,

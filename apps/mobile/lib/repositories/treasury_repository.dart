@@ -29,18 +29,27 @@ class TreasuryRepository {
 
   bool get canManageAccounts => PermissionPolicy.allows(
       currentRole, AppPermission.manageFinancialAccounts);
+  bool get canCreateMovement => PermissionPolicy.allows(
+      currentRole, AppPermission.createTreasuryMovement);
+  bool get canTransfer => PermissionPolicy.allows(
+      currentRole, AppPermission.transferBetweenAccounts);
 
-  Future<Map<String, dynamic>> summary() async {
+  Future<Map<String, dynamic>> summary({
+    List<Map<String, dynamic>>? accounts,
+    List<Map<String, dynamic>>? movements,
+  }) async {
     _require(AppPermission.viewTreasury);
-    if (AppConfig.demoMode) return _dataService.treasurySummary();
+    if (AppConfig.demoMode && accounts == null && movements == null) {
+      return _dataService.treasurySummary();
+    }
 
-    final accounts = await listAccounts();
-    final movements = await listMovements();
+    final accountRows = accounts ?? await listAccounts();
+    final movementRows = movements ?? await listMovements();
     final now = DateTime.now();
     var monthlyIncome = 0.0;
     var monthlyExpense = 0.0;
 
-    for (final movement in movements) {
+    for (final movement in movementRows) {
       final date = DateTime.tryParse(
         movement['transaction_date']?.toString() ?? '',
       );
@@ -53,15 +62,15 @@ class TreasuryRepository {
     }
 
     return <String, dynamic>{
-      'accounts': accounts,
-      'total_balance': accounts.fold<double>(
+      'accounts': accountRows,
+      'total_balance': accountRows.fold<double>(
         0,
         (total, account) => total + _asDouble(account['balance']),
       ),
       'monthly_income': monthlyIncome,
       'monthly_expense': monthlyExpense,
       'pending_approvals': 0,
-      'recent_transactions': movements.take(8).toList(),
+      'recent_transactions': movementRows.take(8).toList(),
     };
   }
 

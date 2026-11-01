@@ -4,14 +4,22 @@ import '../repositories/treasury_repository.dart';
 import 'financial_transaction_documents_screen.dart';
 
 class TreasuryScreen extends StatefulWidget {
-  const TreasuryScreen({super.key});
+  const TreasuryScreen({
+    super.key,
+    this.repository,
+    this.loadTimeout = const Duration(seconds: 20),
+  });
+
+  final TreasuryRepository? repository;
+  final Duration loadTimeout;
 
   @override
   State<TreasuryScreen> createState() => _TreasuryScreenState();
 }
 
 class _TreasuryScreenState extends State<TreasuryScreen> {
-  final TreasuryRepository _repository = TreasuryRepository();
+  late final TreasuryRepository _repository =
+      widget.repository ?? TreasuryRepository();
   late Future<_TreasuryViewData> _future;
 
   @override
@@ -25,23 +33,41 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
   }
 
   Future<_TreasuryViewData> _load() async {
-    final results = await Future.wait([
-      _repository.summary(),
-      _repository.listMovements(),
-      _repository.listCostCenters(),
-      _repository.listEventsForMovements(),
-    ]);
+    final results = await Future.wait<dynamic>(
+      [
+        _loadStep('contas e saldos', _repository.listAccounts()),
+        _loadStep('movimentos', _repository.listMovements()),
+        _loadStep('centros de custo', _repository.listCostCenters()),
+        _loadStep('eventos', _repository.listEventsForMovements()),
+      ],
+      eagerError: true,
+    );
+    final accounts = List<Map<String, dynamic>>.from(results[0] as List);
+    final movements = List<Map<String, dynamic>>.from(results[1] as List);
+    final summary = await _loadStep(
+      'resumo',
+      _repository.summary(accounts: accounts, movements: movements),
+    );
     return _TreasuryViewData(
-      summary: Map<String, dynamic>.from(results[0] as Map),
-      movements: List<Map<String, dynamic>>.from(results[1] as List),
+      summary: summary,
+      movements: movements,
       costCenters: List<Map<String, dynamic>>.from(results[2] as List),
       events: List<Map<String, dynamic>>.from(results[3] as List),
     );
   }
 
+  Future<T> _loadStep<T>(String operation, Future<T> future) => future.timeout(
+        widget.loadTimeout,
+        onTimeout: () => throw _TreasuryLoadTimeout(operation),
+      );
+
   Future<void> _refresh() async {
     setState(_reload);
-    await _future;
+    try {
+      await _future;
+    } catch (_) {
+      // FutureBuilder renders the recoverable error state for this attempt.
+    }
   }
 
   Future<void> _openMovementDocuments(Map<String, dynamic> movement) async {
@@ -145,7 +171,38 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
         future: _future,
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(child: Text('Erro: ${snapshot.error}'));
+            final operation = snapshot.error is _TreasuryLoadTimeout
+                ? (snapshot.error! as _TreasuryLoadTimeout).operation
+                : null;
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.account_balance_wallet_outlined),
+                      const SizedBox(height: 12),
+                      Text(
+                        operation == null
+                            ? 'Não foi possível carregar a Tesouraria. Verifica a ligação e tenta novamente.'
+                            : 'A leitura de $operation excedeu ${_timeoutLabel(widget.loadTimeout)}. Verifica a ligação e tenta novamente.',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      FilledButton.icon(
+                        onPressed: () {
+                          if (mounted) setState(_reload);
+                        },
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Tentar novamente'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
           }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
@@ -182,31 +239,34 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                           spacing: 8,
                           runSpacing: 8,
                           children: [
-                            FilledButton.icon(
-                              onPressed: () => _openMovement(
-                                accounts,
-                                data.costCenters,
-                                data.events,
-                                'income',
+                            if (_repository.canCreateMovement)
+                              FilledButton.icon(
+                                onPressed: () => _openMovement(
+                                  accounts,
+                                  data.costCenters,
+                                  data.events,
+                                  'income',
+                                ),
+                                icon: const Icon(Icons.add_circle_outline),
+                                label: const Text('Receita'),
                               ),
-                              icon: const Icon(Icons.add_circle_outline),
-                              label: const Text('Receita'),
-                            ),
-                            FilledButton.tonalIcon(
-                              onPressed: () => _openMovement(
-                                accounts,
-                                data.costCenters,
-                                data.events,
-                                'expense',
+                            if (_repository.canCreateMovement)
+                              FilledButton.tonalIcon(
+                                onPressed: () => _openMovement(
+                                  accounts,
+                                  data.costCenters,
+                                  data.events,
+                                  'expense',
+                                ),
+                                icon: const Icon(Icons.remove_circle_outline),
+                                label: const Text('Despesa'),
                               ),
-                              icon: const Icon(Icons.remove_circle_outline),
-                              label: const Text('Despesa'),
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: () => _openTransfer(accounts),
-                              icon: const Icon(Icons.swap_horiz),
-                              label: const Text('Transferência'),
-                            ),
+                            if (_repository.canTransfer)
+                              OutlinedButton.icon(
+                                onPressed: () => _openTransfer(accounts),
+                                icon: const Icon(Icons.swap_horiz),
+                                label: const Text('Transferência'),
+                              ),
                             if (_repository.canManageAccounts)
                               OutlinedButton.icon(
                                 onPressed: _openAccount,
@@ -238,58 +298,66 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                ...accounts.map(
-                  (account) => Card(
+                if (accounts.isEmpty)
+                  const Card(
                     child: ListTile(
-                      leading: CircleAvatar(
-                        child: Text(account['icon']?.toString() ?? '€'),
-                      ),
-                      title: Text(account['name']?.toString() ?? 'Conta'),
-                      subtitle: Text(
-                        [
-                          account['account_type']?.toString(),
-                          account['allows_negative'] == true
-                              ? 'Pode ficar com saldo negativo'
-                              : 'Saldo negativo bloqueado',
-                        ].where((value) => value != null).join(' • '),
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _money(account['balance']),
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                          if (_repository.canManageAccounts)
-                            PopupMenuButton<String>(
-                              onSelected: (value) {
-                                if (value == 'edit') _openAccount(account);
-                                if (value == 'deactivate') {
-                                  _deactivateAccount(account);
-                                }
-                              },
-                              itemBuilder: (context) => const [
-                                PopupMenuItem(
-                                  value: 'edit',
-                                  child: ListTile(
-                                    leading: Icon(Icons.edit_outlined),
-                                    title: Text('Editar'),
-                                  ),
-                                ),
-                                PopupMenuItem(
-                                  value: 'deactivate',
-                                  child: ListTile(
-                                    leading: Icon(Icons.block_outlined),
-                                    title: Text('Desativar'),
-                                  ),
-                                ),
-                              ],
+                      leading: Icon(Icons.account_balance_outlined),
+                      title: Text('Sem contas ativas para apresentar.'),
+                    ),
+                  )
+                else
+                  ...accounts.map(
+                    (account) => Card(
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          child: Text(account['icon']?.toString() ?? '€'),
+                        ),
+                        title: Text(account['name']?.toString() ?? 'Conta'),
+                        subtitle: Text(
+                          [
+                            account['account_type']?.toString(),
+                            account['allows_negative'] == true
+                                ? 'Pode ficar com saldo negativo'
+                                : 'Saldo negativo bloqueado',
+                          ].where((value) => value != null).join(' • '),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _money(account['balance']),
+                              style: Theme.of(context).textTheme.titleMedium,
                             ),
-                        ],
+                            if (_repository.canManageAccounts)
+                              PopupMenuButton<String>(
+                                onSelected: (value) {
+                                  if (value == 'edit') _openAccount(account);
+                                  if (value == 'deactivate') {
+                                    _deactivateAccount(account);
+                                  }
+                                },
+                                itemBuilder: (context) => const [
+                                  PopupMenuItem(
+                                    value: 'edit',
+                                    child: ListTile(
+                                      leading: Icon(Icons.edit_outlined),
+                                      title: Text('Editar'),
+                                    ),
+                                  ),
+                                  PopupMenuItem(
+                                    value: 'deactivate',
+                                    child: ListTile(
+                                      leading: Icon(Icons.block_outlined),
+                                      title: Text('Desativar'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
                 const SizedBox(height: 16),
                 Text(
                   'Movimentos recentes',
@@ -367,6 +435,16 @@ class _TreasuryViewData {
   final List<Map<String, dynamic>> movements;
   final List<Map<String, dynamic>> costCenters;
   final List<Map<String, dynamic>> events;
+}
+
+String _timeoutLabel(Duration timeout) => timeout.inSeconds > 0
+    ? '${timeout.inSeconds} segundos'
+    : '${timeout.inMilliseconds} ms';
+
+class _TreasuryLoadTimeout implements Exception {
+  const _TreasuryLoadTimeout(this.operation);
+
+  final String operation;
 }
 
 class _AccountDialog extends StatefulWidget {

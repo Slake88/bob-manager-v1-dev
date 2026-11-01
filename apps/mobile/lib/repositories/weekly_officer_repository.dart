@@ -2,7 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/app_config.dart';
 import '../core/app_session.dart';
-import '../core/weekly_officer_rules.dart';
+import '../core/permissions.dart';
 import '../services/data_service.dart';
 import 'weekly_dinner_finance_repository.dart';
 
@@ -14,10 +14,8 @@ class WeeklyOfficerRepository {
   SupabaseClient get _supabase => _client ?? Supabase.instance.client;
   String get _clubId => AppSession.instance.clubId;
 
-  bool get canManage => WeeklyOfficerRules.canManageRole(
-        AppSession.instance.role,
-        superAdmin: AppSession.instance.superAdmin,
-      );
+  bool get canManage =>
+      AppSession.instance.can(AppPermission.manageWeeklyOfficer);
 
   bool get supportsRebuild => !AppConfig.demoMode;
 

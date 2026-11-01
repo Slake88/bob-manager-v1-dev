@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/app_config.dart';
@@ -8,10 +10,15 @@ class AuthService {
   AuthService._();
 
   static final AuthService instance = AuthService._();
+  static const _networkTimeout = Duration(seconds: 25);
+
+  int _operationGeneration = 0;
 
   bool get needsPasswordSetup {
     if (AppConfig.demoMode) return false;
-    return Supabase.instance.client.auth.currentUser?.userMetadata?['must_set_password'] == true;
+    return Supabase.instance.client.auth.currentUser
+            ?.userMetadata?['must_set_password'] ==
+        true;
   }
 
   Future<void> signIn(String email, String password) async {
@@ -32,28 +39,60 @@ class AuthService {
         newFullName: 'Israel Sousa',
         newRole: 'super_admin',
       );
-      AppSession.instance.applyPermissions(AppPermission.values.map((p) => p.key));
+      AppSession.instance
+          .applyPermissions(AppPermission.values.map((p) => p.key));
       return;
     }
 
+    final generation = ++_operationGeneration;
+    var authSessionCreated = false;
     try {
-      final response = await Supabase.instance.client.auth.signInWithPassword(
-        email: normalizedEmail,
-        password: password,
-      );
+      final response = await Supabase.instance.client.auth
+          .signInWithPassword(
+            email: normalizedEmail,
+            password: password,
+          )
+          .timeout(_networkTimeout);
       final user = response.user;
       if (user == null) {
         throw const AuthException('Não foi possível iniciar sessão.');
       }
 
-      await _hydrateSession(user.id, fallbackName: normalizedEmail);
+      authSessionCreated = true;
+      await _hydrateSession(
+        user.id,
+        fallbackName: normalizedEmail,
+        generation: generation,
+      ).timeout(_networkTimeout);
+    } on TimeoutException {
+      // A Future timeout does not cancel the HTTP request. Invalidate this
+      // hydration so a late response cannot authenticate a stale screen.
+      // Keep the Supabase session untouched: the server may have accepted the
+      // login even if its response was delayed.
+      ++_operationGeneration;
+      AppSession.instance.clear();
+      throw const AuthException(
+        'A ligação demorou mais do que o esperado. Verifica a ligação e tenta novamente.',
+      );
     } on AuthException {
+      ++_operationGeneration;
+      if (authSessionCreated) {
+        await _bestEffortSignOut();
+      }
       AppSession.instance.clear();
       rethrow;
     } on PostgrestException catch (error) {
+      ++_operationGeneration;
+      if (authSessionCreated) {
+        await _bestEffortSignOut();
+      }
       AppSession.instance.clear();
       throw AuthException(_friendlyDatabaseError(error));
     } catch (_) {
+      ++_operationGeneration;
+      if (authSessionCreated) {
+        await _bestEffortSignOut();
+      }
       AppSession.instance.clear();
       throw const AuthException(
         'Não foi possível concluir o login. Verifica a ligação e tenta novamente.',
@@ -72,23 +111,36 @@ class AuthService {
       return false;
     }
 
+    final generation = ++_operationGeneration;
     try {
       await _hydrateSession(
         user.id,
         fallbackName: user.email ?? 'Utilizador',
-      );
+        generation: generation,
+      ).timeout(_networkTimeout);
       return true;
-    } catch (_) {
-      await Supabase.instance.client.auth.signOut();
+    } on AuthException {
+      // Missing/inactive membership is a definitive authorization failure.
+      // Transient database/network errors are deliberately not converted into
+      // a logout; the bootstrap screen offers a bounded retry instead.
+      await _bestEffortSignOut();
       AppSession.instance.clear();
       return false;
+    } on TimeoutException {
+      ++_operationGeneration;
+      AppSession.instance.clear();
+      rethrow;
+    } catch (_) {
+      ++_operationGeneration;
+      AppSession.instance.clear();
+      rethrow;
     }
   }
 
   Future<void> signOut() async {
     try {
       if (!AppConfig.demoMode) {
-        await Supabase.instance.client.auth.signOut();
+        await Supabase.instance.client.auth.signOut().timeout(_networkTimeout);
       }
     } finally {
       AppSession.instance.clear();
@@ -102,10 +154,12 @@ class AuthService {
       throw const AuthException('Indica um email válido.');
     }
     final redirectTo = _webRedirectUrl();
-    await Supabase.instance.client.auth.resetPasswordForEmail(
-      normalizedEmail,
-      redirectTo: redirectTo,
-    );
+    await Supabase.instance.client.auth
+        .resetPasswordForEmail(
+          normalizedEmail,
+          redirectTo: redirectTo,
+        )
+        .timeout(_networkTimeout);
   }
 
   Future<void> completePasswordSetup(String password) async {
@@ -120,30 +174,44 @@ class AuthService {
       throw const AuthException('A sessão de ativação já não é válida.');
     }
 
-    await Supabase.instance.client.auth.updateUser(
-      UserAttributes(
-        password: password,
-        data: const {'must_set_password': false},
-      ),
-    );
+    await Supabase.instance.client.auth
+        .updateUser(
+          UserAttributes(
+            password: password,
+            data: const {'must_set_password': false},
+          ),
+        )
+        .timeout(_networkTimeout);
     await _hydrateSession(
       user.id,
       fallbackName: user.email ?? 'Utilizador',
-    );
+      generation: _operationGeneration,
+    ).timeout(_networkTimeout);
   }
 
   Future<void> refreshPermissions() async {
     if (!AppSession.instance.authenticated || AppConfig.demoMode) return;
-    await _hydratePermissions(
-      AppSession.instance.clubId,
-      AppSession.instance.profileId,
-      AppSession.instance.role,
-    );
+    final clubId = AppSession.instance.clubId;
+    final profileId = AppSession.instance.profileId;
+    final role = AppSession.instance.role;
+    final generation = _operationGeneration;
+    final permissions = await _loadPermissions(
+      clubId,
+      profileId,
+      role,
+    ).timeout(_networkTimeout);
+    if (generation == _operationGeneration &&
+        AppSession.instance.authenticated &&
+        AppSession.instance.clubId == clubId &&
+        AppSession.instance.profileId == profileId) {
+      AppSession.instance.applyPermissions(permissions);
+    }
   }
 
   Future<void> _hydrateSession(
     String profileId, {
     required String fallbackName,
+    required int generation,
   }) async {
     final membership = await Supabase.instance.client
         .from('club_memberships')
@@ -177,24 +245,38 @@ class AuthService {
     final fullName = profile?['full_name']?.toString().trim();
     final role = membership['access_role']?.toString() ?? 'member';
 
+    if (generation != _operationGeneration) return;
+
+    final permissions = await _loadPermissions(clubId, profileId, role);
+    if (generation != _operationGeneration) return;
+
     AppSession.instance.authenticate(
       newProfileId: profileId,
       newClubId: clubId,
-      newFullName: fullName == null || fullName.isEmpty ? fallbackName : fullName,
+      newFullName:
+          fullName == null || fullName.isEmpty ? fallbackName : fullName,
       newRole: role,
     );
 
-    await _hydratePermissions(clubId, profileId, role);
+    AppSession.instance.applyPermissions(permissions);
   }
 
-  Future<void> _hydratePermissions(
+  Future<void> _bestEffortSignOut() async {
+    try {
+      await Supabase.instance.client.auth.signOut().timeout(_networkTimeout);
+    } catch (_) {
+      // Do not keep the UI blocked while a best-effort cleanup is pending.
+    }
+  }
+
+  Future<Set<String>> _loadPermissions(
     String clubId,
     String profileId,
     String role,
   ) async {
-    if (AppSession.instance.superAdmin) {
-      AppSession.instance.applyPermissions(AppPermission.values.map((p) => p.key));
-      return;
+    if (role.trim().toLowerCase().replaceAll('-', '_').replaceAll(' ', '_') ==
+        'super_admin') {
+      return AppPermission.values.map((p) => p.key).toSet();
     }
 
     final values = await Future.wait([
@@ -210,19 +292,11 @@ class AuthService {
           .eq('profile_id', profileId),
     ]);
 
-    final effective = <String>{};
-    for (final row in List<Map<String, dynamic>>.from(values[0] as List)) {
-      if (row['allowed'] == true) effective.add(row['permission_key'].toString());
-    }
-    for (final row in List<Map<String, dynamic>>.from(values[1] as List)) {
-      final key = row['permission_key'].toString();
-      if (row['allowed'] == true) {
-        effective.add(key);
-      } else {
-        effective.remove(key);
-      }
-    }
-    AppSession.instance.applyPermissions(effective);
+    return resolveEffectivePermissionKeys(
+      roleKey: role,
+      roleRows: List<Map<String, dynamic>>.from(values[0] as List),
+      userOverrides: List<Map<String, dynamic>>.from(values[1] as List),
+    );
   }
 
   static String? _webRedirectUrl() {
