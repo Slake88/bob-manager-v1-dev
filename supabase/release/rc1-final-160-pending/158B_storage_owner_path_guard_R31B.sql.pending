@@ -1,0 +1,97 @@
+-- R31B candidate: bind financial attachment writes to the request's real club.
+-- Execute only as the actual owner of storage.objects (supabase_storage_admin).
+-- Public helpers must already be installed by 158A. This file does not modify
+-- SELECT policy, owners, roles, grants, memberships, or helper definitions.
+BEGIN;
+DO $guard$
+DECLARE
+  actual_owner text;
+  other_bucket_write_policy text;
+BEGIN
+  IF session_user <> 'supabase_storage_admin' OR current_user <> 'supabase_storage_admin' THEN
+    RAISE EXCEPTION 'wrong migration identity for storage.objects policies';
+  END IF;
+
+  SELECT pg_get_userbyid(c.relowner) INTO actual_owner
+  FROM pg_catalog.pg_class c
+  WHERE c.oid = 'storage.objects'::regclass;
+  IF actual_owner IS DISTINCT FROM 'supabase_storage_admin' THEN
+    RAISE EXCEPTION 'unexpected storage.objects owner: %', actual_owner;
+  END IF;
+
+  IF to_regprocedure('public.financial_request_edit_access_v1(uuid)') IS NULL
+     OR to_regprocedure('public.financial_storage_access_v2(text,boolean)') IS NULL THEN
+    RAISE EXCEPTION 'required 158A financial access helpers are missing';
+  END IF;
+  IF NOT has_function_privilege('authenticated',
+       'public.financial_request_edit_access_v1(uuid)', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated',
+       'public.financial_storage_access_v2(text,boolean)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'authenticated lacks execute on required financial access helpers';
+  END IF;
+
+  -- Fail closed if a permissive catch-all or another financial write policy
+  -- could OR around these two scoped policies. UPDATE remains forbidden for
+  -- this bucket; other existing bucket-specific policies are preserved.
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_policies p
+    WHERE p.schemaname='storage' AND p.tablename='objects'
+      AND p.cmd='ALL'
+  ) THEN
+    RAISE EXCEPTION 'unexpected FOR ALL policy on storage.objects';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_policies p
+    WHERE p.schemaname='storage' AND p.tablename='objects'
+      AND p.cmd IN ('INSERT','UPDATE','DELETE')
+      AND (
+        (p.cmd='INSERT' AND p.policyname <> 'financial_documents_insert')
+        OR (p.cmd='DELETE' AND p.policyname <> 'financial_documents_delete')
+        OR p.cmd='UPDATE'
+      )
+      AND (
+        lower(coalesce(p.with_check,'') || ' ' || coalesce(p.qual,'')) NOT LIKE '%bucket_id%'
+        OR lower(coalesce(p.with_check,'') || ' ' || coalesce(p.qual,'')) LIKE '%financial-documents%'
+      )
+  ) THEN
+    SELECT p.policyname INTO other_bucket_write_policy
+    FROM pg_catalog.pg_policies p
+    WHERE p.schemaname='storage' AND p.tablename='objects'
+      AND p.cmd IN ('INSERT','UPDATE','DELETE')
+      AND (
+        (p.cmd='INSERT' AND p.policyname <> 'financial_documents_insert')
+        OR (p.cmd='DELETE' AND p.policyname <> 'financial_documents_delete')
+        OR p.cmd='UPDATE'
+      )
+      AND (
+        lower(coalesce(p.with_check,'') || ' ' || coalesce(p.qual,'')) NOT LIKE '%bucket_id%'
+        OR lower(coalesce(p.with_check,'') || ' ' || coalesce(p.qual,'')) LIKE '%financial-documents%'
+      )
+    LIMIT 1;
+    RAISE EXCEPTION 'unexpected potentially overlapping Storage write policy: %', other_bucket_write_policy;
+  END IF;
+END
+$guard$;
+
+DROP POLICY IF EXISTS financial_documents_insert ON storage.objects;
+CREATE POLICY financial_documents_insert ON storage.objects
+FOR INSERT TO authenticated
+WITH CHECK (
+  bucket_id='financial-documents'
+  AND array_length(storage.foldername(name),1)>=2
+  -- Resolve the request from the UUID in path segment 2, then require segment 1
+  -- to equal that request's actual club_id (not a client-supplied assertion).
+  AND public.financial_storage_access_v2(name,false)
+  AND public.financial_request_edit_access_v1((storage.foldername(name))[2]::uuid)
+);
+
+DROP POLICY IF EXISTS financial_documents_delete ON storage.objects;
+CREATE POLICY financial_documents_delete ON storage.objects
+FOR DELETE TO authenticated
+USING (
+  bucket_id='financial-documents'
+  AND array_length(storage.foldername(name),1)>=2
+  AND public.financial_storage_access_v2(name,false)
+  AND public.financial_request_edit_access_v1((storage.foldername(name))[2]::uuid)
+);
+COMMIT;

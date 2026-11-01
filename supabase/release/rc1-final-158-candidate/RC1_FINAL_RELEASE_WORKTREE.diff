@@ -1,0 +1,4299 @@
+diff --git a/apps/mobile/lib/core/club_export.dart b/apps/mobile/lib/core/club_export.dart
+index 461b062..3b947fd 100644
+--- a/apps/mobile/lib/core/club_export.dart
++++ b/apps/mobile/lib/core/club_export.dart
+@@ -25,6 +25,31 @@ enum ClubExportSection {
+   final String description;
+ }
+ 
++/// The pilot exposes only datasets that passed the R13 behavioral checks.
++/// Keep this set aligned with the server-side migration allowlist.
++const Set<String> pilotClubExportDatasetPaths = {
++  'financeiro/pedidos.csv',
++  'financeiro/pedidos_anexos.csv',
++  'financeiro/documentos_movimentos.csv',
++  'quotas/planos.csv',
++  'quotas/obrigacoes.csv',
++  'quotas/pagamentos.csv',
++  'euromilhoes/participantes.csv',
++  'euromilhoes/sorteios.csv',
++  'euromilhoes/chaves.csv',
++  'euromilhoes/participacoes.csv',
++  'euromilhoes/resultados.csv',
++  'euromilhoes/cobrancas.csv',
++  'euromilhoes/multas.csv',
++  'euromilhoes/premios.csv',
++};
++
++const Set<ClubExportSection> pilotClubExportSections = {
++  ClubExportSection.financial,
++  ClubExportSection.fees,
++  ClubExportSection.lottery,
++};
++
+ class ClubExportPolicy {
+   const ClubExportPolicy._();
+ 
+diff --git a/apps/mobile/lib/main.dart b/apps/mobile/lib/main.dart
+index 4a96434..b90e530 100644
+--- a/apps/mobile/lib/main.dart
++++ b/apps/mobile/lib/main.dart
+@@ -1,6 +1,7 @@
+ import 'dart:async';
+ 
+ import 'package:flutter/material.dart';
++import 'package:http/http.dart' as http;
+ import 'package:flutter_localizations/flutter_localizations.dart';
+ import 'package:supabase_flutter/supabase_flutter.dart';
+ 
+@@ -20,7 +21,7 @@ bool _isPasswordRecoveryUri(Uri uri) {
+       fragment.contains('&type=recovery');
+ }
+ 
+-Future<void> main() async {
++Future<void> main({http.Client? httpClient}) async {
+   WidgetsFlutterBinding.ensureInitialized();
+   _initialPasswordRecovery = _isPasswordRecoveryUri(Uri.base);
+ 
+@@ -29,6 +30,7 @@ Future<void> main() async {
+     await Supabase.initialize(
+       url: AppConfig.supabaseUrl,
+       publishableKey: AppConfig.supabasePublishableKey,
++      httpClient: httpClient,
+     );
+   }
+ 
+@@ -171,9 +173,10 @@ class _ConfigurationErrorScreen extends StatelessWidget {
+                     const SizedBox(height: 12),
+                     Text(
+                       'BOB MANAGER',
+-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+-                            fontWeight: FontWeight.w900,
+-                          ),
++                      style:
++                          Theme.of(context).textTheme.headlineMedium?.copyWith(
++                                fontWeight: FontWeight.w900,
++                              ),
+                       textAlign: TextAlign.center,
+                     ),
+                     const SizedBox(height: 20),
+diff --git a/apps/mobile/lib/repositories/assets_operations_repository.dart b/apps/mobile/lib/repositories/assets_operations_repository.dart
+index 4c2188d..26c06a6 100644
+--- a/apps/mobile/lib/repositories/assets_operations_repository.dart
++++ b/apps/mobile/lib/repositories/assets_operations_repository.dart
+@@ -4,7 +4,10 @@ import '../core/app_session.dart';
+ import '../core/permissions.dart';
+ 
+ class AssetsOperationsRepository {
+-  SupabaseClient get _client => Supabase.instance.client;
++  AssetsOperationsRepository({SupabaseClient? client}) : _clientOverride = client;
++
++  final SupabaseClient? _clientOverride;
++  SupabaseClient get _client => _clientOverride ?? Supabase.instance.client;
+   String get _clubId => AppSession.instance.clubId;
+ 
+   void _require(AppPermission permission) {
+@@ -138,20 +141,9 @@ class AssetsOperationsRepository {
+     String paymentMethod = 'Dinheiro',
+     bool postFinancial = false,
+   }) async {
+-    _require(AppPermission.manageAssets);
+-    await _client.rpc('asset_maintenance_v1', params: {
+-      'target_club': _clubId,
+-      'p_asset': assetId,
+-      'p_type': type,
+-      'p_date': date.toIso8601String().split('T').first,
+-      'p_description': description,
+-      'p_cost': cost,
+-      'p_supplier': supplier,
+-      'p_next_due': nextDue?.toIso8601String().split('T').first,
+-      'p_account': accountId,
+-      'p_payment_method': paymentMethod,
+-      'p_post_financial': postFinancial,
+-    });
++    throw UnsupportedError(
++      'Registo de manutenção está desativado no piloto RC1.',
++    );
+   }
+ 
+   Future<void> saveKit({
+diff --git a/apps/mobile/lib/repositories/club_export_repository.dart b/apps/mobile/lib/repositories/club_export_repository.dart
+index a8d04f9..dda6abf 100644
+--- a/apps/mobile/lib/repositories/club_export_repository.dart
++++ b/apps/mobile/lib/repositories/club_export_repository.dart
+@@ -20,6 +20,11 @@ class ClubExportRepository {
+     required bool includeSensitive,
+     required bool includeFiles,
+   }) async {
++    _validatePilotScope(
++      sections: sections,
++      includeSensitive: includeSensitive,
++      includeFiles: includeFiles,
++    );
+     _ensureProduction();
+     if (!ClubExportPolicy.canExport(AppSession.instance)) {
+       throw const ClubExportFailure(
+@@ -97,6 +102,11 @@ class ClubExportRepository {
+     required bool includeSensitive,
+     required bool includeFiles,
+   }) async {
++    _validatePilotScope(
++      sections: sections,
++      includeSensitive: includeSensitive,
++      includeFiles: includeFiles,
++    );
+     _ensureProduction();
+     if (!ClubExportPolicy.canExport(AppSession.instance)) {
+       throw const ClubExportFailure(
+@@ -123,7 +133,9 @@ class ClubExportRepository {
+ 
+     final datasets = <ClubExportDataset>[];
+     final filesByKey = <String, ClubExportFileRef>{};
+-    for (final spec in _allExportSpecs) {
++    for (final spec in _allExportSpecs.where(
++      (spec) => pilotClubExportDatasetPaths.contains(spec.path),
++    )) {
+       if (!sections.contains(spec.section)) continue;
+       if (spec.sensitive && !includeSensitive) continue;
+ 
+@@ -214,6 +226,25 @@ class ClubExportRepository {
+     return int.tryParse(value?.toString() ?? '');
+   }
+ 
++  void _validatePilotScope({
++    required Set<ClubExportSection> sections,
++    required bool includeSensitive,
++    required bool includeFiles,
++  }) {
++    if (sections.isEmpty || !pilotClubExportSections.containsAll(sections)) {
++      throw const ClubExportFailure(
++        'pilot_scope_disabled',
++        'Esta área de exportação não está disponível no piloto.',
++      );
++    }
++    if (includeSensitive || includeFiles) {
++      throw const ClubExportFailure(
++        'pilot_scope_disabled',
++        'Dados sensíveis e ficheiros estão desativados no piloto.',
++      );
++    }
++  }
++
+   void _ensureProduction() {
+     if (AppConfig.demoMode) {
+       throw const ClubExportFailure(
+diff --git a/apps/mobile/lib/screens/assets_module_screen.dart b/apps/mobile/lib/screens/assets_module_screen.dart
+index 1de20fd..e02f770 100644
+--- a/apps/mobile/lib/screens/assets_module_screen.dart
++++ b/apps/mobile/lib/screens/assets_module_screen.dart
+@@ -11,7 +11,7 @@ class AssetsModuleScreen extends StatelessWidget {
+     return DefaultTabController(
+       length: 2,
+       child: Column(
+-        children: const [
++        children: [
+           Material(
+             child: TabBar(
+               tabs: [
+diff --git a/apps/mobile/lib/screens/assets_phase2_screen.dart b/apps/mobile/lib/screens/assets_phase2_screen.dart
+index 49ef9af..075803d 100644
+--- a/apps/mobile/lib/screens/assets_phase2_screen.dart
++++ b/apps/mobile/lib/screens/assets_phase2_screen.dart
+@@ -6,14 +6,17 @@ import '../core/permissions.dart';
+ import '../repositories/assets_operations_repository.dart';
+ 
+ class AssetsPhase2Screen extends StatefulWidget {
+-  const AssetsPhase2Screen({super.key});
++  AssetsPhase2Screen({super.key, AssetsOperationsRepository? repository})
++    : repository = repository ?? AssetsOperationsRepository();
++
++  final AssetsOperationsRepository repository;
+ 
+   @override
+   State<AssetsPhase2Screen> createState() => _AssetsPhase2ScreenState();
+ }
+ 
+ class _AssetsPhase2ScreenState extends State<AssetsPhase2Screen> {
+-  final _repository = AssetsOperationsRepository();
++  late final _repository = widget.repository;
+   late Future<_Phase2Data> _future;
+ 
+   bool get _canManage => AppSession.instance.can(AppPermission.manageAssets);
+@@ -94,31 +97,6 @@ class _AssetsPhase2ScreenState extends State<AssetsPhase2Screen> {
+     }
+   }
+ 
+-  Future<void> _newMaintenance(_Phase2Data data, {String? presetType}) async {
+-    final result = await showDialog<_MaintenanceInput>(
+-      context: context,
+-      builder: (_) => _MaintenanceDialog(data: data, presetType: presetType),
+-    );
+-    if (result == null) return;
+-    try {
+-      await _repository.maintenance(
+-        assetId: result.assetId,
+-        type: result.type,
+-        date: result.date,
+-        description: result.description,
+-        cost: result.cost,
+-        supplier: result.supplier,
+-        nextDue: result.nextDue,
+-        accountId: result.accountId,
+-        paymentMethod: result.paymentMethod,
+-        postFinancial: result.postFinancial,
+-      );
+-      if (mounted) setState(_reload);
+-    } catch (error) {
+-      _error(error);
+-    }
+-  }
+-
+   Future<void> _newKit(_Phase2Data data, [Map<String, dynamic>? kit]) async {
+     final result = await showDialog<_KitInput>(
+       context: context,
+@@ -185,15 +163,11 @@ class _AssetsPhase2ScreenState extends State<AssetsPhase2Screen> {
+                     ),
+                     _MaintenanceTab(
+                       rows: data.maintenance,
+-                      canManage: _canManage,
+-                      onAdd: () => _newMaintenance(data),
+                       onRefresh: _refresh,
+                     ),
+                     _InspectionTab(
+                       assets: data.assets,
+                       dueCount: inspectionsDue,
+-                      canManage: _canManage,
+-                      onAdd: () => _newMaintenance(data, presetType: 'inspection'),
+                       onRefresh: _refresh,
+                     ),
+                     _KitsTab(
+@@ -247,10 +221,8 @@ class _LoansTab extends StatelessWidget {
+ }
+ 
+ class _MaintenanceTab extends StatelessWidget {
+-  const _MaintenanceTab({required this.rows,required this.canManage,required this.onAdd,required this.onRefresh});
++  const _MaintenanceTab({required this.rows,required this.onRefresh});
+   final List<Map<String,dynamic>> rows;
+-  final bool canManage;
+-  final VoidCallback onAdd;
+   final Future<void> Function() onRefresh;
+   @override
+   Widget build(BuildContext context) {
+@@ -259,7 +231,7 @@ class _MaintenanceTab extends StatelessWidget {
+       child: ListView(
+         padding: const EdgeInsets.fromLTRB(16,16,16,96),
+         children: [
+-          if (canManage) Align(alignment: Alignment.centerLeft,child: FilledButton.icon(onPressed: onAdd,icon: const Icon(Icons.add),label: const Text('Registar intervenção'))),
++          const Card(child: ListTile(leading: Icon(Icons.info_outline),title: Text('Registo de intervenções desativado no piloto.'),subtitle: Text('O histórico permanece disponível para consulta.'))),
+           const SizedBox(height: 12),
+           if (rows.isEmpty) const Card(child: ListTile(title: Text('Ainda não existem manutenções ou reparações registadas.')))
+           else for (final row in rows) _MaintenanceCard(row: row),
+@@ -270,11 +242,9 @@ class _MaintenanceTab extends StatelessWidget {
+ }
+ 
+ class _InspectionTab extends StatelessWidget {
+-  const _InspectionTab({required this.assets,required this.dueCount,required this.canManage,required this.onAdd,required this.onRefresh});
++  const _InspectionTab({required this.assets,required this.dueCount,required this.onRefresh});
+   final List<Map<String,dynamic>> assets;
+   final int dueCount;
+-  final bool canManage;
+-  final VoidCallback onAdd;
+   final Future<void> Function() onRefresh;
+   @override
+   Widget build(BuildContext context) {
+@@ -288,8 +258,8 @@ class _InspectionTab extends StatelessWidget {
+           Wrap(spacing:10,runSpacing:10,children:[
+             _Metric('Com inspeção','${rows.length}',Icons.fact_check_outlined),
+             _Metric('Próximas / vencidas','$dueCount',Icons.notification_important_outlined),
+-            if (canManage) FilledButton.icon(onPressed: onAdd,icon: const Icon(Icons.add_task),label: const Text('Registar inspeção')),
+           ]),
++          const Card(child: ListTile(leading: Icon(Icons.info_outline),title: Text('Registo de inspeções desativado no piloto.'),subtitle: Text('Os requisitos e prazos permanecem disponíveis para consulta.'))),
+           const SizedBox(height:16),
+           if (rows.isEmpty) const Card(child: ListTile(title: Text('Nenhum bem exige inspeção periódica.')))
+           else for (final asset in rows) _InspectionCard(asset: asset),
+@@ -437,9 +407,6 @@ class _LoanDialogState extends State<_LoanDialog> {
+ class _ReturnDialog extends StatefulWidget { const _ReturnDialog(); @override State<_ReturnDialog> createState()=>_ReturnDialogState(); }
+ class _ReturnDialogState extends State<_ReturnDialog>{String condition='good';final notes=TextEditingController();@override void dispose(){notes.dispose();super.dispose();}@override Widget build(BuildContext context)=>AlertDialog(title:const Text('Devolver bem'),content:Column(mainAxisSize:MainAxisSize.min,children:[DropdownButtonFormField<String>(initialValue:condition,decoration:const InputDecoration(labelText:'Estado na devolução',border:OutlineInputBorder()),items:const [DropdownMenuItem(value:'excellent',child:Text('Excelente')),DropdownMenuItem(value:'good',child:Text('Bom')),DropdownMenuItem(value:'regular',child:Text('Regular')),DropdownMenuItem(value:'maintenance',child:Text('Necessita manutenção')),DropdownMenuItem(value:'damaged',child:Text('Avariado'))],onChanged:(v)=>setState(()=>condition=v??condition)),const SizedBox(height:12),TextField(controller:notes,maxLines:2,decoration:const InputDecoration(labelText:'Notas da devolução',border:OutlineInputBorder()))]),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancelar')),FilledButton(onPressed:()=>Navigator.pop(context,_ReturnInput(condition,notes.text)),child:const Text('Confirmar devolução'))]);}
+ 
+-class _MaintenanceDialog extends StatefulWidget {const _MaintenanceDialog({required this.data,this.presetType});final _Phase2Data data;final String? presetType;@override State<_MaintenanceDialog> createState()=>_MaintenanceDialogState();}
+-class _MaintenanceDialogState extends State<_MaintenanceDialog>{String? assetId;late String type;DateTime date=DateTime.now();DateTime? nextDue;final description=TextEditingController();final cost=TextEditingController(text:'0');final supplier=TextEditingController();String? accountId;String payment='Dinheiro';bool financial=false;@override void initState(){super.initState();type=widget.presetType??'maintenance';final caixa=widget.data.accounts.where((a)=>a['name']?.toString().toLowerCase()=='caixa');if(caixa.isNotEmpty){accountId=caixa.first['id'].toString();}else if(widget.data.accounts.isNotEmpty){accountId=widget.data.accounts.first['id'].toString();}}@override void dispose(){description.dispose();cost.dispose();supplier.dispose();super.dispose();}@override Widget build(BuildContext context)=>AlertDialog(title:const Text('Registar intervenção'),content:SizedBox(width:560,child:SingleChildScrollView(child:Column(mainAxisSize:MainAxisSize.min,children:[_dropdown('Bem',assetId,widget.data.assets.map((e)=>e['id'].toString()).toList(),(v)=>'${widget.data.assets.firstWhere((e)=>e['id'].toString()==v)['asset_number']} · ${widget.data.assets.firstWhere((e)=>e['id'].toString()==v)['name']}',(v)=>setState(()=>assetId=v)),const SizedBox(height:12),DropdownButtonFormField<String>(initialValue:type,decoration:const InputDecoration(labelText:'Tipo',border:OutlineInputBorder()),items:const [DropdownMenuItem(value:'maintenance',child:Text('Manutenção')),DropdownMenuItem(value:'repair',child:Text('Reparação')),DropdownMenuItem(value:'inspection',child:Text('Inspeção'))],onChanged:(v)=>setState(()=>type=v??type)),const SizedBox(height:12),TextField(controller:description,maxLines:2,decoration:const InputDecoration(labelText:'Descrição',border:OutlineInputBorder())),const SizedBox(height:12),TextField(controller:supplier,decoration:const InputDecoration(labelText:'Fornecedor / oficina',border:OutlineInputBorder())),const SizedBox(height:12),TextField(controller:cost,keyboardType:const TextInputType.numberWithOptions(decimal:true),decoration:const InputDecoration(labelText:'Custo (€)',border:OutlineInputBorder())),const SizedBox(height:12),ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.event),title:Text('Data: ${DateFormat('dd/MM/yyyy').format(date)}'),trailing:IconButton(icon:const Icon(Icons.calendar_month),onPressed:() async {final d=await showDatePicker(context:context,initialDate:date,firstDate:DateTime(2020),lastDate:DateTime.now().add(const Duration(days:3650)));if(d!=null){setState(()=>date=d);}})),ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.update),title:Text(nextDue==null?'Próxima intervenção (opcional)':'Próxima: ${DateFormat('dd/MM/yyyy').format(nextDue!)}'),trailing:IconButton(icon:const Icon(Icons.calendar_month),onPressed:() async {final d=await showDatePicker(context:context,initialDate:date.add(const Duration(days:180)),firstDate:date,lastDate:DateTime.now().add(const Duration(days:3650)));if(d!=null){setState(()=>nextDue=d);}})),SwitchListTile(contentPadding:EdgeInsets.zero,value:financial,onChanged:(v)=>setState(()=>financial=v),title:const Text('Registar despesa na Tesouraria')),if(financial&&widget.data.accounts.isNotEmpty)...[const SizedBox(height:8),_dropdown('Conta / fundo',accountId,widget.data.accounts.map((e)=>e['id'].toString()).toList(),(v)=>widget.data.accounts.firstWhere((e)=>e['id'].toString()==v)['name'].toString(),(v)=>setState(()=>accountId=v)),const SizedBox(height:12),DropdownButtonFormField<String>(initialValue:payment,decoration:const InputDecoration(labelText:'Pagamento',border:OutlineInputBorder()),items:const ['Dinheiro','MB Way','Transferência bancária'].map((v)=>DropdownMenuItem(value:v,child:Text(v))).toList(),onChanged:(v)=>setState(()=>payment=v??payment))]]))),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancelar')),FilledButton(onPressed:assetId==null?null:()=>Navigator.pop(context,_MaintenanceInput(assetId!,type,date,description.text,_parse(cost.text),supplier.text,nextDue,accountId,payment,financial)),child:const Text('Registar'))]);}
+-
+ class _KitDialog extends StatefulWidget {const _KitDialog({required this.assets,this.kit});final List<Map<String,dynamic>> assets;final Map<String,dynamic>? kit;@override State<_KitDialog> createState()=>_KitDialogState();}
+ class _KitDialogState extends State<_KitDialog>{late final TextEditingController name;late final TextEditingController description;final selected=<String>{};@override void initState(){super.initState();name=TextEditingController(text:widget.kit?['name']?.toString()??'');description=TextEditingController(text:widget.kit?['description']?.toString()??'');final items=widget.kit?['asset_kit_items'];if(items is List){for(final item in items){if(item is Map&&item['asset_id']!=null){selected.add(item['asset_id'].toString());}}}}@override void dispose(){name.dispose();description.dispose();super.dispose();}@override Widget build(BuildContext context)=>AlertDialog(title:Text(widget.kit==null?'Novo Kit':'Editar Kit'),content:SizedBox(width:560,height:520,child:Column(children:[TextField(controller:name,decoration:const InputDecoration(labelText:'Nome do Kit',border:OutlineInputBorder())),const SizedBox(height:12),TextField(controller:description,decoration:const InputDecoration(labelText:'Descrição',border:OutlineInputBorder())),const SizedBox(height:12),const Align(alignment:Alignment.centerLeft,child:Text('Equipamentos',style:TextStyle(fontWeight:FontWeight.w700))),const SizedBox(height:6),Expanded(child:ListView(children:[for(final asset in widget.assets) CheckboxListTile(value:selected.contains(asset['id'].toString()),onChanged:(v)=>setState((){final id=asset['id'].toString();if(v==true){selected.add(id);}else{selected.remove(id);}}),title:Text('${asset['asset_number']} · ${asset['name']}'),subtitle:Text(asset['category']?.toString()??''))]))])),actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('Cancelar')),FilledButton(onPressed:()=>Navigator.pop(context,_KitInput(name.text,description.text,selected.toList())),child:Text(widget.kit==null?'Guardar Kit':'Guardar alterações'))]);}
+ 
+@@ -449,13 +416,11 @@ class _Metric extends StatelessWidget{const _Metric(this.label,this.value,this.i
+ class _Phase2Data{const _Phase2Data({required this.assets,required this.members,required this.events,required this.accounts,required this.loans,required this.maintenance,required this.kits});final List<Map<String,dynamic>> assets,members,events,accounts,loans,maintenance,kits;}
+ class _LoanInput{const _LoanInput(this.assetId,this.borrowerType,this.memberId,this.eventId,this.externalName,this.expectedReturn,this.notes);final String assetId,borrowerType;final String? memberId,eventId;final String externalName,notes;final DateTime? expectedReturn;}
+ class _ReturnInput{const _ReturnInput(this.condition,this.notes);final String condition,notes;}
+-class _MaintenanceInput{const _MaintenanceInput(this.assetId,this.type,this.date,this.description,this.cost,this.supplier,this.nextDue,this.accountId,this.paymentMethod,this.postFinancial);final String assetId,type,description,supplier,paymentMethod;final DateTime date;final double cost;final DateTime? nextDue;final String? accountId;final bool postFinancial;}
+ class _KitInput{const _KitInput(this.name,this.description,this.assetIds);final String name,description;final List<String> assetIds;}
+ 
+ String _memberName(Map<dynamic,dynamic> row){final full=row['full_name']?.toString()??'';final nick=row['nickname']?.toString()??'';return nick.isEmpty?full:'$full ($nick)';}
+ String _formatDate(Object? value){final d=DateTime.tryParse(value?.toString()??'');return d==null?'—':DateFormat('dd/MM/yyyy').format(d);}
+ String _money(Object? value)=>'${_double(value).toStringAsFixed(2).replaceAll('.', ',')} €';
+ double _double(Object? value)=>value is num?value.toDouble():double.tryParse(value?.toString().replaceAll(',','.')??'')??0;
+-double _parse(String value)=>double.tryParse(value.replaceAll(',','.'))??0;
+ String _maintenanceLabel(String? type)=>switch(type){'inspection'=>'Inspeção','repair'=>'Reparação',_=>'Manutenção'};
+ IconData _maintenanceIcon(String? type)=>switch(type){'inspection'=>Icons.fact_check_outlined,'repair'=>Icons.handyman_outlined,_=>Icons.build_outlined};
+diff --git a/apps/mobile/lib/screens/assets_qr_screen.dart b/apps/mobile/lib/screens/assets_qr_screen.dart
+index b093c92..76498df 100644
+--- a/apps/mobile/lib/screens/assets_qr_screen.dart
++++ b/apps/mobile/lib/screens/assets_qr_screen.dart
+@@ -150,35 +150,6 @@ class _AssetsQrScreenState extends State<AssetsQrScreen> {
+     }
+   }
+ 
+-  Future<void> _intervention(String type) async {
+-    final asset = _asset;
+-    if (asset == null) return;
+-    try {
+-      final accounts = await _qr.accounts();
+-      if (!mounted) return;
+-      final input = await showDialog<_QrMaintenanceInput>(
+-        context: context,
+-        builder: (_) => _QrMaintenanceDialog(type: type, accounts: accounts),
+-      );
+-      if (input == null) return;
+-      await _operations.maintenance(
+-        assetId: asset['id'].toString(),
+-        type: type,
+-        date: input.date,
+-        description: input.description,
+-        cost: input.cost,
+-        supplier: input.supplier,
+-        nextDue: input.nextDue,
+-        accountId: input.accountId,
+-        paymentMethod: input.paymentMethod,
+-        postFinancial: input.postFinancial,
+-      );
+-      await _reloadCurrent();
+-    } catch (error) {
+-      _error(error);
+-    }
+-  }
+-
+   @override
+   Widget build(BuildContext context) {
+     return ListView(
+@@ -336,10 +307,6 @@ class _AssetsQrScreenState extends State<AssetsQrScreen> {
+                 FilledButton.icon(onPressed: _loanAsset, icon: const Icon(Icons.output), label: const Text('Emprestar')),
+               if (_canManage && loan != null)
+                 FilledButton.icon(onPressed: _returnAsset, icon: const Icon(Icons.assignment_return), label: const Text('Devolver')),
+-              if (_canManage)
+-                OutlinedButton.icon(onPressed: () => _intervention('maintenance'), icon: const Icon(Icons.build_outlined), label: const Text('Manutenção')),
+-              if (_canManage)
+-                OutlinedButton.icon(onPressed: () => _intervention('inspection'), icon: const Icon(Icons.fact_check_outlined), label: const Text('Inspeção')),
+               OutlinedButton.icon(onPressed: _reloadCurrent, icon: const Icon(Icons.refresh), label: const Text('Atualizar')),
+             ]),
+           ],
+@@ -503,120 +470,30 @@ class _QrReturnDialogState extends State<_QrReturnDialog> {
+       );
+ }
+ 
+-class _QrMaintenanceDialog extends StatefulWidget {
+-  const _QrMaintenanceDialog({required this.type, required this.accounts});
+-  final String type;
+-  final List<Map<String, dynamic>> accounts;
+-
+-  @override
+-  State<_QrMaintenanceDialog> createState() => _QrMaintenanceDialogState();
++String _memberName(Map<dynamic, dynamic> row) {
++  final full = row['full_name']?.toString() ?? '';
++  final nick = row['nickname']?.toString() ?? '';
++  return nick.isEmpty ? full : '$full ($nick)';
+ }
+ 
+-class _QrMaintenanceDialogState extends State<_QrMaintenanceDialog> {
+-  DateTime date = DateTime.now();
+-  DateTime? nextDue;
+-  final description = TextEditingController();
+-  final cost = TextEditingController(text: '0');
+-  final supplier = TextEditingController();
+-  String? accountId;
+-  String paymentMethod = 'Dinheiro';
+-  bool postFinancial = false;
+-
+-  @override
+-  void initState() {
+-    super.initState();
+-    final caixa = widget.accounts.where((e) => e['name']?.toString().toLowerCase() == 'caixa');
+-    if (caixa.isNotEmpty) {
+-      accountId = caixa.first['id'].toString();
+-    } else if (widget.accounts.isNotEmpty) {
+-      accountId = widget.accounts.first['id'].toString();
+-    }
+-  }
+-
+-  @override
+-  void dispose() {
+-    description.dispose();
+-    cost.dispose();
+-    supplier.dispose();
+-    super.dispose();
+-  }
+-
+-  @override
+-  Widget build(BuildContext context) {
+-    final inspection = widget.type == 'inspection';
+-    return AlertDialog(
+-      title: Text(inspection ? 'Registar inspeção' : 'Registar manutenção'),
+-      content: SizedBox(
+-        width: 520,
+-        child: SingleChildScrollView(
+-          child: Column(mainAxisSize: MainAxisSize.min, children: [
+-            TextField(controller: description, maxLines: 2, decoration: InputDecoration(labelText: inspection ? 'Resultado / observações' : 'Descrição', border: const OutlineInputBorder())),
+-            const SizedBox(height: 12),
+-            TextField(controller: supplier, decoration: const InputDecoration(labelText: 'Fornecedor / oficina', border: OutlineInputBorder())),
+-            const SizedBox(height: 12),
+-            TextField(controller: cost, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Custo (€)', border: OutlineInputBorder())),
+-            ListTile(
+-              contentPadding: EdgeInsets.zero,
+-              leading: const Icon(Icons.event),
+-              title: Text('Data: ${DateFormat('dd/MM/yyyy').format(date)}'),
+-              trailing: IconButton(
+-                icon: const Icon(Icons.calendar_month),
+-                onPressed: () async {
+-                  final d = await showDatePicker(context: context, initialDate: date, firstDate: DateTime(2020), lastDate: DateTime.now().add(const Duration(days: 3650)));
+-                  if (d != null) setState(() => date = d);
+-                },
+-              ),
+-            ),
+-            ListTile(
+-              contentPadding: EdgeInsets.zero,
+-              leading: const Icon(Icons.update),
+-              title: Text(nextDue == null ? 'Próxima intervenção (opcional)' : 'Próxima: ${DateFormat('dd/MM/yyyy').format(nextDue!)}'),
+-              trailing: IconButton(
+-                icon: const Icon(Icons.calendar_month),
+-                onPressed: () async {
+-                  final d = await showDatePicker(context: context, initialDate: date.add(const Duration(days: 180)), firstDate: date, lastDate: DateTime.now().add(const Duration(days: 3650)));
+-                  if (d != null) setState(() => nextDue = d);
+-                },
+-              ),
+-            ),
+-            SwitchListTile(contentPadding: EdgeInsets.zero, value: postFinancial, onChanged: (v) => setState(() => postFinancial = v), title: const Text('Registar despesa na Tesouraria')),
+-            if (postFinancial && widget.accounts.isNotEmpty) ...[
+-              const SizedBox(height: 8),
+-              _drop('Conta / fundo', accountId, widget.accounts, (e) => e['name']?.toString() ?? '', (v) => setState(() => accountId = v)),
+-              const SizedBox(height: 12),
+-              DropdownButtonFormField<String>(
+-                initialValue: paymentMethod,
+-                decoration: const InputDecoration(labelText: 'Pagamento', border: OutlineInputBorder()),
+-                items: const ['Dinheiro', 'MB Way', 'Transferência bancária'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
+-                onChanged: (v) => setState(() => paymentMethod = v ?? paymentMethod),
+-              ),
+-            ],
+-          ]),
+-        ),
+-      ),
+-      actions: [
+-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+-        FilledButton(
+-          onPressed: () => Navigator.pop(
+-            context,
+-            _QrMaintenanceInput(
+-              date,
+-              description.text,
+-              _parse(cost.text),
+-              supplier.text,
+-              nextDue,
+-              accountId,
+-              paymentMethod,
+-              postFinancial,
+-            ),
+-          ),
+-          child: const Text('Registar'),
+-        ),
+-      ],
+-    );
+-  }
++String _loanDestination(Map<String, dynamic> loan) {
++  final member = loan['members'];
++  final event = loan['events'];
++  if (member is Map) return _memberName(member);
++  if (event is Map) return event['name']?.toString() ?? 'Evento';
++  return loan['external_name']?.toString() ?? 'Externo';
+ }
+ 
++String _conditionLabel(String? value) => switch (value) {
++  'excellent' => 'Excelente',
++  'good' => 'Bom',
++  'regular' => 'Regular',
++  'maintenance' => 'Necessita manutenção',
++  'damaged' => 'Avariado',
++  'retired' => 'Abatido',
++  _ => 'Bom',
++};
++
+ Widget _drop(
+   String label,
+   String? value,
+@@ -648,42 +525,6 @@ class _QrReturnInput {
+   final String notes;
+ }
+ 
+-class _QrMaintenanceInput {
+-  const _QrMaintenanceInput(this.date, this.description, this.cost, this.supplier, this.nextDue, this.accountId, this.paymentMethod, this.postFinancial);
+-  final DateTime date;
+-  final String description;
+-  final double cost;
+-  final String supplier;
+-  final DateTime? nextDue;
+-  final String? accountId;
+-  final String paymentMethod;
+-  final bool postFinancial;
+-}
+-
+-String _memberName(Map<dynamic, dynamic> row) {
+-  final full = row['full_name']?.toString() ?? '';
+-  final nick = row['nickname']?.toString() ?? '';
+-  return nick.isEmpty ? full : '$full ($nick)';
+-}
+-
+-String _loanDestination(Map<String, dynamic> loan) {
+-  final member = loan['members'];
+-  final event = loan['events'];
+-  if (member is Map) return _memberName(member);
+-  if (event is Map) return event['name']?.toString() ?? 'Evento';
+-  return loan['external_name']?.toString() ?? 'Externo';
+-}
+-
+-String _conditionLabel(String? value) => switch (value) {
+-      'excellent' => 'Excelente',
+-      'good' => 'Bom',
+-      'regular' => 'Regular',
+-      'maintenance' => 'Necessita manutenção',
+-      'damaged' => 'Avariado',
+-      'retired' => 'Abatido',
+-      _ => 'Bom',
+-    };
+-
+ String _date(Object? value) {
+   final d = DateTime.tryParse(value?.toString() ?? '');
+   return d == null ? '—' : DateFormat('dd/MM/yyyy').format(d);
+@@ -693,5 +534,3 @@ String _dateTime(Object? value) {
+   final d = DateTime.tryParse(value?.toString() ?? '');
+   return d == null ? '—' : DateFormat('dd/MM/yyyy HH:mm').format(d.toLocal());
+ }
+-
+-double _parse(String value) => double.tryParse(value.replaceAll(',', '.')) ?? 0;
+diff --git a/apps/mobile/lib/screens/club_export_screen.dart b/apps/mobile/lib/screens/club_export_screen.dart
+index 7b4db80..d853715 100644
+--- a/apps/mobile/lib/screens/club_export_screen.dart
++++ b/apps/mobile/lib/screens/club_export_screen.dart
+@@ -16,17 +16,11 @@ class ClubExportScreen extends StatefulWidget {
+ class _ClubExportScreenState extends State<ClubExportScreen> {
+   final ClubExportRepository _repository = ClubExportRepository();
+   final ClubExportService _service = ClubExportService();
+-  final Set<ClubExportSection> _selected = ClubExportSection.values.toSet();
+-
+-  bool _includeSensitive = false;
+-  bool _includeFiles = false;
++  final Set<ClubExportSection> _selected = {...pilotClubExportSections};
+   bool _busy = false;
+   String _progress = '';
+   late Future<List<Map<String, dynamic>>> _history;
+ 
+-  bool get _canSensitive =>
+-      ClubExportPolicy.canIncludeSensitive(AppSession.instance);
+-
+   @override
+   void initState() {
+     super.initState();
+@@ -37,7 +31,7 @@ class _ClubExportScreenState extends State<ClubExportScreen> {
+     setState(() {
+       _selected
+         ..clear()
+-        ..addAll(ClubExportSection.values);
++        ..addAll(pilotClubExportSections);
+     });
+   }
+ 
+@@ -54,14 +48,11 @@ class _ClubExportScreenState extends State<ClubExportScreen> {
+     final confirmed = await showDialog<bool>(
+       context: context,
+       builder: (dialogContext) => AlertDialog(
+-        title: const Text('Gerar exportação integral?'),
++        title: const Text('Gerar exportação do piloto?'),
+         content: Text(
+           [
+-            '${_selected.length} áreas selecionadas.',
+-            if (_includeSensitive)
+-              'Inclui dados altamente sensíveis de membros/documentos.',
+-            if (_includeFiles)
+-              'Inclui ficheiros armazenados e pode criar um ZIP de grande dimensão.',
++            '${_selected.length} áreas validadas selecionadas.',
++            'O pacote inclui apenas os 14 datasets aprovados. Ficheiros e dados sensíveis não são incluídos.',
+             'A operação fica registada na auditoria do clube.',
+           ].join('\n\n'),
+         ),
+@@ -87,8 +78,8 @@ class _ClubExportScreenState extends State<ClubExportScreen> {
+     try {
+       final package = await _service.generate(
+         sections: _selected,
+-        includeSensitive: _includeSensitive,
+-        includeFiles: _includeFiles,
++        includeSensitive: false,
++        includeFiles: false,
+         onProgress: (message) {
+           if (!mounted) return;
+           setState(() => _progress = message);
+@@ -179,7 +170,7 @@ class _ClubExportScreenState extends State<ClubExportScreen> {
+               TextButton(onPressed: _busy ? null : _clearAll, child: const Text('Nenhuma')),
+             ],
+           ),
+-          ...ClubExportSection.values.map(
++          ...pilotClubExportSections.map(
+             (section) => Card(
+               child: CheckboxListTile(
+                 value: _selected.contains(section),
+@@ -201,43 +192,14 @@ class _ClubExportScreenState extends State<ClubExportScreen> {
+             ),
+           ),
+           const SizedBox(height: 12),
+-          Text(
+-            'Opções protegidas',
+-            style: Theme.of(context)
+-                .textTheme
+-                .titleLarge
+-                ?.copyWith(fontWeight: FontWeight.w800),
+-          ),
+-          const SizedBox(height: 6),
+-          Card(
+-            child: SwitchListTile(
+-              value: _includeSensitive,
+-              onChanged: !_canSensitive || _busy
+-                  ? null
+-                  : (value) => setState(() => _includeSensitive = value),
+-              title: const Text('Incluir dados altamente sensíveis'),
++          const Card(
++            child: ListTile(
++              leading: Icon(Icons.security_outlined),
++              title: Text('Escopo limitado do piloto'),
+               subtitle: Text(
+-                _canSensitive
+-                    ? 'NIF, morada, contacto de emergência/notas privadas e '
+-                        'metadata/documentos marcados como sensíveis.'
+-                    : 'Exige simultaneamente permissão para Emergência e '
+-                        'Documentos Sensíveis.',
+-              ),
+-              secondary: const Icon(Icons.security_outlined),
+-            ),
+-          ),
+-          Card(
+-            child: SwitchListTile(
+-              value: _includeFiles,
+-              onChanged: _busy
+-                  ? null
+-                  : (value) => setState(() => _includeFiles = value),
+-              title: const Text('Incluir ficheiros armazenados'),
+-              subtitle: const Text(
+-                'Inclui fotografias e anexos conhecidos através das mesmas '
+-                'regras de Storage/RLS. Limite de proteção: 200 MB.',
++                'Apenas 14 datasets aprovados de Pedidos & Pagamentos, Quotas e Euromilhões. '
++                'Outras áreas, dados sensíveis e ficheiros estão desativados.',
+               ),
+-              secondary: const Icon(Icons.folder_zip_outlined),
+             ),
+           ),
+           const SizedBox(height: 12),
+diff --git a/apps/mobile/lib/screens/shell_screen.dart b/apps/mobile/lib/screens/shell_screen.dart
+index 03aec6d..1cfb487 100644
+--- a/apps/mobile/lib/screens/shell_screen.dart
++++ b/apps/mobile/lib/screens/shell_screen.dart
+@@ -39,7 +39,7 @@ class _ShellScreenState extends State<ShellScreen> {
+   @override
+   void initState() {
+     super.initState();
+-    _unreadFuture = _activity.unreadCount();
++    _unreadFuture = _loadUnreadCount();
+     _badgeTimer = Timer.periodic(
+       const Duration(seconds: 30),
+       (_) => _refreshUnread(),
+@@ -62,7 +62,11 @@ class _ShellScreenState extends State<ShellScreen> {
+   bool _canViewModule(ModuleDefinition module) {
+     final session = AppSession.instance;
+     return switch (module.code) {
+-      'dashboard' || 'activity' || 'financial' || 'weekly_officer' || 'agenda' =>
++      'dashboard' ||
++      'activity' ||
++      'financial' ||
++      'weekly_officer' ||
++      'agenda' =>
+         session.authenticated,
+       'members' => session.can(AppPermission.viewMembers),
+       'treasury' => session.can(AppPermission.viewTreasury),
+@@ -73,13 +77,11 @@ class _ShellScreenState extends State<ShellScreen> {
+       'inventory' => session.can(AppPermission.viewInventory),
+       'documents' => session.can(AppPermission.viewDocuments),
+       'communication' => session.can(AppPermission.viewCommunication),
+-      'reports' =>
+-        ReportCatalog.canOpenCenter(session.can) ||
+-            ClubExportPolicy.canExport(session) ||
+-            ImportCatalog.canOpen(session),
+-      'settings' =>
+-        session.can(AppPermission.manageSettings) ||
+-        session.can(AppPermission.manageUserAccess),
++      'reports' => ReportCatalog.canOpenCenter(session.can) ||
++          ClubExportPolicy.canExport(session) ||
++          ImportCatalog.canOpen(session),
++      'settings' => session.can(AppPermission.manageSettings) ||
++          session.can(AppPermission.manageUserAccess),
+       'emergency' => session.can(AppPermission.viewEmergencyData),
+       _ => false,
+     };
+@@ -115,14 +117,27 @@ class _ShellScreenState extends State<ShellScreen> {
+ 
+   void _refreshUnread() {
+     if (!mounted) return;
+-    setState(() => _unreadFuture = _activity.unreadCount());
++    final unreadFuture = _loadUnreadCount();
++    if (!mounted) return;
++    setState(() {
++      _unreadFuture = unreadFuture;
++    });
++  }
++
++  Future<int> _loadUnreadCount() async {
++    try {
++      return await _activity.unreadCount();
++    } catch (_) {
++      // A falha de rede não deve interromper a navegação; o badge fica a zero.
++      return 0;
++    }
+   }
+ 
+   Future<void> _refreshPermissions() async {
+     await AuthService.instance.refreshPermissions();
+     if (!mounted) return;
+     setState(() {
+-      _unreadFuture = _activity.unreadCount();
++      _unreadFuture = _loadUnreadCount();
+       final modules = _visibleModules;
+       if (modules.isNotEmpty) {
+         _selectedCode =
+@@ -222,7 +237,8 @@ class _ShellScreenState extends State<ShellScreen> {
+           builder: (context, snapshot) {
+             final count = snapshot.data ?? 0;
+             return IconButton(
+-              tooltip: count > 0 ? '$count notificações por ler' : 'Notificações',
++              tooltip:
++                  count > 0 ? '$count notificações por ler' : 'Notificações',
+               onPressed: _openNotifications,
+               icon: Badge(
+                 isLabelVisible: count > 0,
+@@ -295,14 +311,16 @@ class _ShellScreenState extends State<ShellScreen> {
+               Row(
+                 children: [
+                   CircleAvatar(
+-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
++                    backgroundColor:
++                        Theme.of(context).colorScheme.primaryContainer,
+                     child: const Icon(Icons.shield_outlined),
+                   ),
+                   const SizedBox(width: 12),
+                   const Expanded(
+                     child: Text(
+                       'BOB MANAGER',
+-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
++                      style:
++                          TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+                     ),
+                   ),
+                 ],
+@@ -327,7 +345,17 @@ class _ShellScreenState extends State<ShellScreen> {
+         ...modules.map(
+           (item) => NavigationDrawerDestination(
+             icon: Icon(item.icon),
+-            label: Text(item.title),
++            label: SizedBox(
++              width: 260,
++              child: Tooltip(
++                message: item.title,
++                child: Text(
++                  item.title,
++                  maxLines: 1,
++                  overflow: TextOverflow.ellipsis,
++                ),
++              ),
++            ),
+           ),
+         ),
+         const Divider(),
+@@ -467,7 +495,7 @@ class _ShellScreenState extends State<ShellScreen> {
+       body: Row(
+         children: [
+           SizedBox(
+-            width: 292,
++            width: 360,
+             child: _navigationPanel(
+               modules: modules,
+               selectedCode: current.code,
+@@ -597,8 +625,10 @@ class _MoreModulesSheet extends StatelessWidget {
+                                     const SizedBox(width: 12),
+                                     Expanded(
+                                       child: Column(
+-                                        mainAxisAlignment: MainAxisAlignment.center,
+-                                        crossAxisAlignment: CrossAxisAlignment.start,
++                                        mainAxisAlignment:
++                                            MainAxisAlignment.center,
++                                        crossAxisAlignment:
++                                            CrossAxisAlignment.start,
+                                         children: [
+                                           Text(
+                                             module.title,
+@@ -616,7 +646,9 @@ class _MoreModulesSheet extends StatelessWidget {
+                                             module.description,
+                                             maxLines: 2,
+                                             overflow: TextOverflow.ellipsis,
+-                                            style: Theme.of(context).textTheme.bodySmall,
++                                            style: Theme.of(context)
++                                                .textTheme
++                                                .bodySmall,
+                                           ),
+                                         ],
+                                       ),
+diff --git a/apps/mobile/lib/services/auth_service.dart b/apps/mobile/lib/services/auth_service.dart
+index 60033f4..99f385c 100644
+--- a/apps/mobile/lib/services/auth_service.dart
++++ b/apps/mobile/lib/services/auth_service.dart
+@@ -11,7 +11,9 @@ class AuthService {
+ 
+   bool get needsPasswordSetup {
+     if (AppConfig.demoMode) return false;
+-    return Supabase.instance.client.auth.currentUser?.userMetadata?['must_set_password'] == true;
++    return Supabase.instance.client.auth.currentUser
++            ?.userMetadata?['must_set_password'] ==
++        true;
+   }
+ 
+   Future<void> signIn(String email, String password) async {
+@@ -32,10 +34,12 @@ class AuthService {
+         newFullName: 'Israel Sousa',
+         newRole: 'super_admin',
+       );
+-      AppSession.instance.applyPermissions(AppPermission.values.map((p) => p.key));
++      AppSession.instance
++          .applyPermissions(AppPermission.values.map((p) => p.key));
+       return;
+     }
+ 
++    var authSessionCreated = false;
+     try {
+       final response = await Supabase.instance.client.auth.signInWithPassword(
+         email: normalizedEmail,
+@@ -46,14 +50,30 @@ class AuthService {
+         throw const AuthException('Não foi possível iniciar sessão.');
+       }
+ 
++      authSessionCreated = true;
+       await _hydrateSession(user.id, fallbackName: normalizedEmail);
+     } on AuthException {
++      if (authSessionCreated) {
++        try {
++          await Supabase.instance.client.auth.signOut();
++        } catch (_) {}
++      }
+       AppSession.instance.clear();
+       rethrow;
+     } on PostgrestException catch (error) {
++      if (authSessionCreated) {
++        try {
++          await Supabase.instance.client.auth.signOut();
++        } catch (_) {}
++      }
+       AppSession.instance.clear();
+       throw AuthException(_friendlyDatabaseError(error));
+     } catch (_) {
++      if (authSessionCreated) {
++        try {
++          await Supabase.instance.client.auth.signOut();
++        } catch (_) {}
++      }
+       AppSession.instance.clear();
+       throw const AuthException(
+         'Não foi possível concluir o login. Verifica a ligação e tenta novamente.',
+@@ -180,7 +200,8 @@ class AuthService {
+     AppSession.instance.authenticate(
+       newProfileId: profileId,
+       newClubId: clubId,
+-      newFullName: fullName == null || fullName.isEmpty ? fallbackName : fullName,
++      newFullName:
++          fullName == null || fullName.isEmpty ? fallbackName : fullName,
+       newRole: role,
+     );
+ 
+@@ -193,7 +214,8 @@ class AuthService {
+     String role,
+   ) async {
+     if (AppSession.instance.superAdmin) {
+-      AppSession.instance.applyPermissions(AppPermission.values.map((p) => p.key));
++      AppSession.instance
++          .applyPermissions(AppPermission.values.map((p) => p.key));
+       return;
+     }
+ 
+diff --git a/apps/mobile/pubspec.lock b/apps/mobile/pubspec.lock
+index 0da4f09..e3d1afb 100644
+--- a/apps/mobile/pubspec.lock
++++ b/apps/mobile/pubspec.lock
+@@ -317,6 +317,11 @@ packages:
+     description: flutter
+     source: sdk
+     version: "0.0.0"
++  flutter_driver:
++    dependency: transitive
++    description: flutter
++    source: sdk
++    version: "0.0.0"
+   flutter_lints:
+     dependency: "direct dev"
+     description:
+@@ -348,6 +353,11 @@ packages:
+     description: flutter
+     source: sdk
+     version: "0.0.0"
++  fuchsia_remote_debug_protocol:
++    dependency: transitive
++    description: flutter
++    source: sdk
++    version: "0.0.0"
+   functions_client:
+     dependency: transitive
+     description:
+@@ -468,14 +478,19 @@ packages:
+       url: "https://pub.dev"
+     source: hosted
+     version: "0.2.2"
++  integration_test:
++    dependency: "direct dev"
++    description: flutter
++    source: sdk
++    version: "0.0.0"
+   intl:
+     dependency: "direct main"
+     description:
+       name: intl
+-      sha256: "1ca20c894b1717686a2319b8548763d812bc0aabdac580420a44c5178c57a867"
++      sha256: "3df61194eb431efc39c4ceba583b95633a403f46c9fd341e550ce0bfa50e9aa5"
+       url: "https://pub.dev"
+     source: hosted
+-    version: "0.20.3"
++    version: "0.20.2"
+   jni:
+     dependency: transitive
+     description:
+@@ -552,10 +567,10 @@ packages:
+     dependency: transitive
+     description:
+       name: matcher
+-      sha256: "31bd099b47c10cd1aeb55146a2d46ce0277630ecef3f7dae54ad7873f36696cd"
++      sha256: dc0b7dc7651697ea4ff3e69ef44b0407ea32c487a39fff6a4004fa585e901861
+       url: "https://pub.dev"
+     source: hosted
+-    version: "0.12.20"
++    version: "0.12.19"
+   material_color_utilities:
+     dependency: transitive
+     description:
+@@ -568,10 +583,10 @@ packages:
+     dependency: transitive
+     description:
+       name: meta
+-      sha256: "307249ce4ff29d58a18e97f6345f539382eb9c9c29ecda628900f31de0443dd9"
++      sha256: "1741988757a65eb6b36abe716829688cf01910bbf91c34354ff7ec1c3de2b349"
+       url: "https://pub.dev"
+     source: hosted
+-    version: "1.19.0"
++    version: "1.18.0"
+   mime:
+     dependency: transitive
+     description:
+@@ -748,6 +763,14 @@ packages:
+       url: "https://pub.dev"
+     source: hosted
+     version: "5.15.0"
++  process:
++    dependency: transitive
++    description:
++      name: process
++      sha256: c6248e4526673988586e8c00bb22a49210c258dc91df5227d5da9748ecf79744
++      url: "https://pub.dev"
++    source: hosted
++    version: "5.0.5"
+   pub_semver:
+     dependency: transitive
+     description:
+@@ -929,6 +952,14 @@ packages:
+       url: "https://pub.dev"
+     source: hosted
+     version: "2.17.1"
++  sync_http:
++    dependency: transitive
++    description:
++      name: sync_http
++      sha256: "7f0cd72eca000d2e026bcd6f990b81d0ca06022ef4e32fb257b30d3d1014a961"
++      url: "https://pub.dev"
++    source: hosted
++    version: "0.3.1"
+   term_glyph:
+     dependency: transitive
+     description:
+@@ -941,10 +972,10 @@ packages:
+     dependency: transitive
+     description:
+       name: test_api
+-      sha256: "2a122cbe059f8b610d3a5415f42e255b6c17b1f21eee1d960f31080237fb4f11"
++      sha256: "949a932224383300f01be9221c39180316445ecb8e7547f70a41a35bf421fb9e"
+       url: "https://pub.dev"
+     source: hosted
+-    version: "0.7.12"
++    version: "0.7.11"
+   typed_data:
+     dependency: transitive
+     description:
+@@ -1029,10 +1060,10 @@ packages:
+     dependency: transitive
+     description:
+       name: vector_math
+-      sha256: f36f9f3be64c6198714492bb455c11056e33e2f85d9a0b676a48301e44fdcf47
++      sha256: d530bd74fea330e6e364cda7a85019c434070188383e1cd8d9777ee586914c5b
+       url: "https://pub.dev"
+     source: hosted
+-    version: "2.4.2"
++    version: "2.2.0"
+   vm_service:
+     dependency: transitive
+     description:
+@@ -1065,6 +1096,14 @@ packages:
+       url: "https://pub.dev"
+     source: hosted
+     version: "3.0.3"
++  webdriver:
++    dependency: transitive
++    description:
++      name: webdriver
++      sha256: "2f3a14ca026957870cfd9c635b83507e0e51d8091568e90129fbf805aba7cade"
++      url: "https://pub.dev"
++    source: hosted
++    version: "3.1.0"
+   win32:
+     dependency: transitive
+     description:
+diff --git a/apps/mobile/pubspec.yaml b/apps/mobile/pubspec.yaml
+index 0717318..1886868 100644
+--- a/apps/mobile/pubspec.yaml
++++ b/apps/mobile/pubspec.yaml
+@@ -33,6 +33,8 @@ dependencies:
+ dev_dependencies:
+   flutter_test:
+     sdk: flutter
++  integration_test:
++    sdk: flutter
+   flutter_lints: ^5.0.0
+ flutter:
+   uses-material-design: true
+diff --git a/apps/mobile/integration_test/r6_9_webdriver_smoke_test.dart b/apps/mobile/integration_test/r6_9_webdriver_smoke_test.dart
+new file mode 100644
+index 0000000..b39c3c2
+--- /dev/null
++++ b/apps/mobile/integration_test/r6_9_webdriver_smoke_test.dart
+@@ -0,0 +1,18 @@
++import 'package:flutter/material.dart';
++import 'package:flutter_test/flutter_test.dart';
++import 'package:integration_test/integration_test.dart';
++
++void main() {
++  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
++
++  testWidgets('R6.9 ChromeDriver smoke test', (tester) async {
++    await tester.pumpWidget(
++      const MaterialApp(
++        home: Scaffold(
++          body: Center(child: Text('R6.9 WebDriver connection PASS')),
++        ),
++      ),
++    );
++    expect(find.text('R6.9 WebDriver connection PASS'), findsOneWidget);
++  });
++}
+diff --git a/apps/mobile/integration_test/rc1_live_pilot_after_agenda_fixture_test.dart b/apps/mobile/integration_test/rc1_live_pilot_after_agenda_fixture_test.dart
+new file mode 100644
+index 0000000..8171085
+--- /dev/null
++++ b/apps/mobile/integration_test/rc1_live_pilot_after_agenda_fixture_test.dart
+@@ -0,0 +1,384 @@
++import 'dart:js_interop';
++import 'dart:js_interop_unsafe';
++
++import 'package:archive/archive.dart';
++import 'package:bob_manager_mobile/core/app_config.dart';
++import 'package:bob_manager_mobile/core/app_session.dart';
++import 'package:bob_manager_mobile/core/club_export.dart';
++import 'package:bob_manager_mobile/core/permissions.dart';
++import 'package:bob_manager_mobile/screens/agenda_screen.dart';
++import 'package:bob_manager_mobile/screens/login_screen.dart';
++import 'package:bob_manager_mobile/screens/shell_screen.dart';
++import 'package:bob_manager_mobile/services/club_export_service.dart';
++import 'package:flutter/material.dart';
++import 'package:flutter_test/flutter_test.dart';
++import 'package:integration_test/integration_test.dart';
++import 'package:supabase_flutter/supabase_flutter.dart';
++
++import 'package:bob_manager_mobile/main.dart' as app;
++import 'support/r3_http_trace_client.dart';
++
++const _password = String.fromEnvironment('RC1_TEST_PASSWORD');
++const _clubA = '22000000-0000-0000-0000-000000000001';
++const _directionItemA = 'R3_DIRECTION_AGENDA_A';
++
++void main() {
++  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
++
++  testWidgets('RC1 R3 — Flutter real com Auth/PostgREST locais',
++      (tester) async {
++    tester.view.physicalSize = const Size(1600, 1000);
++    tester.view.devicePixelRatio = 1;
++    addTearDown(() {
++      tester.view.resetPhysicalSize();
++      tester.view.resetDevicePixelRatio();
++    });
++    final apiUri = Uri.parse(AppConfig.supabaseUrl);
++    expect(apiUri.scheme, 'http');
++    expect(apiUri.host, '127.0.0.1');
++    expect(apiUri.port, greaterThan(1024));
++    expect(Uri.base.origin, 'http://127.0.0.1:55139');
++    expect(AppConfig.hasSupabaseConfiguration, isTrue);
++    expect(_password.length, greaterThanOrEqualTo(32));
++
++    // Cada execução começa sem uma sessão persistida pelo Chrome anterior.
++    final hadPersistedSession = _clearR3PersistedAuthSession();
++    debugPrint('[R3-PILOT] priorAuthSession=$hadPersistedSession');
++
++    // A aplicação inicializa o Supabase real a partir de --dart-define-from-file.
++    final trace = SanitizedHttpTraceClient();
++    await app.main(httpClient: trace);
++    await _pumpUntil(tester, find.byType(LoginScreen));
++
++    final client = Supabase.instance.client;
++
++    // Login real de presidente, navegação e autorização de Agenda.
++    await _login(tester, 'rc1-r3-president-a@local.invalid');
++    expect(find.byType(ShellScreen), findsOneWidget);
++    expect(AppSession.instance.clubId, _clubA);
++    expect(AppSession.instance.can(AppPermission.viewTreasury), isTrue);
++
++    await _selectModule(tester, 'Agenda');
++    await _pumpUntil(tester, find.byType(AgendaScreen));
++    final directionRows = await client
++        .from('agenda_items')
++        .select('id,club_id,title')
++        .eq('id', '24000000-0000-0000-0000-000000000001')
++        .timeout(const Duration(seconds: 30));
++    expect(directionRows, hasLength(1));
++    expect(directionRows.single['club_id'], _clubA);
++    expect(directionRows.single['title'], _directionItemA);
++    expect(
++      trace.events.any((event) => event.contains(
++          'method=POST path=/rest/v1/rpc/agenda_calendar_v1 status=200')),
++      isTrue,
++      reason: 'Agenda calendar must load through the real PostgREST API.',
++    );
++    debugPrint(
++        '[R3-PILOT] agenda=screen_and_authorized_read_PASS widget_item=stale');
++
++    // Tesouraria: dados e valor esperados através do cliente Flutter autenticado.
++    await _selectModule(tester, 'Tesouraria');
++    debugPrint('[R3-PILOT] treasury=route-selected');
++    final treasuryUi = await _waitForTreasuryUi(tester);
++    debugPrint('[R3-PILOT] treasury_ui=$treasuryUi');
++    expect(treasuryUi, startsWith('loaded:'), reason: treasuryUi);
++    final treasuryRows = List<Map<String, dynamic>>.from(
++      await client.rpc(
++        'treasury_account_balances_v1',
++        params: {'target_club': _clubA},
++      ).timeout(const Duration(seconds: 30)) as List,
++    );
++    final expectedTreasuryTotal = treasuryRows.fold<double>(
++      0,
++      (sum, row) => sum + (row['balance'] as num).toDouble(),
++    );
++    expect(
++      treasuryUi.substring('loaded:'.length).split('|').first,
++      _formatMoney(expectedTreasuryTotal),
++    );
++    final balances = await client
++        .from('v_financial_balances')
++        .select('club_id,balance')
++        .eq('club_id', _clubA)
++        .timeout(const Duration(seconds: 30));
++    expect(balances, hasLength(1));
++    expect((balances.single['balance'] as num).toDouble(), 400.0);
++
++    // A geração usa a implementação Flutter real e apenas os 14 datasets aprovados.
++    final exportPackage = await ClubExportService().generate(
++      sections: pilotClubExportSections,
++      includeSensitive: false,
++      includeFiles: false,
++    );
++    expect(exportPackage.datasetCount, 14);
++    expect(exportPackage.rowCount, greaterThan(0));
++    final archive = ZipDecoder().decodeBytes(exportPackage.bytes);
++    final datasetPaths = archive.files
++        .where((file) => file.isFile && file.name.endsWith('.csv'))
++        .map((file) => file.name)
++        .toSet();
++    expect(datasetPaths, pilotClubExportDatasetPaths);
++
++    await _selectModule(tester, 'Relatórios');
++    await _pumpUntil(tester, find.text('Exportação Integral do Clube'));
++    await tester.tap(find.text('Exportação Integral do Clube'));
++    await _pumpUntil(tester, find.text('Escopo limitado do piloto'));
++    expect(find.byType(CheckboxListTile), findsNWidgets(3));
++    expect(find.text('Pedidos & Pagamentos'), findsOneWidget);
++    expect(find.text('Quotas'), findsOneWidget);
++    expect(find.text('Euromilhões'), findsOneWidget);
++    expect(find.text('Inventário'), findsNothing);
++    await tester.tap(find.byType(BackButton));
++    await _pumpUntil(tester, find.byType(ShellScreen));
++
++    await _logout(tester);
++    expect(client.auth.currentUser, isNull);
++
++    // Membro normal: login real, isolamento financeiro e exportação recusada.
++    await _login(tester, 'rc1-r3-member-a@local.invalid');
++    expect(AppSession.instance.authenticated, isTrue);
++    expect(AppSession.instance.can(AppPermission.viewTreasury), isFalse);
++    expect(
++        find.byType(NavigationDrawerDestination).evaluate().any(
++              (element) => _destinationLabel(element.widget) == 'Tesouraria',
++            ),
++        isFalse);
++
++    final deniedBalances = await client
++        .from('v_financial_balances')
++        .select('club_id,balance')
++        .eq('club_id', _clubA);
++    expect(deniedBalances, isEmpty);
++    expect(
++      await client
++          .from('financial_accounts')
++          .select('id,club_id')
++          .eq('club_id', _clubA),
++      isEmpty,
++    );
++    expect(
++      await client
++          .from('financial_transactions')
++          .select('id,club_id')
++          .eq('club_id', _clubA),
++      isEmpty,
++    );
++
++    await expectLater(
++      ClubExportService().generate(
++        sections: const {ClubExportSection.financial},
++        includeSensitive: false,
++        includeFiles: false,
++      ),
++      throwsA(isA<ClubExportFailure>()),
++    );
++    await expectLater(
++      client.rpc('begin_club_export_v1', params: {
++        'target_club': _clubA,
++        'p_modules': ['financial'],
++        'p_include_sensitive': false,
++        'p_include_files': false,
++        'p_manifest_version': 'bob-export-v1',
++      }),
++      throwsA(isA<PostgrestException>()),
++    );
++
++    await _selectModule(tester, 'Agenda');
++    await _pumpUntil(tester, find.byType(AgendaScreen));
++    expect(find.text(_directionItemA), findsNothing);
++    final deniedAgendaRows = await client
++        .from('agenda_items')
++        .select('id')
++        .eq('id', '24000000-0000-0000-0000-000000000001')
++        .timeout(const Duration(seconds: 30));
++    expect(deniedAgendaRows, isEmpty);
++    await _logout(tester);
++    expect(client.auth.currentUser, isNull);
++
++    // Património: o perfil administrativo lê o histórico, sem ponto de escrita.
++    await _login(tester, 'rc1-r3-admin-a@local.invalid');
++    await _selectModule(tester, 'Património & Inventário');
++    await _pumpUntil(tester, find.text('Património & Inventário'));
++    await tester.tap(find.text('Operações'));
++    await _pumpUntil(tester, find.text('Empréstimos'));
++    await tester.tap(find.text('Manutenção'));
++    await _pumpUntil(
++        tester, find.text('Registo de intervenções desativado no piloto.'));
++    expect(find.text('O histórico permanece disponível para consulta.'),
++        findsOneWidget);
++    expect(find.text('Nova manutenção'), findsNothing);
++    expect(find.text('Registar intervenção'), findsNothing);
++    await _logout(tester);
++    expect(client.auth.currentUser, isNull);
++
++    // Conta inativa e perfil sem associação não podem manter sessão.
++    for (final email in [
++      'rc1-r3-inactive-a@local.invalid',
++      'rc1-r3-no-club@local.invalid',
++    ]) {
++      await _loginExpectRejected(tester, email);
++      expect(client.auth.currentUser, isNull, reason: email);
++      expect(AppSession.instance.authenticated, isFalse, reason: email);
++    }
++  });
++}
++
++bool _clearR3PersistedAuthSession() {
++  final storage = globalContext.getProperty<JSObject?>('localStorage'.toJS);
++  if (storage == null) throw StateError('Browser localStorage is unavailable.');
++  final hostPrefix = Uri.parse(AppConfig.supabaseUrl).host.split('.').first;
++  final key = 'sb-$hostPrefix-auth-token';
++  final previous = storage.callMethod<JSString?>('getItem'.toJS, key.toJS);
++  final hadSession = previous != null && previous.toDart.isNotEmpty;
++  storage.callMethod<JSAny?>('removeItem'.toJS, key.toJS);
++  if (storage.callMethod<JSString?>('getItem'.toJS, key.toJS) != null) {
++    throw StateError('Prior local Auth session could not be cleared.');
++  }
++  return hadSession;
++}
++
++String? _destinationLabel(Widget widget) {
++  if (widget is NavigationDrawerDestination && widget.label is Text) {
++    return (widget.label as Text).data;
++  }
++  return null;
++}
++
++Future<void> _login(WidgetTester tester, String email) async {
++  await _pumpUntil(tester, find.byType(LoginScreen));
++  debugPrint(
++    '[R3-PILOT] step=login-form '
++    'login=${find.byType(LoginScreen).evaluate().isNotEmpty} '
++    'fields=${find.byType(TextField).evaluate().length} '
++    'authUser=${Supabase.instance.client.auth.currentUser != null} '
++    'appSession=${AppSession.instance.authenticated}',
++  );
++  await tester.enterText(find.byType(TextField).at(0), email);
++  await tester.enterText(find.byType(TextField).at(1), _password);
++  expect(find.widgetWithText(FilledButton, 'Entrar'), findsOneWidget);
++  await tester.tap(find.widgetWithText(FilledButton, 'Entrar'));
++  debugPrint('[R3-PILOT] step=login-button-tapped');
++  final end = DateTime.now().add(const Duration(seconds: 30));
++  while (DateTime.now().isBefore(end)) {
++    if (find.byType(ShellScreen).evaluate().isNotEmpty) {
++      debugPrint(
++        '[R3-PILOT] step=login-shell '
++        'authUser=${Supabase.instance.client.auth.currentUser != null} '
++        'appSession=${AppSession.instance.authenticated}',
++      );
++      return;
++    }
++    await tester.pump(const Duration(milliseconds: 200));
++  }
++  final loginText = find
++      .descendant(of: find.byType(LoginScreen), matching: find.byType(Text))
++      .evaluate()
++      .map((element) => (element.widget as Text).data ?? '')
++      .where((text) => text.isNotEmpty)
++      .toList();
++  final screen = find.byType(LoginScreen).evaluate().isNotEmpty
++      ? 'LoginScreen'
++      : find.byType(ShellScreen).evaluate().isNotEmpty
++          ? 'ShellScreen'
++          : find.byType(CircularProgressIndicator).evaluate().isNotEmpty
++              ? 'Loading'
++              : 'Other';
++  debugPrint(
++    '[R3-PILOT] step=login-timeout screen=$screen '
++    'authUser=${Supabase.instance.client.auth.currentUser != null} '
++    'appSession=${AppSession.instance.authenticated} '
++    'loginText=$loginText',
++  );
++  throw TestFailure('Login real não chegou ao ShellScreen; screen=$screen');
++}
++
++Future<void> _loginExpectRejected(WidgetTester tester, String email) async {
++  await _pumpUntil(tester, find.byType(LoginScreen));
++  await tester.enterText(find.byType(TextField).at(0), email);
++  await tester.enterText(find.byType(TextField).at(1), _password);
++  await tester.tap(find.widgetWithText(FilledButton, 'Entrar'));
++  await _pumpFor(tester, const Duration(seconds: 4));
++  expect(find.byType(LoginScreen), findsOneWidget);
++}
++
++Future<void> _logout(WidgetTester tester) async {
++  final logout = find.text('Terminar sessão').first;
++  await tester.ensureVisible(logout);
++  await tester.tap(logout);
++  await _pumpUntil(tester, find.byType(LoginScreen));
++}
++
++Future<void> _selectModule(WidgetTester tester, String title) async {
++  final destination = find.widgetWithText(NavigationDrawerDestination, title);
++  if (destination.evaluate().isNotEmpty) {
++    await tester.ensureVisible(destination);
++    await tester.tap(destination);
++    await _pumpFor(tester, const Duration(milliseconds: 700));
++    return;
++  }
++  final navigationLabel = find.text(title);
++  if (navigationLabel.evaluate().isNotEmpty) {
++    await tester.ensureVisible(navigationLabel.first);
++    await tester.tap(navigationLabel.first);
++    await _pumpFor(tester, const Duration(milliseconds: 700));
++    return;
++  }
++  throw TestFailure('Módulo não disponível na navegação: $title');
++}
++
++Future<void> _pumpUntil(
++  WidgetTester tester,
++  Finder finder, {
++  Duration timeout = const Duration(seconds: 30),
++  bool allowMissing = false,
++}) async {
++  final end = DateTime.now().add(timeout);
++  while (DateTime.now().isBefore(end)) {
++    if (finder.evaluate().isNotEmpty) return;
++    await tester.pump(const Duration(milliseconds: 200));
++  }
++  if (!allowMissing) {
++    expect(finder, findsOneWidget, reason: 'Tempo limite a aguardar $finder');
++  }
++}
++
++Future<void> _pumpFor(WidgetTester tester, Duration duration) async {
++  final end = DateTime.now().add(duration);
++  while (DateTime.now().isBefore(end)) {
++    await tester.pump(const Duration(milliseconds: 100));
++  }
++}
++
++Future<String> _waitForTreasuryUi(WidgetTester tester) async {
++  final deadline = DateTime.now().add(const Duration(seconds: 35));
++  var loadingSeen = false;
++  while (DateTime.now().isBefore(deadline)) {
++    if (find.text('Saldo global').evaluate().isNotEmpty) {
++      final amounts = find
++          .textContaining('€')
++          .evaluate()
++          .map((element) {
++            final widget = element.widget;
++            return widget is Text ? widget.data ?? '' : '';
++          })
++          .where((value) => value.isNotEmpty)
++          .toList();
++      return 'loaded:${amounts.join('|')}';
++    }
++    final error = find.textContaining('Erro:').evaluate();
++    if (error.isNotEmpty) {
++      final value = (error.first.widget as Text).data ?? 'unknown';
++      return 'http_or_parse_error:${value.replaceAll(RegExp(r'[0-9a-fA-F-]{32,}'), '[id]')}';
++    }
++    loadingSeen = loadingSeen ||
++        find.byType(CircularProgressIndicator).evaluate().isNotEmpty;
++    await tester.pump(const Duration(milliseconds: 200));
++  }
++  return loadingSeen
++      ? 'pending_future_loading_indicator'
++      : 'no_treasury_content';
++}
++
++String _formatMoney(double amount) =>
++    '${amount.toStringAsFixed(2).replaceAll('.', ',')} €';
+diff --git a/apps/mobile/integration_test/rc1_live_pilot_retry_test.dart b/apps/mobile/integration_test/rc1_live_pilot_retry_test.dart
+new file mode 100644
+index 0000000..86a559b
+--- /dev/null
++++ b/apps/mobile/integration_test/rc1_live_pilot_retry_test.dart
+@@ -0,0 +1,228 @@
++import 'dart:js_interop';
++import 'dart:js_interop_unsafe';
++
++import 'package:bob_manager_mobile/core/app_session.dart';
++import 'package:bob_manager_mobile/core/app_config.dart';
++import 'package:bob_manager_mobile/screens/login_screen.dart';
++import 'package:bob_manager_mobile/screens/shell_screen.dart';
++import 'package:bob_manager_mobile/services/auth_service.dart';
++import 'package:flutter/material.dart';
++import 'package:flutter_test/flutter_test.dart';
++import 'package:integration_test/integration_test.dart';
++import 'package:supabase_flutter/supabase_flutter.dart';
++
++import 'package:bob_manager_mobile/main.dart' as app;
++
++const _password = String.fromEnvironment('RC1_TEST_PASSWORD');
++
++void main() {
++  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
++
++  setUp(() => AppSession.instance.clear());
++  tearDown(() async {
++    if (Supabase.instance.isInitialized) {
++      await AuthService.instance.signOut();
++    }
++    AppSession.instance.clear();
++  });
++
++  testWidgets('R3 auth 1 — arranque sem sessão apresenta LoginScreen', (
++    tester,
++  ) async {
++    await _start(tester, 'arranque');
++    _record(tester, 'arranque concluído');
++    expect(find.byType(LoginScreen), findsOneWidget);
++    expect(find.byType(ShellScreen), findsNothing);
++    expect(Supabase.instance.client.auth.currentUser, isNull);
++    expect(AppSession.instance.authenticated, isFalse);
++  });
++
++  testWidgets(
++      'R3 auth 2 — login válido, ShellScreen e logout regressam ao login', (
++    tester,
++  ) async {
++    await _start(tester, 'login/logout');
++    expect(find.byType(LoginScreen), findsOneWidget);
++    expect(Supabase.instance.client.auth.currentUser, isNull);
++
++    await _login(tester, 'rc1-r3-president-a@local.invalid', 'login submetido');
++    await _waitFor(tester, ShellScreen, 'login válido aguardava ShellScreen');
++    expect(find.byType(ShellScreen), findsOneWidget);
++    expect(Supabase.instance.client.auth.currentUser, isNotNull);
++    expect(AppSession.instance.authenticated, isTrue);
++    _record(tester, 'login válido');
++
++    tester.view.physicalSize = const Size(1600, 1000);
++    tester.view.devicePixelRatio = 1;
++    await tester.pumpAndSettle();
++    await tester.tap(find.byTooltip('Mais ações'));
++    await tester.pumpAndSettle();
++    await tester.tap(find.text('Terminar sessão').last);
++    _record(tester, 'logout acionado');
++    await _waitFor(tester, LoginScreen, 'logout aguardava LoginScreen');
++
++    expect(find.byType(LoginScreen), findsOneWidget);
++    expect(find.byType(ShellScreen), findsNothing);
++    expect(Supabase.instance.client.auth.currentUser, isNull);
++    expect(AppSession.instance.authenticated, isFalse);
++    _record(tester, 'logout concluído');
++  });
++
++  testWidgets(
++      'R3 auth 3 — perfil inativo sem associação ativa é recusado sem sessão', (
++    tester,
++  ) async {
++    await _start(tester, 'conta inativa');
++    await _loginExpectRejected(
++      tester,
++      'rc1-r3-inactive-a@local.invalid',
++      'perfil inativo sem associação ativa recusado',
++      'O utilizador não tem uma associação ativa a nenhum clube.',
++    );
++  });
++
++  testWidgets('R3 auth 4 — utilizador sem associação é recusado sem sessão', (
++    tester,
++  ) async {
++    await _start(tester, 'sem associação');
++    await _loginExpectRejected(
++      tester,
++      'rc1-r3-no-club@local.invalid',
++      'utilizador sem associação recusado',
++      'O utilizador não tem uma associação ativa a nenhum clube.',
++    );
++  });
++}
++
++Future<void> _start(WidgetTester tester, String testCase) async {
++  expect(_password.length, greaterThanOrEqualTo(32));
++  final hadPersistedSession = _clearR3PersistedAuthSession();
++  debugPrint(
++    '[R3-AUTH] case=$testCase step=browser-storage-cleared '
++    'priorAuthSession=$hadPersistedSession',
++  );
++  debugPrint('[R3-AUTH] case=$testCase step=app.main');
++  await app.main();
++  final screen = await _waitForScreen(tester, testCase, 'bootstrap');
++  debugPrint('[R3-AUTH] case=$testCase step=bootstrap screen=$screen');
++}
++
++Future<void> _login(
++  WidgetTester tester,
++  String email,
++  String step,
++) async {
++  _record(tester, '$step — formulário antes de preencher');
++  expect(find.byType(LoginScreen), findsOneWidget, reason: 'passo=$step');
++  expect(find.byType(TextField), findsNWidgets(2), reason: 'passo=$step');
++  await tester.enterText(find.byType(TextField).at(0), email);
++  await tester.enterText(find.byType(TextField).at(1), _password);
++  expect(find.widgetWithText(FilledButton, 'Entrar'), findsOneWidget);
++  await tester.tap(find.widgetWithText(FilledButton, 'Entrar'));
++  _record(tester, step);
++}
++
++Future<void> _loginExpectRejected(
++  WidgetTester tester,
++  String email,
++  String step,
++  String expectedError,
++) async {
++  expect(find.byType(LoginScreen), findsOneWidget);
++  await _login(tester, email, 'login recusado submetido');
++  await _waitForError(tester, step, expectedError);
++  expect(find.byType(LoginScreen), findsOneWidget);
++  expect(find.byType(ShellScreen), findsNothing);
++  expect(Supabase.instance.client.auth.currentUser, isNull);
++  expect(AppSession.instance.authenticated, isFalse);
++  _record(tester, step);
++}
++
++Future<String> _waitForScreen(
++  WidgetTester tester,
++  String testCase,
++  String step,
++) async {
++  final end = DateTime.now().add(const Duration(seconds: 30));
++  while (DateTime.now().isBefore(end)) {
++    if (find.byType(LoginScreen).evaluate().isNotEmpty) return 'LoginScreen';
++    if (find.byType(ShellScreen).evaluate().isNotEmpty) return 'ShellScreen';
++    await tester.pump(const Duration(milliseconds: 200));
++  }
++  final state = _state(tester);
++  debugPrint('[R3-AUTH] case=$testCase step=$step timeout state=$state');
++  throw TestFailure('case=$testCase step=$step timeout; estado=$state');
++}
++
++Future<void> _waitFor(
++  WidgetTester tester,
++  Type widgetType,
++  String step,
++) async {
++  final end = DateTime.now().add(const Duration(seconds: 30));
++  while (DateTime.now().isBefore(end)) {
++    if (find.byType(widgetType).evaluate().isNotEmpty) return;
++    await tester.pump(const Duration(milliseconds: 200));
++  }
++  final state = _state(tester);
++  debugPrint('[R3-AUTH] step=$step timeout state=$state');
++  throw TestFailure('$step; estado=$state');
++}
++
++Future<void> _waitForError(
++  WidgetTester tester,
++  String step,
++  String expectedError,
++) async {
++  final end = DateTime.now().add(const Duration(seconds: 20));
++  while (DateTime.now().isBefore(end)) {
++    if (find.byType(LoginScreen).evaluate().isNotEmpty &&
++        find.byType(CircularProgressIndicator).evaluate().isEmpty &&
++        find.text(expectedError).evaluate().isNotEmpty) {
++      return;
++    }
++    await tester.pump(const Duration(milliseconds: 200));
++  }
++  final state = _state(tester);
++  debugPrint('[R3-AUTH] step=$step error-timeout state=$state');
++  debugPrint('[R3-AUTH] step=$step loginText=${_loginText(tester)}');
++  throw TestFailure('$step; estado=$state');
++}
++
++bool _clearR3PersistedAuthSession() {
++  final storage = globalContext.getProperty<JSObject?>('localStorage'.toJS);
++  if (storage == null) throw StateError('Browser localStorage is unavailable.');
++  final hostPrefix = Uri.parse(AppConfig.supabaseUrl).host.split('.').first;
++  final key = 'sb-$hostPrefix-auth-token';
++  final previous = storage.callMethod<JSString?>('getItem'.toJS, key.toJS);
++  final hadSession = previous != null && previous.toDart.isNotEmpty;
++  storage.callMethod<JSAny?>('removeItem'.toJS, key.toJS);
++  if (storage.callMethod<JSString?>('getItem'.toJS, key.toJS) != null) {
++    throw StateError('Prior local Auth session could not be cleared.');
++  }
++  return hadSession;
++}
++
++List<String> _loginText(WidgetTester tester) => find
++    .descendant(of: find.byType(LoginScreen), matching: find.byType(Text))
++    .evaluate()
++    .map((element) => (element.widget as Text).data ?? '')
++    .where((text) => text.isNotEmpty)
++    .toList();
++
++void _record(WidgetTester tester, String step) {
++  debugPrint('[R3-AUTH] step=$step state=${_state(tester)}');
++}
++
++String _state(WidgetTester tester) {
++  final screen = find.byType(LoginScreen).evaluate().isNotEmpty
++      ? 'LoginScreen'
++      : find.byType(ShellScreen).evaluate().isNotEmpty
++          ? 'ShellScreen'
++          : find.byType(CircularProgressIndicator).evaluate().isNotEmpty
++              ? 'Loading'
++              : 'Other';
++  final authUser = Supabase.instance.isInitialized &&
++      Supabase.instance.client.auth.currentUser != null;
++  return 'widget=$screen authUser=$authUser appSession=${AppSession.instance.authenticated}';
++}
+diff --git a/apps/mobile/integration_test/rc1_live_pilot_test.dart b/apps/mobile/integration_test/rc1_live_pilot_test.dart
+new file mode 100644
+index 0000000..100d664
+--- /dev/null
++++ b/apps/mobile/integration_test/rc1_live_pilot_test.dart
+@@ -0,0 +1,367 @@
++import 'dart:js_interop';
++import 'dart:js_interop_unsafe';
++
++import 'package:archive/archive.dart';
++import 'package:bob_manager_mobile/core/app_config.dart';
++import 'package:bob_manager_mobile/core/app_session.dart';
++import 'package:bob_manager_mobile/core/club_export.dart';
++import 'package:bob_manager_mobile/core/permissions.dart';
++import 'package:bob_manager_mobile/screens/login_screen.dart';
++import 'package:bob_manager_mobile/screens/shell_screen.dart';
++import 'package:bob_manager_mobile/services/club_export_service.dart';
++import 'package:flutter/material.dart';
++import 'package:flutter_test/flutter_test.dart';
++import 'package:integration_test/integration_test.dart';
++import 'package:supabase_flutter/supabase_flutter.dart';
++
++import 'package:bob_manager_mobile/main.dart' as app;
++import 'support/r3_http_trace_client.dart';
++
++const _password = String.fromEnvironment('RC1_TEST_PASSWORD');
++const _clubA = '22000000-0000-0000-0000-000000000001';
++const _directionItemA = 'R3_DIRECTION_AGENDA_A';
++
++void main() {
++  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
++
++  testWidgets('RC1 R3 — Flutter real com Auth/PostgREST locais',
++      (tester) async {
++    tester.view.physicalSize = const Size(1600, 1000);
++    tester.view.devicePixelRatio = 1;
++    addTearDown(() {
++      tester.view.resetPhysicalSize();
++      tester.view.resetDevicePixelRatio();
++    });
++    final apiUri = Uri.parse(AppConfig.supabaseUrl);
++    expect(apiUri.scheme, 'http');
++    expect(apiUri.host, '127.0.0.1');
++    expect(apiUri.port, greaterThan(1024));
++    expect(Uri.base.origin, 'http://127.0.0.1:55139');
++    expect(AppConfig.hasSupabaseConfiguration, isTrue);
++    expect(_password.length, greaterThanOrEqualTo(32));
++
++    // Cada execução começa sem uma sessão persistida pelo Chrome anterior.
++    final hadPersistedSession = _clearR3PersistedAuthSession();
++    debugPrint('[R3-PILOT] priorAuthSession=$hadPersistedSession');
++
++    // A aplicação inicializa o Supabase real a partir de --dart-define-from-file.
++    await app.main(httpClient: SanitizedHttpTraceClient());
++    await _pumpUntil(tester, find.byType(LoginScreen));
++
++    final client = Supabase.instance.client;
++
++    // Login real de presidente, navegação e autorização de Agenda.
++    await _login(tester, 'rc1-r3-president-a@local.invalid');
++    expect(find.byType(ShellScreen), findsOneWidget);
++    expect(AppSession.instance.clubId, _clubA);
++    expect(AppSession.instance.can(AppPermission.viewTreasury), isTrue);
++
++    await _selectModule(tester, 'Agenda');
++    await _pumpUntil(tester, find.text(_directionItemA));
++    final directionRows = await client
++        .from('agenda_items')
++        .select('id,club_id,title')
++        .eq('id', '24000000-0000-0000-0000-000000000001');
++    expect(directionRows, hasLength(1));
++    expect(directionRows.single['club_id'], _clubA);
++    expect(directionRows.single['title'], _directionItemA);
++
++    // Tesouraria: dados e valor esperados através do cliente Flutter autenticado.
++    await _selectModule(tester, 'Tesouraria');
++    debugPrint('[R3-PILOT] treasury=route-selected');
++    final treasuryUi = await _waitForTreasuryUi(tester);
++    debugPrint('[R3-PILOT] treasury_ui=$treasuryUi');
++    expect(treasuryUi, startsWith('loaded:'), reason: treasuryUi);
++    final treasuryRows = List<Map<String, dynamic>>.from(
++      await client.rpc(
++        'treasury_account_balances_v1',
++        params: {'target_club': _clubA},
++      ).timeout(const Duration(seconds: 30)) as List,
++    );
++    final expectedTreasuryTotal = treasuryRows.fold<double>(
++      0,
++      (sum, row) => sum + (row['balance'] as num).toDouble(),
++    );
++    expect(
++      treasuryUi.substring('loaded:'.length).split('|').first,
++      _formatMoney(expectedTreasuryTotal),
++    );
++    final balances = await client
++        .from('v_financial_balances')
++        .select('club_id,balance')
++        .eq('club_id', _clubA)
++        .timeout(const Duration(seconds: 30));
++    expect(balances, hasLength(1));
++    expect((balances.single['balance'] as num).toDouble(), 400.0);
++
++    // A geração usa a implementação Flutter real e apenas os 14 datasets aprovados.
++    final exportPackage = await ClubExportService().generate(
++      sections: pilotClubExportSections,
++      includeSensitive: false,
++      includeFiles: false,
++    );
++    expect(exportPackage.datasetCount, 14);
++    expect(exportPackage.rowCount, greaterThan(0));
++    final archive = ZipDecoder().decodeBytes(exportPackage.bytes);
++    final datasetPaths = archive.files
++        .where((file) => file.isFile && file.name.endsWith('.csv'))
++        .map((file) => file.name)
++        .toSet();
++    expect(datasetPaths, pilotClubExportDatasetPaths);
++
++    await _selectModule(tester, 'Relatórios');
++    await _pumpUntil(tester, find.text('Exportação Integral do Clube'));
++    await tester.tap(find.text('Exportação Integral do Clube'));
++    await _pumpUntil(tester, find.text('Escopo limitado do piloto'));
++    expect(find.byType(CheckboxListTile), findsNWidgets(3));
++    expect(find.text('Pedidos & Pagamentos'), findsOneWidget);
++    expect(find.text('Quotas'), findsOneWidget);
++    expect(find.text('Euromilhões'), findsOneWidget);
++    expect(find.text('Inventário'), findsNothing);
++    await tester.tap(find.byType(BackButton));
++    await _pumpUntil(tester, find.byType(ShellScreen));
++
++    await _logout(tester);
++    expect(client.auth.currentUser, isNull);
++
++    // Membro normal: login real, isolamento financeiro e exportação recusada.
++    await _login(tester, 'rc1-r3-member-a@local.invalid');
++    expect(AppSession.instance.authenticated, isTrue);
++    expect(AppSession.instance.can(AppPermission.viewTreasury), isFalse);
++    expect(
++        find.byType(NavigationDrawerDestination).evaluate().any(
++              (element) => _destinationLabel(element.widget) == 'Tesouraria',
++            ),
++        isFalse);
++
++    final deniedBalances = await client
++        .from('v_financial_balances')
++        .select('club_id,balance')
++        .eq('club_id', _clubA);
++    expect(deniedBalances, isEmpty);
++    expect(
++      await client
++          .from('financial_accounts')
++          .select('id,club_id')
++          .eq('club_id', _clubA),
++      isEmpty,
++    );
++    expect(
++      await client
++          .from('financial_transactions')
++          .select('id,club_id')
++          .eq('club_id', _clubA),
++      isEmpty,
++    );
++
++    await expectLater(
++      ClubExportService().generate(
++        sections: const {ClubExportSection.financial},
++        includeSensitive: false,
++        includeFiles: false,
++      ),
++      throwsA(isA<ClubExportFailure>()),
++    );
++    await expectLater(
++      client.rpc('begin_club_export_v1', params: {
++        'target_club': _clubA,
++        'p_modules': ['financial'],
++        'p_include_sensitive': false,
++        'p_include_files': false,
++        'p_manifest_version': 'bob-export-v1',
++      }),
++      throwsA(isA<PostgrestException>()),
++    );
++
++    await _selectModule(tester, 'Agenda');
++    await _pumpFor(tester, const Duration(seconds: 2));
++    expect(find.text(_directionItemA), findsNothing);
++    await _logout(tester);
++    expect(client.auth.currentUser, isNull);
++
++    // Património: o perfil administrativo lê o histórico, sem ponto de escrita.
++    await _login(tester, 'rc1-r3-admin-a@local.invalid');
++    await _selectModule(tester, 'Património & Inventário');
++    await _pumpUntil(tester, find.text('Património & Inventário'));
++    await tester.tap(find.text('Operações'));
++    await _pumpUntil(tester, find.text('Empréstimos'));
++    await tester.tap(find.text('Manutenção'));
++    await _pumpUntil(
++        tester, find.text('Registo de intervenções desativado no piloto.'));
++    expect(find.text('O histórico permanece disponível para consulta.'),
++        findsOneWidget);
++    expect(find.text('Nova manutenção'), findsNothing);
++    expect(find.text('Registar intervenção'), findsNothing);
++    await _logout(tester);
++    expect(client.auth.currentUser, isNull);
++
++    // Conta inativa e perfil sem associação não podem manter sessão.
++    for (final email in [
++      'rc1-r3-inactive-a@local.invalid',
++      'rc1-r3-no-club@local.invalid',
++    ]) {
++      await _loginExpectRejected(tester, email);
++      expect(client.auth.currentUser, isNull, reason: email);
++      expect(AppSession.instance.authenticated, isFalse, reason: email);
++    }
++  });
++}
++
++bool _clearR3PersistedAuthSession() {
++  final storage = globalContext.getProperty<JSObject?>('localStorage'.toJS);
++  if (storage == null) throw StateError('Browser localStorage is unavailable.');
++  final hostPrefix = Uri.parse(AppConfig.supabaseUrl).host.split('.').first;
++  final key = 'sb-$hostPrefix-auth-token';
++  final previous = storage.callMethod<JSString?>('getItem'.toJS, key.toJS);
++  final hadSession = previous != null && previous.toDart.isNotEmpty;
++  storage.callMethod<JSAny?>('removeItem'.toJS, key.toJS);
++  if (storage.callMethod<JSString?>('getItem'.toJS, key.toJS) != null) {
++    throw StateError('Prior local Auth session could not be cleared.');
++  }
++  return hadSession;
++}
++
++String? _destinationLabel(Widget widget) {
++  if (widget is NavigationDrawerDestination && widget.label is Text) {
++    return (widget.label as Text).data;
++  }
++  return null;
++}
++
++Future<void> _login(WidgetTester tester, String email) async {
++  await _pumpUntil(tester, find.byType(LoginScreen));
++  debugPrint(
++    '[R3-PILOT] step=login-form '
++    'login=${find.byType(LoginScreen).evaluate().isNotEmpty} '
++    'fields=${find.byType(TextField).evaluate().length} '
++    'authUser=${Supabase.instance.client.auth.currentUser != null} '
++    'appSession=${AppSession.instance.authenticated}',
++  );
++  await tester.enterText(find.byType(TextField).at(0), email);
++  await tester.enterText(find.byType(TextField).at(1), _password);
++  expect(find.widgetWithText(FilledButton, 'Entrar'), findsOneWidget);
++  await tester.tap(find.widgetWithText(FilledButton, 'Entrar'));
++  debugPrint('[R3-PILOT] step=login-button-tapped');
++  final end = DateTime.now().add(const Duration(seconds: 30));
++  while (DateTime.now().isBefore(end)) {
++    if (find.byType(ShellScreen).evaluate().isNotEmpty) {
++      debugPrint(
++        '[R3-PILOT] step=login-shell '
++        'authUser=${Supabase.instance.client.auth.currentUser != null} '
++        'appSession=${AppSession.instance.authenticated}',
++      );
++      return;
++    }
++    await tester.pump(const Duration(milliseconds: 200));
++  }
++  final loginText = find
++      .descendant(of: find.byType(LoginScreen), matching: find.byType(Text))
++      .evaluate()
++      .map((element) => (element.widget as Text).data ?? '')
++      .where((text) => text.isNotEmpty)
++      .toList();
++  final screen = find.byType(LoginScreen).evaluate().isNotEmpty
++      ? 'LoginScreen'
++      : find.byType(ShellScreen).evaluate().isNotEmpty
++          ? 'ShellScreen'
++          : find.byType(CircularProgressIndicator).evaluate().isNotEmpty
++              ? 'Loading'
++              : 'Other';
++  debugPrint(
++    '[R3-PILOT] step=login-timeout screen=$screen '
++    'authUser=${Supabase.instance.client.auth.currentUser != null} '
++    'appSession=${AppSession.instance.authenticated} '
++    'loginText=$loginText',
++  );
++  throw TestFailure('Login real não chegou ao ShellScreen; screen=$screen');
++}
++
++Future<void> _loginExpectRejected(WidgetTester tester, String email) async {
++  await _pumpUntil(tester, find.byType(LoginScreen));
++  await tester.enterText(find.byType(TextField).at(0), email);
++  await tester.enterText(find.byType(TextField).at(1), _password);
++  await tester.tap(find.widgetWithText(FilledButton, 'Entrar'));
++  await _pumpFor(tester, const Duration(seconds: 4));
++  expect(find.byType(LoginScreen), findsOneWidget);
++}
++
++Future<void> _logout(WidgetTester tester) async {
++  final logout = find.text('Terminar sessão').first;
++  await tester.ensureVisible(logout);
++  await tester.tap(logout);
++  await _pumpUntil(tester, find.byType(LoginScreen));
++}
++
++Future<void> _selectModule(WidgetTester tester, String title) async {
++  final destination = find.widgetWithText(NavigationDrawerDestination, title);
++  if (destination.evaluate().isNotEmpty) {
++    await tester.ensureVisible(destination);
++    await tester.tap(destination);
++    await _pumpFor(tester, const Duration(milliseconds: 700));
++    return;
++  }
++  final navigationLabel = find.text(title);
++  if (navigationLabel.evaluate().isNotEmpty) {
++    await tester.ensureVisible(navigationLabel.first);
++    await tester.tap(navigationLabel.first);
++    await _pumpFor(tester, const Duration(milliseconds: 700));
++    return;
++  }
++  throw TestFailure('Módulo não disponível na navegação: $title');
++}
++
++Future<void> _pumpUntil(
++  WidgetTester tester,
++  Finder finder, {
++  Duration timeout = const Duration(seconds: 30),
++  bool allowMissing = false,
++}) async {
++  final end = DateTime.now().add(timeout);
++  while (DateTime.now().isBefore(end)) {
++    if (finder.evaluate().isNotEmpty) return;
++    await tester.pump(const Duration(milliseconds: 200));
++  }
++  if (!allowMissing) {
++    expect(finder, findsOneWidget, reason: 'Tempo limite a aguardar $finder');
++  }
++}
++
++Future<void> _pumpFor(WidgetTester tester, Duration duration) async {
++  final end = DateTime.now().add(duration);
++  while (DateTime.now().isBefore(end)) {
++    await tester.pump(const Duration(milliseconds: 100));
++  }
++}
++
++Future<String> _waitForTreasuryUi(WidgetTester tester) async {
++  final deadline = DateTime.now().add(const Duration(seconds: 35));
++  var loadingSeen = false;
++  while (DateTime.now().isBefore(deadline)) {
++    if (find.text('Saldo global').evaluate().isNotEmpty) {
++      final amounts = find
++          .textContaining('€')
++          .evaluate()
++          .map((element) {
++            final widget = element.widget;
++            return widget is Text ? widget.data ?? '' : '';
++          })
++          .where((value) => value.isNotEmpty)
++          .toList();
++      return 'loaded:${amounts.join('|')}';
++    }
++    final error = find.textContaining('Erro:').evaluate();
++    if (error.isNotEmpty) {
++      final value = (error.first.widget as Text).data ?? 'unknown';
++      return 'http_or_parse_error:${value.replaceAll(RegExp(r'[0-9a-fA-F-]{32,}'), '[id]')}';
++    }
++    loadingSeen = loadingSeen ||
++        find.byType(CircularProgressIndicator).evaluate().isNotEmpty;
++    await tester.pump(const Duration(milliseconds: 200));
++  }
++  return loadingSeen
++      ? 'pending_future_loading_indicator'
++      : 'no_treasury_content';
++}
++
++String _formatMoney(double amount) =>
++    '${amount.toStringAsFixed(2).replaceAll('.', ',')} €';
+diff --git a/apps/mobile/integration_test/rc1_login_campaign_r6_9_test.dart b/apps/mobile/integration_test/rc1_login_campaign_r6_9_test.dart
+new file mode 100644
+index 0000000..d9c3014
+--- /dev/null
++++ b/apps/mobile/integration_test/rc1_login_campaign_r6_9_test.dart
+@@ -0,0 +1,378 @@
++import 'dart:js_interop';
++import 'dart:js_interop_unsafe';
++
++import 'package:bob_manager_mobile/core/app_config.dart';
++import 'package:bob_manager_mobile/core/app_session.dart';
++import 'package:bob_manager_mobile/core/club_export.dart';
++import 'package:bob_manager_mobile/core/permissions.dart';
++import 'package:bob_manager_mobile/screens/agenda_screen.dart';
++import 'package:bob_manager_mobile/screens/login_screen.dart';
++import 'package:bob_manager_mobile/screens/shell_screen.dart';
++import 'package:bob_manager_mobile/services/club_export_service.dart';
++import 'package:flutter/material.dart';
++import 'package:flutter_test/flutter_test.dart';
++import 'package:integration_test/integration_test.dart';
++import 'package:supabase_flutter/supabase_flutter.dart';
++
++import 'package:bob_manager_mobile/main.dart' as app;
++import 'support/r3_http_trace_client.dart';
++
++const _case = String.fromEnvironment('R6_9_CASE');
++const _password = String.fromEnvironment('RC1_TEST_PASSWORD');
++const _clubA = '22000000-0000-0000-0000-000000000001';
++const _agendaItemA = '24000000-0000-0000-0000-000000000001';
++
++void main() {
++  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
++
++  testWidgets('R6.9 real Auth scenario: $_case', (tester) async {
++    tester.view.physicalSize = const Size(1600, 1000);
++    tester.view.devicePixelRatio = 1;
++    addTearDown(() {
++      tester.view.resetPhysicalSize();
++      tester.view.resetDevicePixelRatio();
++    });
++
++    final apiUri = Uri.parse(AppConfig.supabaseUrl);
++    expect(apiUri.toString(), 'http://127.0.0.1:55138');
++    expect(Uri.base.origin, 'http://127.0.0.1:55139');
++    expect(AppConfig.hasSupabaseConfiguration, isTrue);
++    expect(AppConfig.demoMode, isFalse);
++    expect(_password.length, greaterThanOrEqualTo(32));
++    expect(
++      <String>{
++        'member-clean',
++        'president-member-swap',
++        'rejected-inactive',
++        'rejected-no-club',
++        'asset-ui',
++      },
++      contains(_case),
++      reason: 'Unknown R6.9 scenario.',
++    );
++
++    _clearR3PersistedAuthSession();
++    final trace = SanitizedHttpTraceClient();
++    await app.main(httpClient: trace);
++    final client = Supabase.instance.client;
++    addTearDown(() async {
++      if (client.auth.currentUser != null) {
++        await client.auth.signOut();
++      }
++      AppSession.instance.clear();
++    });
++    await _pumpUntil(tester, find.byType(LoginScreen));
++    expect(client.auth.currentUser, isNull);
++    expect(AppSession.instance.authenticated, isFalse);
++    debugPrint('[R6.9] step=initial-login-screen session=false case=$_case');
++
++    switch (_case) {
++      case 'member-clean':
++        await _login(tester, 'rc1-r3-member-a@local.invalid', trace);
++        await _assertMemberRestrictions(tester, client);
++        await _logout(tester, client);
++        break;
++      case 'president-member-swap':
++        await _login(tester, 'rc1-r3-president-a@local.invalid', trace);
++        expect(find.byType(ShellScreen), findsOneWidget);
++        expect(AppSession.instance.can(AppPermission.viewTreasury), isTrue);
++        final postsBeforeMember = _authPostCount(trace);
++        await _logout(tester, client);
++        expect(AppSession.instance.authenticated, isFalse);
++        expect(client.auth.currentUser, isNull);
++        debugPrint(
++          '[R6.9] step=post-logout session=false appSession=false '
++          'authPosts=$postsBeforeMember',
++        );
++        await _login(tester, 'rc1-r3-member-a@local.invalid', trace);
++        expect(_authPostCount(trace), postsBeforeMember + 1,
++            reason: 'Second login must send one new Auth token request.');
++        await _assertMemberRestrictions(tester, client);
++        await _logout(tester, client);
++        break;
++      case 'rejected-inactive':
++        await _loginRejected(
++          tester,
++          'rc1-r3-inactive-a@local.invalid',
++          trace,
++        );
++        break;
++      case 'rejected-no-club':
++        await _loginRejected(
++          tester,
++          'rc1-r3-no-club@local.invalid',
++          trace,
++        );
++        break;
++      case 'asset-ui':
++        await _login(tester, 'rc1-r3-admin-a@local.invalid', trace);
++        await _selectModule(tester, 'Património & Inventário');
++        await _pumpUntil(tester, find.text('Património & Inventário'));
++        await tester.tap(find.text('Operações'));
++        await _pumpUntil(tester, find.text('Empréstimos'));
++        await tester.tap(find.text('Manutenção'));
++        await _pumpUntil(
++          tester,
++          find.text('Registo de intervenções desativado no piloto.'),
++        );
++        expect(find.text('O histórico permanece disponível para consulta.'),
++            findsOneWidget);
++        expect(find.text('Nova manutenção'), findsNothing);
++        expect(find.text('Registar intervenção'), findsNothing);
++        expect(
++          trace.events
++              .any((event) => event.contains('/rpc/asset_maintenance_v1')),
++          isFalse,
++        );
++        debugPrint('[R6.9] asset-maintenance-ui=disabled no-rpc-invoked');
++        await _logout(tester, client);
++        break;
++    }
++
++    debugPrint(
++      '[R6.9] case=$_case result=PASS authPosts=${_authPostCount(trace)} '
++      'session=${client.auth.currentUser != null} '
++      'appSession=${AppSession.instance.authenticated}',
++    );
++  });
++}
++
++bool _clearR3PersistedAuthSession() {
++  final storage = globalContext.getProperty<JSObject?>('localStorage'.toJS);
++  if (storage == null) throw StateError('Browser localStorage unavailable.');
++  final prefix = Uri.parse(AppConfig.supabaseUrl).host.split('.').first;
++  final key = 'sb-$prefix-auth-token';
++  final previous = storage.callMethod<JSString?>('getItem'.toJS, key.toJS);
++  storage.callMethod<JSAny?>('removeItem'.toJS, key.toJS);
++  if (storage.callMethod<JSString?>('getItem'.toJS, key.toJS) != null) {
++    throw StateError('Prior local Auth state could not be cleared.');
++  }
++  return previous != null && previous.toDart.isNotEmpty;
++}
++
++int _authPostCount(SanitizedHttpTraceClient trace) => trace.events
++    .where((event) => event.contains('method=POST path=/auth/v1/token'))
++    .length;
++
++Future<void> _login(
++  WidgetTester tester,
++  String email,
++  SanitizedHttpTraceClient trace,
++) async {
++  await _pumpUntil(tester, find.byType(LoginScreen));
++  final fields = find.byType(TextField);
++  expect(fields, findsNWidgets(2));
++  await tester.enterText(fields.at(0), email);
++  await tester.enterText(fields.at(1), _password);
++  final emailFilled =
++      tester.widget<TextField>(fields.at(0)).controller?.text == email;
++  final passwordFilled =
++      tester.widget<TextField>(fields.at(1)).controller?.text == _password;
++  final button = tester.widget<FilledButton>(
++    find.widgetWithText(FilledButton, 'Entrar'),
++  );
++  final buttonEnabled = button.onPressed != null;
++  debugPrint(
++    '[R6.9] step=credentials-verified emailFilled=$emailFilled '
++    'passwordFilled=$passwordFilled buttonEnabled=$buttonEnabled '
++    'authUser=${Supabase.instance.client.auth.currentUser != null} '
++    'appSession=${AppSession.instance.authenticated}',
++  );
++  expect(emailFilled, isTrue);
++  expect(passwordFilled, isTrue);
++  expect(buttonEnabled, isTrue);
++
++  await tester.tap(find.widgetWithText(FilledButton, 'Entrar'));
++  debugPrint('[R6.9] step=login-button-tapped');
++  final end = DateTime.now().add(const Duration(seconds: 40));
++  var loadingObserved = false;
++  while (DateTime.now().isBefore(end)) {
++    loadingObserved = loadingObserved ||
++        find
++            .descendant(
++              of: find.byType(LoginScreen),
++              matching: find.byType(CircularProgressIndicator),
++            )
++            .evaluate()
++            .isNotEmpty;
++    if (find.byType(ShellScreen).evaluate().isNotEmpty) {
++      debugPrint(
++        '[R6.9] step=shell-reached loadingObserved=$loadingObserved '
++        'authPosts=${_authPostCount(trace)} authUser=true appSession=true',
++      );
++      return;
++    }
++    await tester.pump(const Duration(milliseconds: 100));
++  }
++
++  final errorVisible = _loginErrorVisible(tester);
++  debugPrint(
++    '[R6.9] step=login-timeout screen=${_screen(tester)} '
++    'loadingObserved=$loadingObserved errorVisible=$errorVisible '
++    'authPosts=${_authPostCount(trace)} '
++    'authUser=${Supabase.instance.client.auth.currentUser != null} '
++    'appSession=${AppSession.instance.authenticated}',
++  );
++  throw TestFailure(
++      'Login did not reach ShellScreen; screen=${_screen(tester)}');
++}
++
++Future<void> _loginRejected(
++  WidgetTester tester,
++  String email,
++  SanitizedHttpTraceClient trace,
++) async {
++  final fields = find.byType(TextField);
++  await tester.enterText(fields.at(0), email);
++  await tester.enterText(fields.at(1), _password);
++  expect(tester.widget<TextField>(fields.at(0)).controller?.text, email);
++  expect(tester.widget<TextField>(fields.at(1)).controller?.text, _password);
++  final button = tester.widget<FilledButton>(
++    find.widgetWithText(FilledButton, 'Entrar'),
++  );
++  expect(button.onPressed, isNotNull);
++  await tester.tap(find.widgetWithText(FilledButton, 'Entrar'));
++  debugPrint('[R6.9] step=rejected-login-button-tapped');
++  final end = DateTime.now().add(const Duration(seconds: 30));
++  while (DateTime.now().isBefore(end)) {
++    if (find.byType(LoginScreen).evaluate().isNotEmpty &&
++        clientUserIsNull() &&
++        !AppSession.instance.authenticated &&
++        _loginErrorVisible(tester)) {
++      break;
++    }
++    await tester.pump(const Duration(milliseconds: 100));
++  }
++  expect(find.byType(LoginScreen), findsOneWidget);
++  expect(_loginErrorVisible(tester), isTrue);
++  expect(clientUserIsNull(), isTrue);
++  expect(AppSession.instance.authenticated, isFalse);
++  expect(_authPostCount(trace), greaterThan(0));
++  debugPrint(
++    '[R6.9] rejected-account=PASS authPosts=${_authPostCount(trace)} '
++    'session=false appSession=false',
++  );
++}
++
++bool clientUserIsNull() => Supabase.instance.client.auth.currentUser == null;
++
++bool _loginErrorVisible(WidgetTester tester) {
++  final screen = find.byType(LoginScreen);
++  if (screen.evaluate().isEmpty) return false;
++  final errorColor = Theme.of(tester.element(screen)).colorScheme.error;
++  return find
++      .descendant(of: screen, matching: find.byType(Text))
++      .evaluate()
++      .any((element) {
++    final widget = element.widget;
++    return widget is Text && widget.style?.color == errorColor;
++  });
++}
++
++Future<void> _assertMemberRestrictions(
++  WidgetTester tester,
++  SupabaseClient client,
++) async {
++  expect(find.byType(ShellScreen), findsOneWidget);
++  expect(AppSession.instance.authenticated, isTrue);
++  expect(AppSession.instance.clubId, _clubA);
++  expect(AppSession.instance.can(AppPermission.viewTreasury), isFalse);
++  expect(
++    find.byType(NavigationDrawerDestination).evaluate().any((element) {
++      final widget = element.widget;
++      return widget is NavigationDrawerDestination &&
++          widget.label is Text &&
++          (widget.label as Text).data == 'Tesouraria';
++    }),
++    isFalse,
++  );
++  expect(
++    await client
++        .from('v_financial_balances')
++        .select('club_id,balance')
++        .eq('club_id', _clubA),
++    isEmpty,
++  );
++  expect(
++    await client
++        .from('financial_accounts')
++        .select('id,club_id')
++        .eq('club_id', _clubA),
++    isEmpty,
++  );
++  expect(
++    await client
++        .from('financial_transactions')
++        .select('id,club_id')
++        .eq('club_id', _clubA),
++    isEmpty,
++  );
++  await expectLater(
++    ClubExportService().generate(
++      sections: const {ClubExportSection.financial},
++      includeSensitive: false,
++      includeFiles: false,
++    ),
++    throwsA(isA<ClubExportFailure>()),
++  );
++  await expectLater(
++    client.rpc('begin_club_export_v1', params: {
++      'target_club': _clubA,
++      'p_modules': ['financial'],
++      'p_include_sensitive': false,
++      'p_include_files': false,
++      'p_manifest_version': 'bob-export-v1',
++    }),
++    throwsA(isA<PostgrestException>()),
++  );
++  await _selectModule(tester, 'Agenda');
++  await _pumpUntil(tester, find.byType(AgendaScreen));
++  expect(
++    await client.from('agenda_items').select('id').eq('id', _agendaItemA),
++    isEmpty,
++  );
++  debugPrint('[R6.9] member-negative-finance-export-agenda=PASS');
++}
++
++Future<void> _logout(WidgetTester tester, SupabaseClient client) async {
++  final logout = find.text('Terminar sessão').first;
++  await tester.ensureVisible(logout);
++  await tester.tap(logout);
++  await _pumpUntil(tester, find.byType(LoginScreen));
++  expect(client.auth.currentUser, isNull);
++  expect(AppSession.instance.authenticated, isFalse);
++  debugPrint('[R6.9] step=logout-complete session=false appSession=false');
++}
++
++Future<void> _selectModule(WidgetTester tester, String title) async {
++  final destination = find.widgetWithText(NavigationDrawerDestination, title);
++  if (destination.evaluate().isNotEmpty) {
++    await tester.ensureVisible(destination);
++    await tester.tap(destination);
++    await tester.pump(const Duration(milliseconds: 700));
++    return;
++  }
++  final label = find.text(title);
++  if (label.evaluate().isNotEmpty) {
++    await tester.ensureVisible(label.first);
++    await tester.tap(label.first);
++    await tester.pump(const Duration(milliseconds: 700));
++    return;
++  }
++  throw TestFailure('Authorized module unavailable: $title');
++}
++
++Future<void> _pumpUntil(WidgetTester tester, Finder finder) async {
++  final end = DateTime.now().add(const Duration(seconds: 35));
++  while (DateTime.now().isBefore(end)) {
++    if (finder.evaluate().isNotEmpty) return;
++    await tester.pump(const Duration(milliseconds: 100));
++  }
++  throw TestFailure('Timed out waiting for $finder; screen=${_screen(tester)}');
++}
++
++String _screen(WidgetTester tester) {
++  if (find.byType(LoginScreen).evaluate().isNotEmpty) return 'LoginScreen';
++  if (find.byType(ShellScreen).evaluate().isNotEmpty) return 'ShellScreen';
++  return 'Other';
++}
+diff --git a/apps/mobile/integration_test/rc1_treasury_read_diagnostic_test.dart b/apps/mobile/integration_test/rc1_treasury_read_diagnostic_test.dart
+new file mode 100644
+index 0000000..5452d4f
+--- /dev/null
++++ b/apps/mobile/integration_test/rc1_treasury_read_diagnostic_test.dart
+@@ -0,0 +1,161 @@
++import 'dart:js_interop';
++import 'dart:js_interop_unsafe';
++
++import 'package:bob_manager_mobile/core/app_config.dart';
++import 'package:bob_manager_mobile/core/app_session.dart';
++import 'package:bob_manager_mobile/screens/login_screen.dart';
++import 'package:bob_manager_mobile/screens/shell_screen.dart';
++import 'package:flutter/material.dart';
++import 'package:flutter_test/flutter_test.dart';
++import 'package:integration_test/integration_test.dart';
++import 'package:supabase_flutter/supabase_flutter.dart';
++
++import 'package:bob_manager_mobile/main.dart' as app;
++import 'support/r3_http_trace_client.dart';
++
++const _password = String.fromEnvironment('RC1_TEST_PASSWORD');
++const _clubA = '22000000-0000-0000-0000-000000000001';
++
++void main() {
++  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
++
++  testWidgets('R3 diagnóstico isolado — abertura e saldo Tesouraria',
++      (tester) async {
++    tester.view.physicalSize = const Size(1600, 1000);
++    tester.view.devicePixelRatio = 1;
++    addTearDown(() {
++      tester.view.resetPhysicalSize();
++      tester.view.resetDevicePixelRatio();
++    });
++
++    final api = Uri.parse(AppConfig.supabaseUrl);
++    expect(api.scheme, 'http');
++    expect(api.host, '127.0.0.1');
++    expect(api.port, greaterThan(1024));
++    expect(Uri.base.origin, 'http://127.0.0.1:55139');
++    expect(_password.length, greaterThanOrEqualTo(32));
++    final hadSession = _clearPersistedAuth();
++    debugPrint('[R3-TREASURY] step=clear-auth prior_session=$hadSession');
++
++    final trace = SanitizedHttpTraceClient();
++    await app.main(httpClient: trace);
++    await _pumpUntil(tester, find.byType(LoginScreen));
++    debugPrint('[R3-TREASURY] step=login-screen session=false');
++
++    await tester.enterText(
++      find.byType(TextField).at(0),
++      'rc1-r3-president-a@local.invalid',
++    );
++    await tester.enterText(find.byType(TextField).at(1), _password);
++    await tester.tap(find.widgetWithText(FilledButton, 'Entrar'));
++    await _pumpUntil(tester, find.byType(ShellScreen));
++    debugPrint(
++      '[R3-TREASURY] step=shell auth=${Supabase.instance.client.auth.currentUser != null} '
++      'appSession=${AppSession.instance.authenticated}',
++    );
++
++    final treasury =
++        find.widgetWithText(NavigationDrawerDestination, 'Tesouraria');
++    expect(treasury, findsOneWidget);
++    await tester.ensureVisible(treasury);
++    await tester.tap(treasury);
++    debugPrint('[R3-TREASURY] step=treasury-route-selected');
++
++    final outcome = await _waitForTreasury(tester);
++    debugPrint('[R3-TREASURY] ui_state=$outcome');
++    expect(outcome, startsWith('loaded:'),
++        reason: 'Estado final da Tesouraria: $outcome');
++
++    final client = Supabase.instance.client;
++    final treasuryRows = List<Map<String, dynamic>>.from(
++      await client.rpc(
++        'treasury_account_balances_v1',
++        params: {'target_club': _clubA},
++      ).timeout(const Duration(seconds: 30)) as List,
++    );
++    final treasuryTotal = treasuryRows.fold<double>(
++      0,
++      (sum, row) => sum + (row['balance'] as num).toDouble(),
++    );
++    final displayedGlobalBalance =
++        outcome.substring('loaded:'.length).split('|').first;
++    expect(displayedGlobalBalance, _formatMoney(treasuryTotal));
++
++    final directBalances = await client
++        .from('v_financial_balances')
++        .select('club_id,balance')
++        .eq('club_id', _clubA)
++        .timeout(const Duration(seconds: 30));
++    expect(directBalances, hasLength(1));
++    expect((directBalances.single['balance'] as num).toDouble(), 400.0);
++    debugPrint(
++      '[R3-TREASURY] step=balance-compare ui=${_formatMoney(treasuryTotal)} '
++      'treasury_rpc_rows=${treasuryRows.length} r10_view=400.00',
++    );
++
++    debugPrint('[R3-TREASURY] request_trace_count=${trace.events.length}');
++    for (final event in trace.events) {
++      debugPrint('[R3-HTTP] $event');
++    }
++  });
++}
++
++bool _clearPersistedAuth() {
++  final storage = globalContext.getProperty<JSObject?>('localStorage'.toJS);
++  if (storage == null) throw StateError('Browser localStorage unavailable');
++  final prefix = Uri.parse(AppConfig.supabaseUrl).host.split('.').first;
++  final key = 'sb-$prefix-auth-token';
++  final prior = storage.callMethod<JSString?>('getItem'.toJS, key.toJS);
++  storage.callMethod<JSAny?>('removeItem'.toJS, key.toJS);
++  return prior != null && prior.toDart.isNotEmpty;
++}
++
++Future<String> _waitForTreasury(WidgetTester tester) async {
++  final deadline = DateTime.now().add(const Duration(seconds: 35));
++  var loadingSeen = false;
++  while (DateTime.now().isBefore(deadline)) {
++    if (find.text('Saldo global').evaluate().isNotEmpty) {
++      final amount = find
++          .textContaining('€')
++          .evaluate()
++          .map((element) {
++            final widget = element.widget;
++            return widget is Text ? widget.data ?? '' : '';
++          })
++          .where((text) => text.isNotEmpty)
++          .toList();
++      return 'loaded:${amount.join('|')}';
++    }
++    final error = find.textContaining('Erro:').evaluate();
++    if (error.isNotEmpty) {
++      final message = (error.first.widget as Text).data ?? 'unknown';
++      return 'http_or_parse_error:${_sanitize(message)}';
++    }
++    loadingSeen = loadingSeen ||
++        find.byType(CircularProgressIndicator).evaluate().isNotEmpty;
++    await tester.pump(const Duration(milliseconds: 200));
++  }
++  return loadingSeen
++      ? 'pending_future_loading_indicator'
++      : 'no_treasury_content';
++}
++
++String _sanitize(String value) => value
++    .replaceAll(
++        RegExp(r'eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+'), '[JWT]')
++    .replaceAll(
++        RegExp(r'(bearer\s+)[^\s]+', caseSensitive: false), r'$1[redacted]')
++    .replaceAll(RegExp(r'[\w.+-]+@[\w.-]+'), '[email]')
++    .replaceAll(RegExp(r'\b[0-9a-fA-F-]{32,}\b'), '[id]');
++
++String _formatMoney(double amount) =>
++    '${amount.toStringAsFixed(2).replaceAll('.', ',')} €';
++
++Future<void> _pumpUntil(WidgetTester tester, Finder finder) async {
++  final deadline = DateTime.now().add(const Duration(seconds: 35));
++  while (DateTime.now().isBefore(deadline)) {
++    if (finder.evaluate().isNotEmpty) return;
++    await tester.pump(const Duration(milliseconds: 200));
++  }
++  expect(finder, findsOneWidget, reason: 'Timeout at $finder');
++}
+diff --git a/apps/mobile/integration_test/support/r3_http_trace_client.dart b/apps/mobile/integration_test/support/r3_http_trace_client.dart
+new file mode 100644
+index 0000000..70b67e4
+--- /dev/null
++++ b/apps/mobile/integration_test/support/r3_http_trace_client.dart
+@@ -0,0 +1,54 @@
++import 'dart:async';
++
++import 'package:flutter/foundation.dart';
++import 'package:http/http.dart' as http;
++
++/// Logs only method, path, status/error category and elapsed time.
++/// Never records query strings, headers, request/response bodies or tokens.
++class SanitizedHttpTraceClient extends http.BaseClient {
++  SanitizedHttpTraceClient({http.Client? inner})
++      : _inner = inner ?? http.Client();
++
++  final http.Client _inner;
++  final List<String> events = [];
++
++  @override
++  Future<http.StreamedResponse> send(http.BaseRequest request) async {
++    final stopwatch = Stopwatch()..start();
++    final path = request.url.path.replaceAll(
++      RegExp(r'/[0-9a-fA-F-]{20,}'),
++      '/:id',
++    );
++    try {
++      final response = await _inner.send(request).timeout(
++            const Duration(seconds: 30),
++            onTimeout: () => throw TimeoutException('transport timeout'),
++          );
++      _record(
++        'method=${request.method} path=$path status=${response.statusCode} '
++        'elapsed_ms=${stopwatch.elapsedMilliseconds}',
++      );
++      return response;
++    } on TimeoutException {
++      _record(
++        'method=${request.method} path=$path result=timeout '
++        'elapsed_ms=${stopwatch.elapsedMilliseconds}',
++      );
++      rethrow;
++    } catch (error) {
++      _record(
++        'method=${request.method} path=$path result=transport_error '
++        'type=${error.runtimeType} elapsed_ms=${stopwatch.elapsedMilliseconds}',
++      );
++      rethrow;
++    }
++  }
++
++  void _record(String event) {
++    events.add(event);
++    debugPrint('[R3-HTTP] $event');
++  }
++
++  @override
++  void close() => _inner.close();
++}
+diff --git a/apps/mobile/test/rc1_live_auth_api_test.dart b/apps/mobile/test/rc1_live_auth_api_test.dart
+new file mode 100644
+index 0000000..b9e8441
+--- /dev/null
++++ b/apps/mobile/test/rc1_live_auth_api_test.dart
+@@ -0,0 +1,135 @@
++import 'dart:io';
++
++import 'package:bob_manager_mobile/core/app_config.dart';
++import 'package:bob_manager_mobile/core/app_session.dart';
++import 'package:bob_manager_mobile/core/permissions.dart';
++import 'package:bob_manager_mobile/screens/login_screen.dart';
++import 'package:bob_manager_mobile/screens/shell_screen.dart';
++import 'package:bob_manager_mobile/services/auth_service.dart';
++import 'package:flutter/material.dart';
++import 'package:flutter_test/flutter_test.dart';
++import 'package:shared_preferences/shared_preferences.dart';
++import 'package:supabase_flutter/supabase_flutter.dart';
++
++const _clubA = '22000000-0000-0000-0000-000000000001';
++
++void main() {
++  late SupabaseClient client;
++  final password = Platform.environment['RC1_TEST_PASSWORD'] ?? '';
++
++  setUpAll(() async {
++    // Supabase Flutter persists tokens through this plugin; provide the test
++    // implementation before initialization. Clear the widget-test fake HTTP
++    // override because this file is explicitly an opt-in live local API test.
++    SharedPreferences.setMockInitialValues(<String, Object>{});
++    HttpOverrides.global = null;
++    AppConfig.validateForRealMode();
++    if (AppConfig.demoMode) {
++      throw StateError('Live API tests must run with DEMO_MODE=false.');
++    }
++    if (password.isEmpty) {
++      throw StateError('RC1_TEST_PASSWORD is required in the test process.');
++    }
++    await Supabase.initialize(
++      url: AppConfig.supabaseUrl,
++      publishableKey: AppConfig.supabasePublishableKey,
++    );
++    client = Supabase.instance.client;
++  });
++
++  tearDown(() async {
++    await client.auth.signOut();
++    AppSession.instance.clear();
++  });
++
++  test('real GoTrue login and logout through AuthService', () async {
++    await AuthService.instance.signIn(
++      'rc1-api-president-a@local.invalid',
++      password,
++    );
++
++    expect(client.auth.currentUser?.email, 'rc1-api-president-a@local.invalid');
++    expect(AppSession.instance.authenticated, isTrue);
++    expect(AppSession.instance.clubId, _clubA);
++
++    await AuthService.instance.signOut();
++    expect(client.auth.currentUser, isNull);
++    expect(AppSession.instance.authenticated, isFalse);
++  });
++
++  test('member without viewTreasury receives no financial view or table rows',
++      () async {
++    await AuthService.instance.signIn(
++      'rc1-api-member-a@local.invalid',
++      password,
++    );
++    expect(AppSession.instance.authenticated, isTrue);
++    expect(AppSession.instance.can(AppPermission.viewTreasury), isFalse);
++
++    final viewRows = await client
++        .from('v_financial_balances')
++        .select('club_id,balance')
++        .eq('club_id', _clubA);
++    final accountRows = await client
++        .from('financial_accounts')
++        .select('id,club_id')
++        .eq('club_id', _clubA);
++    final transactionRows = await client
++        .from('financial_transactions')
++        .select('id,club_id')
++        .eq('club_id', _clubA);
++
++    expect(viewRows, isEmpty);
++    expect(accountRows, isEmpty);
++    expect(transactionRows, isEmpty);
++  });
++
++  test('authorized treasurer sees expected club balance only', () async {
++    await AuthService.instance.signIn(
++      'rc1-api-treasurer-a@local.invalid',
++      password,
++    );
++    expect(AppSession.instance.can(AppPermission.viewTreasury), isTrue);
++
++    final rows = await client
++        .from('v_financial_balances')
++        .select('club_id,balance')
++        .order('club_id');
++    expect(rows, hasLength(1));
++    expect(rows.single['club_id'], _clubA);
++    expect((rows.single['balance'] as num).toDouble(), 400.0);
++  });
++
++  test('inactive and unassociated Auth users are signed out on refusal',
++      () async {
++    for (final email in <String>[
++      'rc1-api-inactive-a@local.invalid',
++      'rc1-api-no-club@local.invalid',
++    ]) {
++      await expectLater(
++        AuthService.instance.signIn(email, password),
++        throwsA(isA<AuthException>()),
++      );
++      expect(client.auth.currentUser, isNull, reason: email);
++      expect(AppSession.instance.authenticated, isFalse, reason: email);
++    }
++  });
++
++  testWidgets(
++    'login UI navigates to the real authenticated shell',
++    (tester) async {
++      await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
++      await tester.enterText(
++        find.byType(TextField).at(0),
++        'rc1-api-president-a@local.invalid',
++      );
++      await tester.enterText(find.byType(TextField).at(1), password);
++      await tester.tap(find.widgetWithText(FilledButton, 'Entrar'));
++      await tester.pump();
++      expect(find.byType(ShellScreen), findsOneWidget);
++    },
++    // flutter_test replaces HttpClient; live UI navigation needs a native or
++    // browser integration_test target.
++    skip: true,
++  );
++}
+diff --git a/apps/mobile/test/rc1_pilot_scope_test.dart b/apps/mobile/test/rc1_pilot_scope_test.dart
+new file mode 100644
+index 0000000..6be213c
+--- /dev/null
++++ b/apps/mobile/test/rc1_pilot_scope_test.dart
+@@ -0,0 +1,214 @@
++import 'dart:convert';
++
++import 'package:bob_manager_mobile/core/app_session.dart';
++import 'package:bob_manager_mobile/core/club_export.dart';
++import 'package:bob_manager_mobile/repositories/club_export_repository.dart';
++import 'package:bob_manager_mobile/repositories/assets_operations_repository.dart';
++import 'package:bob_manager_mobile/screens/club_export_screen.dart';
++import 'package:bob_manager_mobile/screens/assets_phase2_screen.dart';
++import 'package:flutter/material.dart';
++import 'package:flutter_test/flutter_test.dart';
++import 'package:http/http.dart' as http;
++import 'package:http/testing.dart';
++import 'package:supabase_flutter/supabase_flutter.dart';
++
++void main() {
++  late SupabaseClient client;
++  late List<String> requestedRpcs;
++  late List<String> requestedPaths;
++
++  setUp(() {
++    AppSession.instance.clear();
++    AppSession.instance.role = 'Presidente';
++    requestedRpcs = [];
++    requestedPaths = [];
++    client = SupabaseClient(
++      'http://127.0.0.1:54321',
++      'synthetic-local-test-key',
++      httpClient: MockClient((request) async {
++        if (request.url.pathSegments.contains('rpc')) {
++          requestedRpcs.add(request.url.pathSegments.last);
++        } else {
++          requestedPaths.add(request.url.path);
++        }
++        return http.Response(
++          request.url.pathSegments.contains('rpc')
++              ? 'null'
++              : jsonEncode(<Object>[]),
++          200,
++          request: request,
++          headers: const {'content-type': 'application/json'},
++        );
++      }),
++    );
++  });
++
++  tearDown(() async {
++    await client.dispose();
++    AppSession.instance.clear();
++  });
++
++  test('pilot allowlist is exactly the 14 R13-tested datasets', () {
++    expect(pilotClubExportDatasetPaths, hasLength(14));
++    expect(pilotClubExportSections, {
++      ClubExportSection.financial,
++      ClubExportSection.fees,
++      ClubExportSection.lottery,
++    });
++    expect(
++      pilotClubExportDatasetPaths,
++      containsAll([
++        'financeiro/pedidos.csv',
++        'financeiro/pedidos_anexos.csv',
++        'financeiro/documentos_movimentos.csv',
++        'quotas/planos.csv',
++        'quotas/obrigacoes.csv',
++        'quotas/pagamentos.csv',
++        'euromilhoes/participantes.csv',
++        'euromilhoes/sorteios.csv',
++        'euromilhoes/chaves.csv',
++        'euromilhoes/participacoes.csv',
++        'euromilhoes/resultados.csv',
++        'euromilhoes/cobrancas.csv',
++        'euromilhoes/multas.csv',
++        'euromilhoes/premios.csv',
++      ]),
++    );
++  });
++
++  test('unsupported section is rejected before any export RPC', () async {
++    final repository = ClubExportRepository(client: client);
++    await expectLater(
++      repository.begin(
++        sections: {ClubExportSection.members},
++        includeSensitive: false,
++        includeFiles: false,
++      ),
++      throwsA(
++        isA<ClubExportFailure>().having(
++          (failure) => failure.code,
++          'code',
++          'pilot_scope_disabled',
++        ),
++      ),
++    );
++    expect(requestedRpcs, isEmpty);
++  });
++
++  test(
++    'sensitive and file export flags are rejected before the API call',
++    () async {
++      final repository = ClubExportRepository(client: client);
++      for (final flags in [
++        (sensitive: true, files: false),
++        (sensitive: false, files: true),
++      ]) {
++        await expectLater(
++          repository.begin(
++            sections: {ClubExportSection.financial},
++            includeSensitive: flags.sensitive,
++            includeFiles: flags.files,
++          ),
++          throwsA(isA<ClubExportFailure>()),
++        );
++      }
++      expect(requestedRpcs, isEmpty);
++    },
++  );
++
++  testWidgets('export UI shows only the three pilot sections', (tester) async {
++    await tester.pumpWidget(const MaterialApp(home: ClubExportScreen()));
++    await tester.pumpAndSettle();
++
++    expect(find.text('Pedidos & Pagamentos'), findsOneWidget);
++    expect(find.text('Quotas'), findsOneWidget);
++    expect(find.text('Euromilhões'), findsOneWidget);
++    for (final disabledTitle in [
++      'Membros',
++      'Tesouraria',
++      'Eventos',
++      'Inventário',
++      'Documentos',
++      'Comunicação',
++      'Agenda',
++      'Oficial da Semana',
++      'Configuração',
++      'Auditoria',
++    ]) {
++      expect(find.text(disabledTitle), findsNothing);
++    }
++    expect(find.text('Incluir dados altamente sensíveis'), findsNothing);
++    expect(find.text('Incluir ficheiros armazenados'), findsNothing);
++    final pilotNotice = find.text('Escopo limitado do piloto');
++    await tester.scrollUntilVisible(
++      pilotNotice,
++      240,
++      scrollable: find.byType(Scrollable).first,
++    );
++    expect(pilotNotice, findsOneWidget);
++  });
++
++  testWidgets('asset maintenance and inspection forms are absent in UI', (
++    tester,
++  ) async {
++    await tester.pumpWidget(
++      MaterialApp(
++        home: AssetsPhase2Screen(
++          repository: AssetsOperationsRepository(client: client),
++        ),
++      ),
++    );
++    await tester.pumpAndSettle();
++
++    await tester.tap(find.text('Manutenção'));
++    await tester.pumpAndSettle();
++    expect(find.text('Registo de intervenções desativado no piloto.'), findsOneWidget);
++    expect(find.text('Registar intervenção'), findsNothing);
++    expect(find.text('Registar manutenção'), findsNothing);
++
++    await tester.tap(find.text('Inspeções'));
++    await tester.pumpAndSettle();
++    expect(find.text('Registo de inspeções desativado no piloto.'), findsOneWidget);
++    expect(find.text('Registar inspeção'), findsNothing);
++  });
++
++  test('asset maintenance repository entry point is disabled without RPC',
++      () async {
++    final repository = AssetsOperationsRepository();
++    await expectLater(
++      repository.maintenance(
++        assetId: 'synthetic-asset',
++        type: 'maintenance',
++        date: DateTime.utc(2026, 10, 24),
++        description: 'synthetic test only',
++        cost: 1,
++        supplier: 'synthetic',
++      ),
++      throwsA(isA<UnsupportedError>()),
++    );
++  });
++
++  test('asset read, loan and return endpoints remain wired', () async {
++    final repository = AssetsOperationsRepository(client: client);
++    await repository.assets();
++    await repository.maintenanceHistory();
++    await repository.kits();
++
++    expect(requestedPaths, contains('/rest/v1/inventory_assets'));
++    expect(requestedPaths, contains('/rest/v1/asset_maintenance'));
++    expect(requestedPaths, contains('/rest/v1/asset_kits'));
++
++    AppSession.instance.role = 'Responsável de Inventário';
++    await repository.loan(
++      assetId: 'synthetic-asset',
++      borrowerType: 'external',
++      externalName: 'Synthetic recipient',
++    );
++    await repository.returnLoan(
++      loanId: 'synthetic-loan',
++      condition: 'good',
++    );
++    expect(requestedRpcs, containsAll(['asset_loan_v1', 'asset_return_v1']));
++    expect(requestedRpcs, isNot(contains('asset_maintenance_v1')));
++  });
++}
+diff --git a/apps/mobile/test/shell_module_routes_test.dart b/apps/mobile/test/shell_module_routes_test.dart
+new file mode 100644
+index 0000000..9567549
+--- /dev/null
++++ b/apps/mobile/test/shell_module_routes_test.dart
+@@ -0,0 +1,141 @@
++import 'package:bob_manager_mobile/core/app_session.dart';
++import 'package:bob_manager_mobile/core/module_definition.dart';
++import 'package:bob_manager_mobile/core/permissions.dart';
++import 'package:bob_manager_mobile/screens/activity_screen.dart';
++import 'package:bob_manager_mobile/screens/agenda_screen.dart';
++import 'package:bob_manager_mobile/screens/bar_screen_v4.dart';
++import 'package:bob_manager_mobile/screens/communication_module_screen.dart';
++import 'package:bob_manager_mobile/screens/dashboard_screen.dart';
++import 'package:bob_manager_mobile/screens/documents_module_screen.dart';
++import 'package:bob_manager_mobile/screens/emergency_screen.dart';
++import 'package:bob_manager_mobile/screens/events_module_v2_screen.dart';
++import 'package:bob_manager_mobile/screens/fees_screen.dart';
++import 'package:bob_manager_mobile/screens/financial_requests_screen.dart';
++import 'package:bob_manager_mobile/screens/inventory_module_screen.dart';
++import 'package:bob_manager_mobile/screens/lottery_screen.dart';
++import 'package:bob_manager_mobile/screens/members_screen.dart';
++import 'package:bob_manager_mobile/screens/reports_hub_screen.dart';
++import 'package:bob_manager_mobile/screens/settings_screen.dart';
++import 'package:bob_manager_mobile/screens/shell_screen.dart';
++import 'package:bob_manager_mobile/screens/treasury_module_screen.dart';
++import 'package:bob_manager_mobile/screens/weekly_officer_screen.dart';
++import 'package:flutter/material.dart';
++import 'package:flutter_test/flutter_test.dart';
++import 'package:intl/date_symbol_data_local.dart';
++
++final _routeTypes = <String, Type>{
++  'dashboard': DashboardScreen,
++  'activity': ActivityScreen,
++  'members': MembersScreen,
++  'treasury': TreasuryModuleScreen,
++  'financial': FinancialRequestsScreen,
++  'fees': FeesScreen,
++  'lottery': LotteryScreen,
++  'events': EventsModuleV2Screen,
++  'weekly_officer': WeeklyOfficerScreen,
++  'agenda': AgendaScreen,
++  'bar': BarScreenV4,
++  'inventory': InventoryModuleScreen,
++  'documents': DocumentsModuleScreen,
++  'communication': CommunicationModuleScreen,
++  'reports': ReportsHubScreen,
++  'settings': SettingsScreen,
++  'emergency': EmergencyScreen,
++};
++
++void main() {
++  TestWidgetsFlutterBinding.ensureInitialized();
++
++  setUpAll(() => initializeDateFormatting('pt_PT'));
++
++  tearDown(() => AppSession.instance.clear());
++
++  testWidgets('todos os 17 módulos abrem a rota esperada em desktop e mobile',
++      (tester) async {
++    _authenticateWithAllPermissions();
++
++    await _pumpAt(tester, const Size(1600, 1000));
++    for (final module in appModules) {
++      await _openModule(tester, module, compact: false);
++      expect(find.byType(_routeTypes[module.code]!), findsOneWidget,
++          reason: 'desktop route for ${module.code}');
++      expect(tester.takeException(), isNull,
++          reason: 'desktop build for ${module.code}');
++    }
++
++    await _pumpAt(tester, const Size(390, 844));
++    for (final module in appModules) {
++      await _openModule(tester, module, compact: true);
++      expect(find.byType(_routeTypes[module.code]!), findsOneWidget,
++          reason: 'mobile route for ${module.code}');
++      expect(tester.takeException(), isNull,
++          reason: 'mobile build for ${module.code}');
++    }
++  });
++}
++
++void _authenticateWithAllPermissions() {
++  final session = AppSession.instance;
++  session.clear();
++  session.authenticate(
++    newProfileId: 'synthetic-full-navigation-profile',
++    newClubId: 'synthetic-full-navigation-club',
++    newFullName: 'Direção sintética',
++    newRole: 'president',
++  );
++  session.applyPermissions(
++      AppPermission.values.map((permission) => permission.key));
++}
++
++Future<void> _pumpAt(WidgetTester tester, Size size) async {
++  await tester.pumpWidget(const SizedBox.shrink());
++  tester.view.physicalSize = size;
++  tester.view.devicePixelRatio = 1;
++  await tester.pumpWidget(const MaterialApp(home: ShellScreen()));
++  await tester.pump(const Duration(milliseconds: 300));
++}
++
++Future<void> _openModule(
++  WidgetTester tester,
++  ModuleDefinition module, {
++  required bool compact,
++}) async {
++  if (!compact) {
++    final destination = find.descendant(
++      of: find.byType(NavigationDrawer),
++      matching: find.text(module.title),
++    );
++    final scrollable = find
++        .descendant(
++          of: find.byType(NavigationDrawer),
++          matching: find.byType(Scrollable),
++        )
++        .first;
++    await tester.scrollUntilVisible(destination, 120, scrollable: scrollable);
++    await tester.tap(destination);
++    await tester.pump(const Duration(milliseconds: 450));
++    return;
++  }
++
++  var destination = _bottomDestination(module.title);
++  if (destination.evaluate().isEmpty) {
++    await tester.tap(_bottomDestination('Mais'));
++    await tester.pumpAndSettle(const Duration(milliseconds: 100));
++    final grid = find.byType(GridView).first;
++    final scrollable =
++        find.descendant(of: grid, matching: find.byType(Scrollable)).first;
++    final inGrid = find.descendant(of: grid, matching: find.text(module.title));
++    await tester.scrollUntilVisible(inGrid, 240, scrollable: scrollable);
++    await tester.ensureVisible(inGrid);
++    await tester.pumpAndSettle(const Duration(milliseconds: 100));
++    await tester.tap(inGrid);
++    await tester.pump(const Duration(milliseconds: 450));
++    return;
++  }
++  await tester.tap(destination);
++  await tester.pump(const Duration(milliseconds: 450));
++}
++
++Finder _bottomDestination(String label) => find.byWidgetPredicate(
++      (widget) => widget is NavigationDestination && widget.label == label,
++    );
+diff --git a/apps/mobile/test/shell_module_visibility_test.dart b/apps/mobile/test/shell_module_visibility_test.dart
+new file mode 100644
+index 0000000..59f7d41
+--- /dev/null
++++ b/apps/mobile/test/shell_module_visibility_test.dart
+@@ -0,0 +1,277 @@
++import 'package:bob_manager_mobile/core/app_session.dart';
++import 'package:bob_manager_mobile/core/module_definition.dart';
++import 'package:bob_manager_mobile/core/permissions.dart';
++import 'package:bob_manager_mobile/screens/bar_screen_v4.dart';
++import 'package:bob_manager_mobile/screens/inventory_module_screen.dart';
++import 'package:bob_manager_mobile/screens/shell_screen.dart';
++import 'package:flutter/material.dart';
++import 'package:flutter_test/flutter_test.dart';
++
++const _authenticatedBase = [
++  'Dashboard',
++  'Atividade',
++  'Pedidos & Pagamentos',
++  'Oficial da Semana',
++  'Agenda',
++];
++const _barInventoryExpected = [
++  ..._authenticatedBase,
++  'BAR',
++  'Património & Inventário'
++];
++const _memberExpected = [..._authenticatedBase, 'Membros'];
++
++void main() {
++  TestWidgetsFlutterBinding.ensureInitialized();
++
++  tearDown(() => AppSession.instance.clear());
++
++  testWidgets(
++      'Direção com permissões efetivas vê todos os módulos em desktop, tablet e mobile',
++      (tester) async {
++    _authenticateWith(
++      AppPermission.values.map((permission) => permission.key),
++      role: 'president',
++    );
++
++    await _pumpAt(tester, const Size(1600, 1000));
++    await _expectDrawerModules(
++        tester, appModules.map((module) => module.title));
++    expect(tester.takeException(), isNull);
++
++    await _pumpAt(tester, const Size(800, 1000));
++    final tabletPrimary = _railLabels(tester);
++    expect(tabletPrimary, contains('Mais'));
++    await tester.tap(_railMore);
++    await tester.pumpAndSettle();
++    await _expectAllInMoreSheet(
++      tester,
++      tabletPrimary,
++      appModules.map((module) => module.title),
++    );
++
++    await _pumpAt(tester, const Size(390, 844));
++    final mobilePrimary = _bottomLabels(tester);
++    expect(mobilePrimary, containsAll(['Membros', 'BAR', 'Mais']));
++    await tester.tap(_bottomMore);
++    await tester.pumpAndSettle();
++    await _expectAllInMoreSheet(
++      tester,
++      mobilePrimary,
++      appModules.map((module) => module.title),
++    );
++  });
++
++  testWidgets(
++      'Responsável Bar e Inventário encontra ambos os módulos em todos os layouts',
++      (tester) async {
++    _authenticateWith(
++      const [
++        'viewBar',
++        'manageBar',
++        'viewInventory',
++        'manageInventory',
++        'sellInventory',
++        'manageMerchandising',
++        'manageAssets',
++        'performInventoryCount',
++      ],
++      role: 'inventory_manager',
++    );
++
++    await _pumpAt(tester, const Size(1600, 1000));
++    await _expectDrawerModules(tester, ['BAR', 'Património & Inventário']);
++    expect(tester.takeException(), isNull);
++
++    await _pumpAt(tester, const Size(800, 1000));
++    final tabletPrimary = _railLabels(tester);
++    expect(tabletPrimary, contains('BAR'));
++    expect(tabletPrimary, contains('Mais'));
++    await tester.tap(_railModule('BAR'));
++    await tester.pumpAndSettle();
++    expect(find.byType(BarScreenV4), findsOneWidget);
++
++    await _pumpAt(tester, const Size(800, 1000));
++    await tester.tap(_railMore);
++    await tester.pumpAndSettle();
++    await _expectAllInMoreSheet(tester, tabletPrimary, _barInventoryExpected);
++    expect(find.text('Património & Inventário'), findsOneWidget);
++    await tester.tap(find.text('Património & Inventário'));
++    await tester.pumpAndSettle();
++    expect(find.byType(InventoryModuleScreen), findsOneWidget);
++
++    await _pumpAt(tester, const Size(390, 844));
++    final mobilePrimary = _bottomLabels(tester);
++    expect(mobilePrimary, contains('BAR'));
++    await tester.tap(_bottomMore);
++    await tester.pumpAndSettle();
++    await _expectAllInMoreSheet(tester, mobilePrimary, _barInventoryExpected);
++    expect(find.text('Património & Inventário'), findsOneWidget);
++    await tester.tap(find.text('Património & Inventário'));
++    await tester.pumpAndSettle();
++    expect(find.byType(InventoryModuleScreen), findsOneWidget);
++
++    await tester.tap(_bottomModule('BAR'));
++    await tester.pumpAndSettle();
++    expect(find.byType(BarScreenV4), findsOneWidget);
++  });
++
++  testWidgets('Membro normal vê Membros mas não vê Bar ou Inventário',
++      (tester) async {
++    _authenticateWith(const ['viewMembers'], role: 'member');
++
++    await _pumpAt(tester, const Size(1600, 1000));
++    await _expectDrawerModules(tester, ['Membros']);
++    expect(_drawerHasModule(tester, 'BAR'), isFalse);
++    expect(_drawerHasModule(tester, 'Património & Inventário'), isFalse);
++    expect(tester.takeException(), isNull);
++
++    await _pumpAt(tester, const Size(800, 1000));
++    final tabletPrimary = _railLabels(tester);
++    expect(tabletPrimary, contains('Membros'));
++    await tester.tap(_railMore);
++    await tester.pumpAndSettle();
++    await _expectAllInMoreSheet(tester, tabletPrimary, _memberExpected);
++    expect(_moreSheetHasModule(tester, 'BAR'), isFalse);
++    expect(_moreSheetHasModule(tester, 'Património & Inventário'), isFalse);
++
++    await _pumpAt(tester, const Size(390, 844));
++    final mobilePrimary = _bottomLabels(tester);
++    expect(mobilePrimary, contains('Membros'));
++    expect(mobilePrimary, isNot(contains('BAR')));
++    await tester.tap(_bottomMore);
++    await tester.pumpAndSettle();
++    await _expectAllInMoreSheet(tester, mobilePrimary, _memberExpected);
++    expect(_moreSheetHasModule(tester, 'BAR'), isFalse);
++    expect(_moreSheetHasModule(tester, 'Património & Inventário'), isFalse);
++  });
++}
++
++void _authenticateWith(
++  Iterable<String> permissionKeys, {
++  required String role,
++}) {
++  final session = AppSession.instance;
++  session.clear();
++  session.authenticate(
++    newProfileId: 'synthetic-menu-profile',
++    newClubId: 'synthetic-menu-club',
++    newFullName: 'Perfil sintético de navegação',
++    newRole: role,
++  );
++  session.applyPermissions(permissionKeys);
++}
++
++Future<void> _pumpAt(WidgetTester tester, Size size) async {
++  await tester.pumpWidget(const SizedBox.shrink());
++  tester.view.physicalSize = size;
++  tester.view.devicePixelRatio = 1;
++  await tester.pumpWidget(const MaterialApp(home: ShellScreen()));
++  await tester.pumpAndSettle();
++}
++
++Future<void> _expectDrawerModules(
++  WidgetTester tester,
++  Iterable<String> expected,
++) async {
++  final scrollable = find
++      .descendant(
++        of: find.byType(NavigationDrawer),
++        matching: find.byType(Scrollable),
++      )
++      .first;
++  for (final title in expected) {
++    final finder = find.descendant(
++      of: find.byType(NavigationDrawer),
++      matching: find.text(title),
++    );
++    await tester.scrollUntilVisible(finder, 120, scrollable: scrollable);
++    expect(finder, findsOneWidget, reason: 'Drawer: $title');
++  }
++}
++
++bool _drawerHasModule(WidgetTester tester, String title) => find
++    .descendant(
++      of: find.byType(NavigationDrawer),
++      matching: find.text(title),
++    )
++    .evaluate()
++    .isNotEmpty;
++
++List<String> _railLabels(WidgetTester tester) => appModules
++    .map((module) => module.title)
++    .where(
++      (title) => find
++          .descendant(
++            of: find.byType(NavigationRail),
++            matching: find.text(title),
++          )
++          .evaluate()
++          .isNotEmpty,
++    )
++    .toList()
++  ..addAll(
++    find
++            .descendant(
++              of: find.byType(NavigationRail),
++              matching: find.text('Mais'),
++            )
++            .evaluate()
++            .isNotEmpty
++        ? ['Mais']
++        : const [],
++  );
++
++List<String> _bottomLabels(WidgetTester tester) => tester
++    .widgetList<NavigationDestination>(find.byType(NavigationDestination))
++    .map((destination) => destination.label)
++    .toList();
++
++Finder get _railMore => find.descendant(
++      of: find.byType(NavigationRail),
++      matching: find.text('Mais'),
++    );
++
++Finder _railModule(String title) => find.descendant(
++      of: find.byType(NavigationRail),
++      matching: find.text(title),
++    );
++
++Finder get _bottomMore => find.byWidgetPredicate(
++      (widget) => widget is NavigationDestination && widget.label == 'Mais',
++    );
++
++Finder _bottomModule(String title) => find.byWidgetPredicate(
++      (widget) => widget is NavigationDestination && widget.label == title,
++    );
++
++Future<void> _expectAllInMoreSheet(
++  WidgetTester tester,
++  List<String> primaryLabels,
++  Iterable<String> expectedTitles,
++) async {
++  final grid = find.byType(GridView).first;
++  final scrollable = find
++      .descendant(
++        of: grid,
++        matching: find.byType(Scrollable),
++      )
++      .first;
++  for (final title in expectedTitles) {
++    if (primaryLabels.contains(title)) continue;
++    final finder = find.descendant(
++      of: grid,
++      matching: find.text(title),
++    );
++    await tester.scrollUntilVisible(finder, 100, scrollable: scrollable);
++    expect(finder, findsOneWidget, reason: 'Mais: $title');
++  }
++}
++
++bool _moreSheetHasModule(WidgetTester tester, String title) => find
++    .descendant(
++      of: find.byType(GridView),
++      matching: find.text(title),
++    )
++    .evaluate()
++    .isNotEmpty;
+diff --git a/apps/mobile/test/shell_unread_refresh_test.dart b/apps/mobile/test/shell_unread_refresh_test.dart
+new file mode 100644
+index 0000000..e0ebe1c
+--- /dev/null
++++ b/apps/mobile/test/shell_unread_refresh_test.dart
+@@ -0,0 +1,32 @@
++import 'package:bob_manager_mobile/core/app_session.dart';
++import 'package:bob_manager_mobile/screens/shell_screen.dart';
++import 'package:flutter/material.dart';
++import 'package:flutter_test/flutter_test.dart';
++
++void main() {
++  setUp(() {
++    AppSession.instance.clear();
++    AppSession.instance.authenticate(
++      newProfileId: 'synthetic-profile',
++      newClubId: 'synthetic-club',
++      newFullName: 'Synthetic Member',
++      newRole: 'member',
++    );
++  });
++
++  tearDown(AppSession.instance.clear);
++
++  testWidgets('refresh unread count uses a synchronous setState callback',
++      (tester) async {
++    await tester.pumpWidget(const MaterialApp(home: ShellScreen()));
++    await tester.pumpAndSettle();
++    expect(tester.takeException(), isNull);
++
++    // The shell refreshes its unread badge every 30 seconds.
++    await tester.pump(const Duration(seconds: 30));
++    await tester.pumpAndSettle();
++
++    expect(find.byTooltip('Notificações'), findsOneWidget);
++    expect(tester.takeException(), isNull);
++  });
++}
+diff --git a/apps/mobile/test_driver/integration_test.dart b/apps/mobile/test_driver/integration_test.dart
+new file mode 100644
+index 0000000..b38629c
+--- /dev/null
++++ b/apps/mobile/test_driver/integration_test.dart
+@@ -0,0 +1,3 @@
++import 'package:integration_test/integration_test_driver.dart';
++
++Future<void> main() => integrationDriver();
+diff --git a/supabase/migrations/20261024190000_rc1_pilot_exports_and_asset_maintenance_disable.sql b/supabase/migrations/20261024190000_rc1_pilot_exports_and_asset_maintenance_disable.sql
+new file mode 100644
+index 0000000..9763559
+--- /dev/null
++++ b/supabase/migrations/20261024190000_rc1_pilot_exports_and_asset_maintenance_disable.sql
+@@ -0,0 +1,212 @@
++-- RC1 internal pilot: allow only the 14 R13-tested data exports.
++-- File downloads and sensitive-export modes are intentionally disabled.
++-- This migration is intended to run after the consolidated RC1-FINAL security candidate.
++
++DO $preflight$
++DECLARE
++  v_begin_md5 text;
++  v_dataset_md5 text;
++BEGIN
++  IF session_user <> 'postgres' OR current_user <> 'postgres' THEN
++    RAISE EXCEPTION 'RC1 pilot export migration requires the verified postgres migration identity';
++  END IF;
++
++  IF to_regprocedure('public.begin_club_export_v1(uuid,text[],boolean,boolean,text)') IS NULL
++     OR to_regprocedure('public.club_export_dataset_v1(uuid,uuid,text,integer,integer)') IS NULL
++     OR to_regprocedure('public.club_export_file_access_v1(text,text)') IS NULL THEN
++    RAISE EXCEPTION 'Reviewed R12 export functions are missing; refusing partial pilot setup';
++  END IF;
++
++  SELECT md5(p.prosrc) INTO v_begin_md5
++  FROM pg_proc p WHERE p.oid = 'public.begin_club_export_v1(uuid,text[],boolean,boolean,text)'::regprocedure;
++  SELECT md5(p.prosrc) INTO v_dataset_md5
++  FROM pg_proc p WHERE p.oid = 'public.club_export_dataset_v1(uuid,uuid,text,integer,integer)'::regprocedure;
++
++  IF v_begin_md5 <> '95598577549f54987493101cf0ca80c3'
++     OR v_dataset_md5 <> '11c1ec04f9abfbabc9bb164f2fa95664' THEN
++    RAISE EXCEPTION 'R12 export function definitions differ from the reviewed RC1-FINAL source';
++  END IF;
++
++  IF to_regprocedure('public.begin_club_export_v1_pilot_internal(uuid,text[],boolean,boolean,text)') IS NOT NULL
++     OR to_regprocedure('public.club_export_dataset_v1_pilot_internal(uuid,uuid,text,integer,integer)') IS NOT NULL THEN
++    RAISE EXCEPTION 'Pilot internal export function already exists; refusing ambiguous rename';
++  END IF;
++END
++$preflight$;
++
++ALTER FUNCTION public.begin_club_export_v1(uuid,text[],boolean,boolean,text)
++  RENAME TO begin_club_export_v1_pilot_internal;
++ALTER FUNCTION public.club_export_dataset_v1(uuid,uuid,text,integer,integer)
++  RENAME TO club_export_dataset_v1_pilot_internal;
++
++-- Internal helpers are callable only by their owner through the public pilot façade.
++REVOKE ALL ON FUNCTION public.begin_club_export_v1_pilot_internal(uuid,text[],boolean,boolean,text)
++  FROM PUBLIC, anon, authenticated, service_role;
++REVOKE ALL ON FUNCTION public.club_export_dataset_v1_pilot_internal(uuid,uuid,text,integer,integer)
++  FROM PUBLIC, anon, authenticated, service_role;
++
++CREATE FUNCTION public.begin_club_export_v1(
++  target_club uuid,
++  p_modules text[],
++  p_include_sensitive boolean DEFAULT false,
++  p_include_files boolean DEFAULT false,
++  p_manifest_version text DEFAULT 'bob-export-v1'
++)
++RETURNS uuid
++LANGUAGE plpgsql
++SECURITY DEFINER
++SET search_path = pg_catalog, public
++AS $pilot$
++DECLARE
++  v_modules text[];
++  v_allowed CONSTANT text[] := ARRAY['financial','fees','lottery']::text[];
++BEGIN
++  SELECT COALESCE(
++    array_agg(DISTINCT btrim(requested.module_key) ORDER BY btrim(requested.module_key)),
++    ARRAY[]::text[]
++  )
++  INTO v_modules
++  FROM unnest(COALESCE(p_modules, ARRAY[]::text[])) AS requested(module_key)
++  WHERE NULLIF(btrim(requested.module_key), '') IS NOT NULL;
++
++  IF cardinality(v_modules) = 0 THEN
++    RAISE EXCEPTION 'Seleciona uma das áreas de exportação disponíveis no piloto.' USING ERRCODE = '42501';
++  END IF;
++
++  IF EXISTS (
++    SELECT 1 FROM unnest(v_modules) AS requested(module_key)
++    WHERE NOT (requested.module_key = ANY(v_allowed))
++  ) THEN
++    RAISE EXCEPTION 'A área de exportação não está disponível no piloto.' USING ERRCODE = '42501';
++  END IF;
++
++  IF COALESCE(p_include_sensitive, false) OR COALESCE(p_include_files, false) THEN
++    RAISE EXCEPTION 'Exportação de dados sensíveis ou ficheiros está desativada no piloto.' USING ERRCODE = '42501';
++  END IF;
++
++  RETURN public.begin_club_export_v1_pilot_internal(
++    target_club, v_modules, false, false, p_manifest_version
++  );
++END
++$pilot$;
++
++CREATE FUNCTION public.club_export_dataset_v1(
++  target_club uuid,
++  p_export uuid,
++  p_dataset text,
++  p_offset integer DEFAULT 0,
++  p_limit integer DEFAULT 1000
++)
++RETURNS SETOF jsonb
++LANGUAGE plpgsql
++SECURITY DEFINER
++SET search_path = pg_catalog, public
++AS $pilot$
++DECLARE
++  v_allowed CONSTANT text[] := ARRAY[
++    'financeiro/pedidos.csv',
++    'financeiro/pedidos_anexos.csv',
++    'financeiro/documentos_movimentos.csv',
++    'quotas/planos.csv',
++    'quotas/obrigacoes.csv',
++    'quotas/pagamentos.csv',
++    'euromilhoes/participantes.csv',
++    'euromilhoes/sorteios.csv',
++    'euromilhoes/chaves.csv',
++    'euromilhoes/participacoes.csv',
++    'euromilhoes/resultados.csv',
++    'euromilhoes/cobrancas.csv',
++    'euromilhoes/multas.csv',
++    'euromilhoes/premios.csv'
++  ]::text[];
++BEGIN
++  IF p_dataset IS NULL OR NOT (p_dataset = ANY(v_allowed)) THEN
++    RAISE EXCEPTION 'Dataset de exportação não disponível no piloto.' USING ERRCODE = '42501';
++  END IF;
++
++  RETURN QUERY
++  SELECT *
++  FROM public.club_export_dataset_v1_pilot_internal(
++    target_club, p_export, p_dataset, p_offset, p_limit
++  );
++END
++$pilot$;
++
++REVOKE ALL ON FUNCTION public.begin_club_export_v1(uuid,text[],boolean,boolean,text)
++  FROM PUBLIC, anon;
++GRANT EXECUTE ON FUNCTION public.begin_club_export_v1(uuid,text[],boolean,boolean,text)
++  TO authenticated, service_role;
++REVOKE ALL ON FUNCTION public.club_export_dataset_v1(uuid,uuid,text,integer,integer)
++  FROM PUBLIC, anon;
++GRANT EXECUTE ON FUNCTION public.club_export_dataset_v1(uuid,uuid,text,integer,integer)
++  TO authenticated, service_role;
++
++-- The storage policy can continue invoking this helper, but it authorizes no
++-- export files in the pilot because file export has not been behaviorally tested.
++CREATE OR REPLACE FUNCTION public.club_export_file_access_v1(p_bucket text, p_name text)
++RETURNS boolean
++LANGUAGE sql
++STABLE
++SECURITY DEFINER
++SET search_path = pg_catalog
++AS $pilot$
++  SELECT false
++$pilot$;
++REVOKE ALL ON FUNCTION public.club_export_file_access_v1(text,text) FROM PUBLIC, anon;
++GRANT EXECUTE ON FUNCTION public.club_export_file_access_v1(text,text) TO authenticated, service_role;
++
++-- Keep any historical asset_maintenance_v1 definition intact, but prevent all
++-- API client and service roles from executing any overload. No invocation/drop.
++DO $disable_asset_maintenance$
++DECLARE
++  v_function oid;
++BEGIN
++  FOR v_function IN
++    SELECT p.oid
++    FROM pg_proc p
++    JOIN pg_namespace n ON n.oid = p.pronamespace
++    WHERE n.nspname = 'public' AND p.proname = 'asset_maintenance_v1'
++  LOOP
++    EXECUTE format(
++      'REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated, service_role',
++      v_function::regprocedure
++    );
++  END LOOP;
++END
++$disable_asset_maintenance$;
++
++DO $postflight$
++DECLARE
++  v_function oid;
++BEGIN
++  IF has_function_privilege('anon', 'public.begin_club_export_v1(uuid,text[],boolean,boolean,text)', 'EXECUTE')
++     OR has_function_privilege('anon', 'public.club_export_dataset_v1(uuid,uuid,text,integer,integer)', 'EXECUTE') THEN
++    RAISE EXCEPTION 'anon retains an export EXECUTE privilege';
++  END IF;
++
++  IF has_function_privilege('authenticated', 'public.begin_club_export_v1_pilot_internal(uuid,text[],boolean,boolean,text)', 'EXECUTE')
++     OR has_function_privilege('authenticated', 'public.club_export_dataset_v1_pilot_internal(uuid,uuid,text,integer,integer)', 'EXECUTE')
++     OR has_function_privilege('service_role', 'public.begin_club_export_v1_pilot_internal(uuid,text[],boolean,boolean,text)', 'EXECUTE')
++     OR has_function_privilege('service_role', 'public.club_export_dataset_v1_pilot_internal(uuid,uuid,text,integer,integer)', 'EXECUTE') THEN
++    RAISE EXCEPTION 'A client/service API role can execute an internal export function';
++  END IF;
++
++  IF has_function_privilege('authenticated', 'public.club_export_file_access_v1(text,text)', 'EXECUTE')
++     AND public.club_export_file_access_v1('financial-documents', 'pilot-probe') IS DISTINCT FROM false THEN
++    RAISE EXCEPTION 'Export file helper is not closed for the pilot';
++  END IF;
++
++  FOR v_function IN
++    SELECT p.oid
++    FROM pg_proc p
++    JOIN pg_namespace n ON n.oid = p.pronamespace
++    WHERE n.nspname = 'public' AND p.proname = 'asset_maintenance_v1'
++  LOOP
++    IF has_function_privilege('anon', v_function, 'EXECUTE')
++       OR has_function_privilege('authenticated', v_function, 'EXECUTE')
++       OR has_function_privilege('service_role', v_function, 'EXECUTE') THEN
++      RAISE EXCEPTION 'asset_maintenance_v1 remains executable by an API role';
++    END IF;
++  END LOOP;
++END
++$postflight$;
+diff --git a/supabase/migrations/20261027195243_rc1_bar_inventory_sales_integrity.sql b/supabase/migrations/20261027195243_rc1_bar_inventory_sales_integrity.sql
+new file mode 100644
+index 0000000..46ec8ae
+--- /dev/null
++++ b/supabase/migrations/20261027195243_rc1_bar_inventory_sales_integrity.sql
+@@ -0,0 +1,245 @@
++-- Bar/Inventory stock and sales integrity hardening.
++-- Keeps non-Bar sellInventory sales while requiring manageBar for Bar products.
++
++create or replace function public.inventory_operation_v1(
++  target_club uuid,
++  p_product uuid,
++  p_operation text,
++  p_quantity numeric,
++  p_unit_price numeric default null,
++  p_description text default null,
++  p_payment_method text default null
++)
++returns jsonb
++language plpgsql
++security definer
++set search_path = public
++as $function$
++declare
++  v_product public.products%rowtype;
++  v_new_stock numeric;
++  v_new_reserved numeric;
++  v_account uuid;
++  v_cost_center uuid;
++  v_transaction uuid;
++  v_kind public.stock_movement_kind;
++  v_total numeric;
++begin
++  if p_operation = 'sale' then
++    if not public.has_club_permission(target_club, 'sellInventory') then
++      raise exception 'Sem autorização para registar vendas.' using errcode = '42501';
++    end if;
++  elsif not public.has_club_permission(target_club, 'manageInventory') then
++    raise exception 'Sem autorização para gerir inventário.' using errcode = '42501';
++  end if;
++
++  if p_quantity <= 0 then
++    raise exception 'A quantidade deve ser superior a zero.';
++  end if;
++
++  select * into v_product
++  from public.products
++  where id = p_product
++    and club_id = target_club
++    and active = true
++  for update;
++
++  if not found then
++    raise exception 'Artigo não encontrado ou inativo.';
++  end if;
++
++  -- Inventory sales remain available for non-Bar stock. Bar stock must pass
++  -- through an actor with the effective Bar permission.
++  if p_operation = 'sale'
++     and v_product.inventory_area = 'bar'
++     and not public.has_club_permission(target_club, 'manageBar') then
++    raise exception 'A venda de artigos do Bar requer a permissão manageBar.'
++      using errcode = '42501';
++  end if;
++
++  v_new_stock := v_product.current_stock;
++  v_new_reserved := v_product.reserved_stock;
++
++  if p_operation = 'entry' then
++    v_new_stock := v_new_stock + p_quantity;
++    v_kind := 'purchase';
++  elsif p_operation = 'adjustment_in' then
++    v_new_stock := v_new_stock + p_quantity;
++    v_kind := 'adjustment';
++  elsif p_operation = 'adjustment_out' then
++    v_new_stock := v_new_stock - p_quantity;
++    v_kind := 'adjustment';
++  elsif p_operation = 'reserve' then
++    if v_new_stock - v_new_reserved < p_quantity then
++      raise exception 'Stock disponível insuficiente para a reserva.';
++    end if;
++    v_new_reserved := v_new_reserved + p_quantity;
++    v_kind := 'transfer';
++  elsif p_operation = 'release' then
++    if v_new_reserved < p_quantity then
++      raise exception 'Reserva insuficiente.';
++    end if;
++    v_new_reserved := v_new_reserved - p_quantity;
++    v_kind := 'return';
++  elsif p_operation = 'sale' then
++    if v_new_stock - v_new_reserved < p_quantity then
++      raise exception 'Stock disponível insuficiente para a venda.';
++    end if;
++    v_new_stock := v_new_stock - p_quantity;
++    v_kind := 'sale';
++  else
++    raise exception 'Operação de inventário inválida.';
++  end if;
++
++  if v_new_stock < 0
++      or v_new_reserved < 0
++      or v_new_reserved > v_new_stock then
++    raise exception 'O stock não pode ficar negativo nem abaixo do stock reservado.';
++  end if;
++
++  update public.products
++  set current_stock = v_new_stock,
++      reserved_stock = v_new_reserved
++  where id = v_product.id;
++
++  insert into public.stock_movements (
++    club_id, product_id, kind, quantity, unit_cost, notes, created_by
++  )
++  values (
++    target_club,
++    v_product.id,
++    v_kind,
++    case
++      when p_operation in ('adjustment_out', 'sale') then -p_quantity
++      else p_quantity
++    end,
++    coalesce(p_unit_price, v_product.cost),
++    nullif(trim(coalesce(p_description, '')), ''),
++    auth.uid()
++  );
++
++  if p_operation = 'sale' then
++    v_total := p_quantity * coalesce(p_unit_price, v_product.sale_price);
++
++    select id into v_account
++    from public.treasury_accounts
++    where club_id = target_club
++      and active = true
++      and lower(name) = lower('Club House')
++    limit 1;
++
++    if v_account is null then
++      raise exception 'Conta Club House não encontrada.';
++    end if;
++
++    select id into v_cost_center
++    from public.cost_centers
++    where club_id = target_club
++      and active = true
++      and lower(name) = lower('Club House')
++    limit 1;
++
++    insert into public.treasury_transactions (
++      club_id, kind, account_id, cost_center_id, transaction_date,
++      description, amount, payment_method, source_type, source_id, created_by
++    )
++    values (
++      target_club,
++      'income',
++      v_account,
++      v_cost_center,
++      current_date,
++      coalesce(
++        nullif(trim(coalesce(p_description, '')), ''),
++        'Venda ' || v_product.name
++      ),
++      v_total,
++      p_payment_method,
++      'inventory_sale',
++      v_product.id,
++      auth.uid()
++    )
++    returning id into v_transaction;
++  end if;
++
++  return jsonb_build_object(
++    'product_id', v_product.id,
++    'current_stock', v_new_stock,
++    'reserved_stock', v_new_reserved,
++    'transaction_id', v_transaction
++  );
++end;
++$function$;
++
++-- RLS policies are permissive by default and combine with OR. These restrictive
++-- policies AND with every permissive policy, so no client can mutate the stock
++-- ledger directly. Real application writes use SECURITY DEFINER RPCs owned by
++-- the table owner; RLS is enabled but not FORCE-enabled on this table.
++drop policy if exists stock_movements_no_client_sale_insert_v1
++  on public.stock_movements;
++drop policy if exists stock_movements_no_direct_insert_v1
++  on public.stock_movements;
++drop policy if exists stock_movements_no_direct_update_v1
++  on public.stock_movements;
++drop policy if exists stock_movements_no_direct_delete_v1
++  on public.stock_movements;
++create policy stock_movements_no_direct_insert_v1
++  on public.stock_movements as restrictive
++  for insert to authenticated
++  with check (false);
++create policy stock_movements_no_direct_update_v1
++  on public.stock_movements as restrictive
++  for update to authenticated
++  using (false)
++  with check (false);
++create policy stock_movements_no_direct_delete_v1
++  on public.stock_movements as restrictive
++  for delete to authenticated
++  using (false);
++
++-- Deleting a product cascades into stock_movements and Bar operation history.
++-- The real client archives products; privileged import rollback remains a
++-- SECURITY DEFINER path owned by the table owner and is unaffected because
++-- FORCE ROW LEVEL SECURITY is not enabled on products.
++drop policy if exists products_no_client_delete_v1 on public.products;
++create policy products_no_client_delete_v1
++  on public.products as restrictive
++  for delete to authenticated
++  using (false);
++
++-- Clients may edit product metadata, but stock totals must only be changed by
++-- the table owner's checked SECURITY DEFINER operations (Bar, Inventory,
++-- inventory counts and reversals), not by direct PostgREST UPDATE.
++create or replace function bob_dinner_private.guard_products_stock_write_v1()
++returns trigger
++language plpgsql
++security invoker
++set search_path = pg_catalog
++as $function$
++declare
++  v_owner name;
++begin
++  if new.current_stock is distinct from old.current_stock
++     or new.reserved_stock is distinct from old.reserved_stock then
++    select r.rolname into v_owner
++    from pg_catalog.pg_class c
++    join pg_catalog.pg_roles r on r.oid = c.relowner
++    where c.oid = 'public.products'::regclass;
++
++    if v_owner is null or current_user <> v_owner then
++      raise exception 'O stock só pode ser alterado por operações autorizadas de Bar/Inventário.'
++        using errcode = '42501';
++    end if;
++  end if;
++  return new;
++end;
++$function$;
++
++revoke all on function bob_dinner_private.guard_products_stock_write_v1()
++  from public, anon, authenticated;
++
++drop trigger if exists trg_guard_products_stock_write_v1 on public.products;
++create trigger trg_guard_products_stock_write_v1
++  before update of current_stock, reserved_stock on public.products
++  for each row execute function bob_dinner_private.guard_products_stock_write_v1();
++
+diff --git a/supabase/migrations/20261027210000_rc1_bar_sales_dml_guard.sql b/supabase/migrations/20261027210000_rc1_bar_sales_dml_guard.sql
+new file mode 100644
+index 0000000..77bfebf
+--- /dev/null
++++ b/supabase/migrations/20261027210000_rc1_bar_sales_dml_guard.sql
+@@ -0,0 +1,118 @@
++-- BOB Manager RC1 — R5 focused Bar sales write boundary
++-- Evidence source: R5 HTTP reproduction on isolated local R3, 2026-10-27.
++-- Scope: public.bar_sales, public.bar_sale_items, public.bar_operations only.
++-- Keeps the existing authenticated PATCH draft -> cancelled path; all other
++-- application writes continue through the existing owner-controlled RPCs.
++BEGIN;
++
++-- Direct table DML is not used by the real-mode sale/item/operation paths.
++-- `bar_sales` UPDATE remains for the existing cancelDraft() PATCH only.
++REVOKE INSERT, DELETE ON TABLE public.bar_sales FROM authenticated;
++REVOKE INSERT, UPDATE, DELETE ON TABLE public.bar_sale_items FROM authenticated;
++REVOKE INSERT, UPDATE, DELETE ON TABLE public.bar_operations FROM authenticated;
++-- anon had explicit SELECT/INSERT/UPDATE/DELETE table rights on bar_operations;
++-- there is no anonymous Bar workflow or matching anonymous row policy.
++REVOKE ALL PRIVILEGES ON TABLE public.bar_operations FROM anon;
++
++-- RLS defense in depth: later permissive policies/grants cannot reopen these
++-- direct write paths for client roles. PostgreSQL combines restrictive policies
++-- with permissive policies using AND.
++DROP POLICY IF EXISTS r5_bar_sales_insert_rpc_only ON public.bar_sales;
++CREATE POLICY r5_bar_sales_insert_rpc_only
++  ON public.bar_sales AS RESTRICTIVE FOR INSERT TO anon, authenticated
++  WITH CHECK (false);
++
++DROP POLICY IF EXISTS r5_bar_sales_update_cancel_draft_only ON public.bar_sales;
++CREATE POLICY r5_bar_sales_update_cancel_draft_only
++  ON public.bar_sales AS RESTRICTIVE FOR UPDATE TO anon, authenticated
++  USING (status = 'draft')
++  WITH CHECK (status = 'cancelled');
++
++DROP POLICY IF EXISTS r5_bar_sales_delete_rpc_only ON public.bar_sales;
++CREATE POLICY r5_bar_sales_delete_rpc_only
++  ON public.bar_sales AS RESTRICTIVE FOR DELETE TO anon, authenticated
++  USING (false);
++
++DROP POLICY IF EXISTS r5_bar_sale_items_insert_rpc_only ON public.bar_sale_items;
++CREATE POLICY r5_bar_sale_items_insert_rpc_only
++  ON public.bar_sale_items AS RESTRICTIVE FOR INSERT TO anon, authenticated
++  WITH CHECK (false);
++
++DROP POLICY IF EXISTS r5_bar_sale_items_update_rpc_only ON public.bar_sale_items;
++CREATE POLICY r5_bar_sale_items_update_rpc_only
++  ON public.bar_sale_items AS RESTRICTIVE FOR UPDATE TO anon, authenticated
++  USING (false) WITH CHECK (false);
++
++DROP POLICY IF EXISTS r5_bar_sale_items_delete_rpc_only ON public.bar_sale_items;
++CREATE POLICY r5_bar_sale_items_delete_rpc_only
++  ON public.bar_sale_items AS RESTRICTIVE FOR DELETE TO anon, authenticated
++  USING (false);
++
++DROP POLICY IF EXISTS r5_bar_operations_insert_rpc_only ON public.bar_operations;
++CREATE POLICY r5_bar_operations_insert_rpc_only
++  ON public.bar_operations AS RESTRICTIVE FOR INSERT TO anon, authenticated
++  WITH CHECK (false);
++
++DROP POLICY IF EXISTS r5_bar_operations_update_rpc_only ON public.bar_operations;
++CREATE POLICY r5_bar_operations_update_rpc_only
++  ON public.bar_operations AS RESTRICTIVE FOR UPDATE TO anon, authenticated
++  USING (false) WITH CHECK (false);
++
++DROP POLICY IF EXISTS r5_bar_operations_delete_rpc_only ON public.bar_operations;
++CREATE POLICY r5_bar_operations_delete_rpc_only
++  ON public.bar_operations AS RESTRICTIVE FOR DELETE TO anon, authenticated
++  USING (false);
++
++-- Preserve the current real client cancelDraft() operation, but make its only
++-- permitted direct UPDATE exactly draft -> cancelled with no business-field
++-- edits, club reassignment, or attribution forgery. SECDEF RPC writes execute
++-- as their trusted owner and retain the established sale/reversal workflows.
++CREATE OR REPLACE FUNCTION bob_dinner_private.guard_authenticated_bar_sale_draft_cancel()
++RETURNS trigger
++LANGUAGE plpgsql
++SECURITY INVOKER
++SET search_path = pg_catalog
++AS $r5$
++BEGIN
++  IF current_user = 'anon' THEN
++    RAISE EXCEPTION 'A sessão é necessária para alterar uma venda.'
++      USING ERRCODE = '42501';
++  END IF;
++
++  IF current_user <> 'authenticated' THEN
++    RETURN NEW;
++  END IF;
++
++  IF OLD.status IS DISTINCT FROM 'draft'
++     OR NEW.status IS DISTINCT FROM 'cancelled' THEN
++    RAISE EXCEPTION 'A escrita direta só pode cancelar um rascunho.'
++      USING ERRCODE = '42501';
++  END IF;
++
++  IF (pg_catalog.to_jsonb(NEW) - ARRAY['status','updated_by','updated_at'])
++       IS DISTINCT FROM
++     (pg_catalog.to_jsonb(OLD) - ARRAY['status','updated_by','updated_at']) THEN
++    RAISE EXCEPTION 'O cancelamento direto não pode alterar os dados da venda.'
++      USING ERRCODE = '42501';
++  END IF;
++
++  IF NEW.club_id IS DISTINCT FROM OLD.club_id
++     OR NEW.updated_by IS DISTINCT FROM auth.uid() THEN
++    RAISE EXCEPTION 'O clube e o autor do rascunho não podem ser alterados.'
++      USING ERRCODE = '42501';
++  END IF;
++
++  RETURN NEW;
++END;
++$r5$;
++
++REVOKE ALL ON FUNCTION bob_dinner_private.guard_authenticated_bar_sale_draft_cancel()
++  FROM PUBLIC, anon, authenticated;
++
++DROP TRIGGER IF EXISTS trg_r5_bar_sales_draft_cancel_guard ON public.bar_sales;
++CREATE TRIGGER trg_r5_bar_sales_draft_cancel_guard
++  BEFORE UPDATE ON public.bar_sales
++  FOR EACH ROW
++  EXECUTE FUNCTION bob_dinner_private.guard_authenticated_bar_sale_draft_cancel();
++
++COMMIT;
+diff --git a/supabase/tests/rc1_pilot_export_asset_acl.sql b/supabase/tests/rc1_pilot_export_asset_acl.sql
+new file mode 100644
+index 0000000..292cecb
+--- /dev/null
++++ b/supabase/tests/rc1_pilot_export_asset_acl.sql
+@@ -0,0 +1,136 @@
++-- Run after the RC1 consolidated security candidate and the pilot scope migration.
++-- All checks below are catalog-only or use denied calls that write no rows.
++BEGIN;
++
++DO $catalog_assertions$
++DECLARE
++  v_fn oid;
++  v_source text;
++  v_expected text[] := ARRAY[
++    'financeiro/pedidos.csv',
++    'financeiro/pedidos_anexos.csv',
++    'financeiro/documentos_movimentos.csv',
++    'quotas/planos.csv',
++    'quotas/obrigacoes.csv',
++    'quotas/pagamentos.csv',
++    'euromilhoes/participantes.csv',
++    'euromilhoes/sorteios.csv',
++    'euromilhoes/chaves.csv',
++    'euromilhoes/participacoes.csv',
++    'euromilhoes/resultados.csv',
++    'euromilhoes/cobrancas.csv',
++    'euromilhoes/multas.csv',
++    'euromilhoes/premios.csv'
++  ];
++  v_path text;
++BEGIN
++  IF NOT has_function_privilege('authenticated', 'public.begin_club_export_v1(uuid,text[],boolean,boolean,text)', 'EXECUTE')
++     OR has_function_privilege('anon', 'public.begin_club_export_v1(uuid,text[],boolean,boolean,text)', 'EXECUTE') THEN
++    RAISE EXCEPTION 'Pilot begin RPC grants are incorrect';
++  END IF;
++  IF NOT has_function_privilege('authenticated', 'public.club_export_dataset_v1(uuid,uuid,text,integer,integer)', 'EXECUTE')
++     OR has_function_privilege('anon', 'public.club_export_dataset_v1(uuid,uuid,text,integer,integer)', 'EXECUTE') THEN
++    RAISE EXCEPTION 'Pilot dataset RPC grants are incorrect';
++  END IF;
++
++  IF has_function_privilege('authenticated', 'public.begin_club_export_v1_pilot_internal(uuid,text[],boolean,boolean,text)', 'EXECUTE')
++     OR has_function_privilege('anon', 'public.begin_club_export_v1_pilot_internal(uuid,text[],boolean,boolean,text)', 'EXECUTE')
++     OR has_function_privilege('service_role', 'public.begin_club_export_v1_pilot_internal(uuid,text[],boolean,boolean,text)', 'EXECUTE')
++     OR has_function_privilege('authenticated', 'public.club_export_dataset_v1_pilot_internal(uuid,uuid,text,integer,integer)', 'EXECUTE')
++     OR has_function_privilege('anon', 'public.club_export_dataset_v1_pilot_internal(uuid,uuid,text,integer,integer)', 'EXECUTE')
++     OR has_function_privilege('service_role', 'public.club_export_dataset_v1_pilot_internal(uuid,uuid,text,integer,integer)', 'EXECUTE') THEN
++    RAISE EXCEPTION 'An internal export helper remains executable by an API role';
++  END IF;
++
++  SELECT p.oid, p.prosrc INTO v_fn, v_source
++  FROM pg_proc p
++  WHERE p.oid = 'public.club_export_dataset_v1(uuid,uuid,text,integer,integer)'::regprocedure;
++  FOREACH v_path IN ARRAY v_expected LOOP
++    IF position(v_path IN v_source) = 0 THEN
++      RAISE EXCEPTION 'Pilot server allowlist is missing %', v_path;
++    END IF;
++  END LOOP;
++  IF position('membros/membros.csv' IN v_source) > 0
++     OR position('inventario/produtos.csv' IN v_source) > 0
++     OR position('tesouraria/movimentos.csv' IN v_source) > 0 THEN
++    RAISE EXCEPTION 'An unapproved dataset appears in the public pilot façade';
++  END IF;
++
++  IF has_function_privilege('anon', v_fn, 'EXECUTE') THEN
++    RAISE EXCEPTION 'anon can execute pilot dataset RPC';
++  END IF;
++
++  IF public.club_export_file_access_v1('financial-documents', 'pilot-probe') IS DISTINCT FROM false THEN
++    RAISE EXCEPTION 'Export file access is not disabled';
++  END IF;
++
++  IF EXISTS (
++    SELECT 1
++    FROM pg_proc p
++    JOIN pg_namespace n ON n.oid = p.pronamespace
++    WHERE n.nspname = 'public' AND p.proname = 'asset_maintenance_v1'
++      AND (
++        has_function_privilege('anon', p.oid, 'EXECUTE')
++        OR has_function_privilege('authenticated', p.oid, 'EXECUTE')
++        OR has_function_privilege('service_role', p.oid, 'EXECUTE')
++      )
++  ) THEN
++    RAISE EXCEPTION 'asset_maintenance_v1 is still executable by an API role';
++  END IF;
++END
++$catalog_assertions$;
++
++SET LOCAL ROLE authenticated;
++SELECT set_config('request.jwt.claim.sub', '22000000-0000-0000-0000-000000000099', true);
++SELECT set_config('request.jwt.claims', '{"sub":"22000000-0000-0000-0000-000000000099","role":"authenticated"}', true);
++
++DO $api_negative_calls$
++DECLARE
++  v_state text;
++BEGIN
++  BEGIN
++    PERFORM public.begin_club_export_v1(
++      '22000000-0000-0000-0000-000000000001', ARRAY['members'], false, false, 'pilot-test'
++    );
++    RAISE EXCEPTION 'Expected unsupported section denial';
++  EXCEPTION WHEN insufficient_privilege THEN
++    GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE;
++    IF v_state <> '42501' THEN RAISE; END IF;
++  END;
++
++  BEGIN
++    PERFORM public.begin_club_export_v1(
++      '22000000-0000-0000-0000-000000000001', ARRAY['fees'], false, true, 'pilot-test'
++    );
++    RAISE EXCEPTION 'Expected file export denial';
++  EXCEPTION WHEN insufficient_privilege THEN
++    GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE;
++    IF v_state <> '42501' THEN RAISE; END IF;
++  END;
++
++  BEGIN
++    PERFORM public.begin_club_export_v1(
++      '22000000-0000-0000-0000-000000000001', ARRAY['fees'], true, false, 'pilot-test'
++    );
++    RAISE EXCEPTION 'Expected sensitive export denial';
++  EXCEPTION WHEN insufficient_privilege THEN
++    GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE;
++    IF v_state <> '42501' THEN RAISE; END IF;
++  END;
++
++  BEGIN
++    PERFORM public.club_export_dataset_v1(
++      '22000000-0000-0000-0000-000000000001',
++      '22000000-0000-0000-0000-000000000099',
++      'membros/membros.csv', 0, 10
++    );
++    RAISE EXCEPTION 'Expected unapproved dataset denial';
++  EXCEPTION WHEN insufficient_privilege THEN
++    GET STACKED DIAGNOSTICS v_state = RETURNED_SQLSTATE;
++    IF v_state <> '42501' THEN RAISE; END IF;
++  END;
++END
++$api_negative_calls$;
++
++RESET ROLE;
++ROLLBACK;

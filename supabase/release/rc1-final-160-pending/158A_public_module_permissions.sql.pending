@@ -1,0 +1,1161 @@
+-- Adds configurable module-level consultation without changing the existing
+-- per-role matrix, per-user override precedence, or granular write permissions.
+begin;
+
+-- Supply compatibility defaults without writing role rows at migration time.
+-- Permission-table audit triggers require a real actor; the Super Admin's next
+-- explicit change is persisted normally by the existing audited UI/API flow.
+create or replace function public.has_club_permission(target_club uuid, requested_permission text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path=pg_catalog, public, pg_temp
+as $$
+declare
+  v_role text;
+  v_override boolean;
+  v_role_allowed boolean;
+  v_role_key text;
+begin
+  select access_role into v_role
+  from public.club_memberships
+  where club_id=target_club and profile_id=auth.uid() and active=true
+  limit 1;
+  if v_role is null then return false; end if;
+  if lower(v_role) in ('super_admin','super admin') then return true; end if;
+
+  select allowed into v_override
+  from public.user_permission_overrides
+  where club_id=target_club and profile_id=auth.uid()
+    and permission_key=requested_permission;
+  if found then return v_override; end if;
+
+  select allowed into v_role_allowed
+  from public.club_role_permissions
+  where club_id=target_club and role_key=v_role
+    and permission_key=requested_permission;
+  if found then return coalesce(v_role_allowed,false); end if;
+
+  v_role_key:=lower(replace(replace(v_role,'-','_'),' ','_'));
+  return case
+    when requested_permission in (
+      'viewDashboard','viewActivity','viewFinancialRequests',
+      'manageOwnFinancialRequests','viewWeeklyOfficer','viewAgenda'
+    ) then v_role_key in (
+      'president','vice_president','admin','administrator','treasurer',
+      'secretary','road_captain','sergeant_at_arms','inventory_manager',
+      'event_manager','events_manager','euromillions_manager','prospect',
+      'member','super_admin','presidente','administrador','tesoureiro',
+      'secretario','responsavel_de_inventario','responsavel_inventario',
+      'responsavel_de_eventos','responsavel_eventos',
+      'responsavel_euromilhoes','sargento_de_armas','sargento_armas',
+      'full_color'
+    )
+    when requested_permission='viewDirectionAgenda' then
+      v_role_key in ('president','vice_president','secretary','treasurer',
+                     'admin','administrator','super_admin')
+    when requested_permission='manageAgenda' then
+      v_role_key in ('president','vice_president','secretary','admin','administrator')
+    when requested_permission='manageWeeklyOfficer' then
+      v_role_key in ('president','vice_president','super_admin')
+    else false
+  end;
+end;
+$$;
+
+-- The existing module permission resolver is shared by activity-feed RLS.
+create or replace function public.module_view_permission(p_module text)
+returns text
+language sql
+immutable
+set search_path = pg_catalog, public
+as $$
+  select case lower(coalesce(p_module,''))
+    when 'dashboard' then 'viewDashboard'
+    when 'activity' then 'viewActivity'
+    when 'financial' then 'viewFinancialRequests'
+    when 'financial_requests' then 'viewFinancialRequests'
+    when 'weekly_officer' then 'viewWeeklyOfficer'
+    when 'agenda' then 'viewAgenda'
+    when 'members' then 'viewMembers' when 'member' then 'viewMembers'
+    when 'fees' then 'viewFees' when 'fee' then 'viewFees'
+    when 'treasury' then 'viewTreasury' when 'transaction' then 'viewTreasury'
+    when 'events' then 'viewEvents' when 'event' then 'viewEvents'
+    when 'lottery' then 'viewLottery' when 'euromillions' then 'viewLottery'
+    when 'inventory' then 'viewInventory' when 'product' then 'viewInventory'
+    when 'documents' then 'viewDocuments' when 'document' then 'viewDocuments'
+    when 'communication' then 'viewCommunication' when 'announcement' then 'viewCommunication'
+    when 'emergency' then 'viewEmergencyData'
+    when 'settings' then 'manageSettings' when 'permission' then 'manageSettings'
+    else null
+  end;
+$$;
+
+-- Keep module-specific activity visibility and add the Activity module gate.
+drop policy if exists activity_feed_access on public.activity_feed;
+drop policy if exists activity_feed_read on public.activity_feed;
+create policy activity_feed_read on public.activity_feed
+for select to authenticated
+using (
+  public.has_club_access(club_id)
+  and public.has_club_permission(club_id,'viewActivity')
+  and case
+    when entity_type='financial_request' then
+      public.has_club_permission(club_id,'viewFinancialRequests')
+    else
+      public.module_view_permission(
+        coalesce(metadata->>'module_code',activity_type)
+      ) is null
+      or public.has_club_permission(
+        club_id,
+        public.module_view_permission(
+          coalesce(metadata->>'module_code',activity_type)
+        )
+      )
+  end
+);
+
+create or replace function public.create_reimbursement_draft_v1(
+  target_club uuid,
+  p_member uuid,
+  p_amount numeric,
+  p_description text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path=public
+as $$
+declare v_member uuid; v_request uuid; v_own uuid;
+begin
+  if not public.has_club_access(target_club) then raise exception 'Sem acesso ao clube.'; end if;
+  if not public.has_club_permission(target_club,'viewFinancialRequests') then raise exception 'Sem permissão para consultar pedidos e pagamentos.' using errcode='42501'; end if;
+  if p_amount is null or p_amount<=0 then raise exception 'O valor deve ser superior a zero.'; end if;
+  if nullif(btrim(p_description),'') is null then raise exception 'A descrição é obrigatória.'; end if;
+
+  v_own:=public.current_financial_member_v1(target_club);
+  if not public.financial_manager_v1(target_club) and not public.has_club_permission(target_club,'manageOwnFinancialRequests') then raise exception 'Sem permissão para criar pedidos.' using errcode='42501'; end if;
+  if public.financial_manager_v1(target_club) and p_member is not null then
+    v_member:=p_member;
+  else
+    v_member:=v_own;
+    if p_member is not null and p_member is distinct from v_own then
+      raise exception 'Só podes criar pedidos para o teu próprio perfil.';
+    end if;
+  end if;
+
+  if v_member is null then
+    raise exception 'O utilizador não está associado a um membro do clube.';
+  end if;
+  if not exists(
+    select 1 from public.members m
+    where m.id=v_member and m.club_id=target_club
+      and m.status::text not in ('former','deceased')
+  ) then raise exception 'Membro inválido para este pedido.'; end if;
+
+  insert into public.financial_requests(
+    club_id,member_id,request_type,category,amount,description,status,requested_by
+  ) values (
+    target_club,v_member,'reimbursement','reimbursement',
+    round(p_amount,2),btrim(p_description),'draft',auth.uid()
+  ) returning id into v_request;
+
+  return v_request;
+end;
+$$;
+
+create or replace function public.update_reimbursement_draft_v1(
+  target_club uuid,
+  p_request uuid,
+  p_amount numeric,
+  p_description text
+)
+returns void
+language plpgsql
+security definer
+set search_path=public
+as $$
+declare r public.financial_requests%rowtype; own_member uuid;
+begin
+  if not public.has_club_permission(target_club,'viewFinancialRequests') then raise exception 'Sem permissão para consultar pedidos e pagamentos.' using errcode='42501'; end if;
+  if p_amount is null or p_amount<=0 then raise exception 'O valor deve ser superior a zero.'; end if;
+  if nullif(btrim(p_description),'') is null then raise exception 'A descrição é obrigatória.'; end if;
+
+  select * into r from public.financial_requests
+  where id=p_request and club_id=target_club for update;
+  if not found or r.request_type<>'reimbursement' then raise exception 'Pedido não encontrado.'; end if;
+  if r.status not in ('draft','needs_info') then raise exception 'Este pedido já não pode ser editado.'; end if;
+
+  own_member:=public.current_financial_member_v1(target_club);
+  if not public.financial_manager_v1(target_club) and (r.member_id is distinct from own_member or not public.has_club_permission(target_club,'manageOwnFinancialRequests')) then
+    raise exception 'Sem autorização.';
+  end if;
+
+  update public.financial_requests
+  set amount=round(p_amount,2),description=btrim(p_description),review_note=null
+  where id=p_request;
+end;
+$$;
+
+create or replace function public.add_financial_attachment_v1(
+  target_club uuid,
+  p_request uuid,
+  p_kind text,
+  p_storage_path text,
+  p_original_file_name text,
+  p_mime_type text,
+  p_file_size bigint
+)
+returns uuid
+language plpgsql
+security definer
+set search_path=public
+as $$
+declare r public.financial_requests%rowtype; v_id uuid; own_member uuid; manager boolean;
+begin
+  if not public.has_club_permission(target_club,'viewFinancialRequests') then raise exception 'Sem permissão para consultar pedidos e pagamentos.' using errcode='42501'; end if;
+  select * into r from public.financial_requests
+  where id=p_request and club_id=target_club;
+  if not found then raise exception 'Pedido não encontrado.'; end if;
+  manager:=public.financial_manager_v1(target_club);
+  own_member:=public.current_financial_member_v1(target_club);
+
+  if not manager and (r.member_id is distinct from own_member or not public.has_club_permission(target_club,'manageOwnFinancialRequests')) then raise exception 'Sem autorização.'; end if;
+  if p_kind not in ('receipt','member_payment_proof','club_payment_proof','other') then
+    raise exception 'Tipo de anexo inválido.';
+  end if;
+  if p_file_size is null or p_file_size<=0 or p_file_size>20971520 then
+    raise exception 'O ficheiro deve ter entre 1 byte e 20 MB.';
+  end if;
+  if p_storage_path not like target_club::text||'/'||p_request::text||'/%' then
+    raise exception 'Caminho de armazenamento inválido.';
+  end if;
+
+  if p_kind='receipt' then
+    if r.request_type<>'reimbursement' or r.status not in ('draft','needs_info') then
+      raise exception 'Não é possível adicionar talões neste estado.';
+    end if;
+  elsif p_kind='member_payment_proof' then
+    if r.request_type<>'charge' or r.status<>'awaiting_payment' or r.member_id is distinct from own_member then
+      raise exception 'Não é possível adicionar este comprovativo.';
+    end if;
+  elsif p_kind='club_payment_proof' then
+    if r.request_type<>'reimbursement' or r.status<>'approved' or not manager then
+      raise exception 'O comprovativo de pagamento só pode ser anexado após aprovação.';
+    end if;
+  elsif r.status in ('paid','rejected','cancelled') then
+    raise exception 'O processo está encerrado.';
+  end if;
+
+  insert into public.financial_request_attachments(
+    club_id,request_id,kind,storage_path,original_file_name,mime_type,file_size
+  ) values (
+    target_club,p_request,p_kind,p_storage_path,
+    coalesce(nullif(btrim(p_original_file_name),''),'ficheiro'),
+    nullif(btrim(coalesce(p_mime_type,'')),''),
+    p_file_size
+  ) returning id into v_id;
+  return v_id;
+end;
+$$;
+
+create or replace function public.submit_reimbursement_v1(
+  target_club uuid,
+  p_request uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path=public
+as $$
+declare r public.financial_requests%rowtype; own_member uuid; member_name text;
+begin
+  if not public.has_club_permission(target_club,'viewFinancialRequests') then raise exception 'Sem permissão para consultar pedidos e pagamentos.' using errcode='42501'; end if;
+  select * into r from public.financial_requests
+  where id=p_request and club_id=target_club for update;
+  if not found or r.request_type<>'reimbursement' then raise exception 'Pedido não encontrado.'; end if;
+  if r.status not in ('draft','needs_info') then raise exception 'Este pedido não pode ser submetido.'; end if;
+
+  own_member:=public.current_financial_member_v1(target_club);
+  if not public.financial_manager_v1(target_club) and (r.member_id is distinct from own_member or not public.has_club_permission(target_club,'manageOwnFinancialRequests')) then
+    raise exception 'Sem autorização.';
+  end if;
+  if not exists(
+    select 1 from public.financial_request_attachments a
+    where a.request_id=p_request and a.kind='receipt'
+  ) then raise exception 'Adiciona pelo menos um talão ou recibo.'; end if;
+
+  update public.financial_requests
+  set status='pending_review',submitted_at=now(),review_note=null
+  where id=p_request;
+
+  select coalesce(nullif(m.nickname,''),m.full_name) into member_name
+  from public.members m where m.id=r.member_id;
+
+  perform public.financial_activity_v1(
+    target_club,p_request,'Pedido de reembolso submetido',
+    coalesce(member_name,'Membro')||' submeteu um pedido de '||to_char(r.amount,'FM999999990.00')||' €.'
+  );
+  perform public.notify_financial_managers_v1(
+    target_club,p_request,'Novo pedido de reembolso',
+    coalesce(member_name,'Membro')||' pediu reembolso de '||to_char(r.amount,'FM999999990.00')||' €.',
+    'high'
+  );
+end;
+$$;
+
+create or replace function public.submit_charge_proof_v1(
+  target_club uuid,
+  p_request uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path=public
+as $$
+declare r public.financial_requests%rowtype; own_member uuid; member_name text;
+begin
+  if not public.has_club_permission(target_club,'viewFinancialRequests')
+    or (
+      not public.has_club_permission(target_club,'manageOwnFinancialRequests')
+      and not public.financial_manager_v1(target_club)
+    ) then
+    raise exception 'Sem permissão para gerir os próprios pedidos.' using errcode='42501';
+  end if;
+  select * into r from public.financial_requests
+  where id=p_request and club_id=target_club for update;
+  if not found or r.request_type<>'charge' or r.status<>'awaiting_payment' then
+    raise exception 'Cobrança não está disponível para envio de comprovativo.';
+  end if;
+  own_member:=public.current_financial_member_v1(target_club);
+  if r.member_id is distinct from own_member then raise exception 'Sem autorização.'; end if;
+  if not exists(
+    select 1 from public.financial_request_attachments a
+    where a.request_id=p_request and a.kind='member_payment_proof'
+  ) then raise exception 'Anexa o comprovativo de pagamento.'; end if;
+
+  update public.financial_requests
+  set status='awaiting_validation',submitted_at=now(),review_note=null
+  where id=p_request;
+
+  select coalesce(nullif(m.nickname,''),m.full_name) into member_name from public.members m where m.id=r.member_id;
+  perform public.notify_financial_managers_v1(
+    target_club,p_request,'Pagamento para validar',
+    coalesce(member_name,'Membro')||' enviou comprovativo de '||to_char(r.amount,'FM999999990.00')||' €.',
+    'high'
+  );
+  perform public.financial_activity_v1(
+    target_club,p_request,'Comprovativo submetido',
+    coalesce(member_name,'Membro')||' · '||to_char(r.amount,'FM999999990.00')||' €'
+  );
+end;
+$$;
+
+-- Writing personal requests and uploading/deleting their attachments is an
+-- explicit edit permission, separate from the module's read permission.
+create or replace function public.financial_request_edit_access_v1(p_request uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path=pg_catalog, public, pg_temp
+as $$
+  select auth.uid() is not null and exists (
+    select 1
+    from public.financial_requests r
+    join public.members m on m.id=r.member_id
+    where r.id=p_request
+      and public.has_club_permission(r.club_id,'viewFinancialRequests')
+      and (
+        public.financial_manager_v1(r.club_id)
+        or (
+          m.profile_id=auth.uid()
+          and exists (
+            select 1 from public.club_memberships cm
+            where cm.club_id=r.club_id and cm.profile_id=auth.uid() and cm.active is true
+          )
+          and public.has_club_permission(r.club_id,'manageOwnFinancialRequests')
+        )
+      )
+  );
+$$;
+revoke all on function public.financial_request_edit_access_v1(uuid) from public, anon;
+grant execute on function public.financial_request_edit_access_v1(uuid) to authenticated;
+
+-- The main dashboard RPC remains the same contract and per-indicator filtering.
+create or replace function public.dashboard_summary(target_club uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $function$
+declare
+  total_balance numeric(14,2);
+  month_income numeric(14,2);
+  month_expense numeric(14,2);
+  pending_fees integer;
+  active_members integer;
+  unread_notifications integer;
+  next_event jsonb;
+  account_rows jsonb := '[]'::jsonb;
+  can_financial boolean;
+begin
+  if auth.uid() is null or not public.has_club_access(target_club) then
+    raise exception 'Sem acesso ao clube.' using errcode = '42501';
+  end if;
+  if not public.has_club_permission(target_club, 'viewDashboard') then
+    raise exception 'Sem permissão para consultar o Dashboard.' using errcode = '42501';
+  end if;
+  can_financial := public.has_club_permission(target_club, 'viewTreasury');
+
+  if can_financial then
+    select coalesce(sum(
+      a.opening_balance
+      + coalesce((
+        select sum(
+          case
+            when t.kind = 'income' then t.amount
+            when t.kind = 'expense' then -t.amount
+            when t.kind = 'transfer' and t.account_id = a.id then -t.amount
+            when t.kind = 'transfer' and t.destination_account_id = a.id then t.amount
+            when t.kind = 'reversal' then 0
+            else 0
+          end
+        )
+        from public.treasury_transactions t
+        where t.club_id = target_club
+          and (t.account_id = a.id or t.destination_account_id = a.id)
+      ), 0)
+    ), 0)
+    into total_balance
+    from public.treasury_accounts a
+    where a.club_id = target_club
+      and a.active = true;
+
+    select coalesce(sum(amount), 0)
+    into month_income
+    from public.treasury_transactions
+    where club_id = target_club
+      and kind = 'income'
+      and date_trunc('month', transaction_date::timestamp)
+        = date_trunc('month', now());
+
+    select coalesce(sum(amount), 0)
+    into month_expense
+    from public.treasury_transactions
+    where club_id = target_club
+      and kind = 'expense'
+      and date_trunc('month', transaction_date::timestamp)
+        = date_trunc('month', now());
+
+    select count(*)
+    into pending_fees
+    from public.fee_obligations
+    where club_id = target_club
+      and status in ('pending', 'partial')
+      and (due_date is null or due_date <= current_date);
+
+    select coalesce(jsonb_agg(row_data order by name), '[]'::jsonb)
+    into account_rows
+    from (
+      select
+        a.id,
+        a.name,
+        a.account_type,
+        (
+          a.opening_balance
+          + coalesce((
+            select sum(
+              case
+                when t.kind = 'income' then t.amount
+                when t.kind = 'expense' then -t.amount
+                when t.kind = 'transfer' and t.account_id = a.id then -t.amount
+                when t.kind = 'transfer' and t.destination_account_id = a.id then t.amount
+                else 0
+              end
+            )
+            from public.treasury_transactions t
+            where t.club_id = target_club
+              and (t.account_id = a.id or t.destination_account_id = a.id)
+          ), 0)
+        ) as balance
+      from public.treasury_accounts a
+      where a.club_id = target_club
+        and a.active = true
+    ) row_data;
+  end if;
+
+  select count(*)
+  into active_members
+  from public.members
+  where club_id = target_club
+    and status = 'active';
+
+  select count(*)
+  into unread_notifications
+  from public.notifications
+  where club_id = target_club
+    and (profile_id is null or profile_id = auth.uid())
+    and read_at is null;
+
+  select to_jsonb(e)
+  into next_event
+  from (
+    select id, name, location, starts_at, status
+    from public.events
+    where club_id = target_club
+      and starts_at >= now()
+      and status in ('draft', 'published', 'active')
+    order by starts_at
+    limit 1
+  ) e;
+
+  return jsonb_build_object(
+    'total_balance', total_balance,
+    'month_income', month_income,
+    'month_expense', month_expense,
+    'month_result', month_income - month_expense,
+    'pending_fees', pending_fees,
+    'active_members', active_members,
+    'unread_notifications', unread_notifications,
+    'next_event', next_event,
+    'accounts', account_rows
+  );
+end;
+$function$;
+
+revoke all on function public.dashboard_summary(uuid) from public, anon;
+grant execute on function public.dashboard_summary(uuid) to authenticated;
+
+-- Compatibility summary RPC and paginated detail RPC are also direct API paths.
+create or replace function public.dashboard_summary_rc1(target_club uuid)
+returns jsonb
+language plpgsql stable security definer set search_path = public
+as $$
+declare
+  can_financial boolean;
+  can_approve boolean;
+  indicator text;
+  row_count bigint;
+  monetary_total numeric;
+  result jsonb := '{}'::jsonb;
+  counts jsonb := '{}'::jsonb;
+  overdue_count bigint;
+  unread_count bigint;
+  monthly_income numeric;
+  monthly_expense numeric;
+begin
+  if auth.uid() is null or not public.has_club_access(target_club) then
+    raise exception 'Sem acesso ao clube.' using errcode = '42501';
+  end if;
+  if not public.has_club_permission(target_club, 'viewDashboard') then
+    raise exception 'Sem permissão para consultar o Dashboard.' using errcode = '42501';
+  end if;
+  can_financial := public.has_club_permission(target_club,'viewTreasury');
+  can_approve := public.financial_manager_v1(target_club);
+
+  foreach indicator in array array[
+    'members','prospects','total_balance','fee_outstanding',
+    'open_events','low_stock','expiring_documents','pending_approvals'
+  ] loop
+    if indicator in ('total_balance','fee_outstanding') and not can_financial then
+      -- NULL, never real financial amounts (including a direct RPC call).
+      result := result || jsonb_build_object(indicator, null);
+      counts := counts || jsonb_build_object(indicator, null);
+    elsif indicator = 'pending_approvals' and not can_approve then
+      result := result || jsonb_build_object(indicator, 0);
+      counts := counts || jsonb_build_object(indicator, 0);
+    else
+      select count(*), coalesce(sum(r.monetary_value),0)
+      into row_count, monetary_total
+      from bob_dashboard_private.indicator_rows_v1(target_club,indicator) r;
+      result := result || jsonb_build_object(indicator,
+        case when indicator in ('total_balance','fee_outstanding')
+          then to_jsonb(monetary_total) else to_jsonb(row_count) end);
+      counts := counts || jsonb_build_object(indicator,row_count);
+    end if;
+  end loop;
+
+  -- Preserve the existing non-monetary overdue alert; use the shared pending
+  -- obligation set and date-only boundary rather than another balance formula.
+  select count(*) into overdue_count
+  from bob_dashboard_private.indicator_rows_v1(target_club,'fee_outstanding') r
+  where (r.row_data->>'due_date')::date < current_date;
+
+  select count(*) into unread_count from public.announcements a
+  where a.club_id = target_club and a.requires_acknowledgement = true
+    and a.published_at <= now() and (a.expires_at is null or a.expires_at > now())
+    and not exists (
+      select 1 from public.announcement_acknowledgements aa
+      where aa.announcement_id = a.id and aa.profile_id = auth.uid()
+    );
+  if can_financial then
+    select coalesce(sum(t.amount) filter(where t.kind::text = 'income'),0),
+           coalesce(sum(t.amount) filter(where t.kind::text = 'expense'),0)
+    into monthly_income,monthly_expense
+    from public.treasury_transactions t
+    where t.club_id = target_club
+      and date_trunc('month',t.transaction_date::timestamp)
+        = date_trunc('month',current_date::timestamp);
+  end if;
+  return result || jsonb_build_object(
+    'can_view_financial',can_financial, 'indicator_row_counts',counts,
+    'overdue_fees',overdue_count, 'unread_announcements',unread_count,
+    'monthly_income',monthly_income, 'monthly_expense',monthly_expense
+  );
+end;
+$$;
+revoke all on function public.dashboard_summary_rc1(uuid) from public, anon;
+grant execute on function public.dashboard_summary_rc1(uuid) to authenticated;
+
+create or replace function public.dashboard_indicator_details_v1(
+  target_club uuid,
+  p_indicator text,
+  p_limit integer default 50,
+  p_cursor jsonb default null
+)
+returns jsonb
+language plpgsql stable security invoker set search_path = public
+as $$
+declare
+  allowed boolean;
+  aggregate_summary jsonb;
+  expected_count bigint;
+  expected_money numeric;
+  visible_count bigint;
+  visible_money numeric;
+  page_rows jsonb;
+  cursor_value jsonb;
+  cursor_id uuid;
+  cursor_number integer;
+  cursor_date date;
+  cursor_time timestamptz;
+  cursor_text text;
+  denied jsonb;
+begin
+  if auth.uid() is null or not public.has_club_access(target_club) then
+    raise exception 'Sem acesso ao clube.' using errcode = '42501';
+  end if;
+  if not public.has_club_permission(target_club, 'viewDashboard') then
+    raise exception 'Sem permissão para consultar o Dashboard.' using errcode = '42501';
+  end if;
+  if p_indicator is null or p_indicator not in (
+    'members','prospects','total_balance','fee_outstanding',
+    'open_events','low_stock','expiring_documents','pending_approvals'
+  ) then
+    raise exception 'Indicador desconhecido.' using errcode = '22023';
+  end if;
+  if p_limit is null or p_limit < 1 or p_limit > 100 then
+    raise exception 'Limite deve estar entre 1 e 100.' using errcode = '22023';
+  end if;
+
+
+  -- A cursor is opaque to clients, not an authorization credential. All club,
+  -- indicator and RLS checks are repeated for each page. No dynamic SQL/OFFSET.
+  -- Include explicit JSON nulls: null ordering keys must not omit later rows.
+  if p_cursor is not null then
+    if jsonb_typeof(p_cursor) is distinct from 'object'
+      or not (p_cursor ?& array['v','club_id','indicator','number','date','time','text','id'])
+      or (p_cursor - array['v','club_id','indicator','number','date','time','text','id']) <> '{}'::jsonb
+      or p_cursor->'v' is distinct from '1'::jsonb
+      or p_cursor->>'club_id' is distinct from target_club::text
+      or p_cursor->>'indicator' is distinct from p_indicator
+      or jsonb_typeof(p_cursor->'id') is distinct from 'string'
+      or jsonb_typeof(p_cursor->'number') not in ('number','null')
+      or jsonb_typeof(p_cursor->'date') not in ('string','null')
+      or jsonb_typeof(p_cursor->'time') not in ('string','null')
+      or jsonb_typeof(p_cursor->'text') not in ('string','null') then
+      raise exception 'Cursor inválido para este indicador.' using errcode = '22023';
+    end if;
+    begin
+      cursor_id := (p_cursor->>'id')::uuid;
+      cursor_number := (p_cursor->>'number')::integer;
+      cursor_date := (p_cursor->>'date')::date;
+      cursor_time := (p_cursor->>'time')::timestamptz;
+      cursor_text := p_cursor->>'text';
+      if (p_indicator not in ('members','prospects') and cursor_number is not null)
+        or (p_indicator not in ('fee_outstanding','expiring_documents') and cursor_date is not null)
+        or (p_indicator not in ('open_events','pending_approvals') and cursor_time is not null)
+        or (p_indicator = 'pending_approvals' and cursor_text is not null) then
+        raise exception 'Cursor inválido para este indicador.' using errcode = '22023';
+      end if;
+    exception
+      when invalid_text_representation or invalid_datetime_format
+        or datetime_field_overflow or numeric_value_out_of_range then
+        raise exception 'Cursor inválido para este indicador.' using errcode = '22023';
+    end;
+  end if;
+
+  denied := jsonb_build_object(
+    'indicator',p_indicator, 'authorized',false, 'complete',false,
+    'rows','[]'::jsonb, 'total_rows',null, 'monetary_total',null,
+    'next_cursor',null
+  );
+  allowed := case p_indicator
+    when 'members' then public.has_club_permission(target_club,'viewMembers')
+    when 'prospects' then public.has_club_permission(target_club,'viewMembers')
+    when 'total_balance' then public.has_club_permission(target_club,'viewTreasury')
+    when 'fee_outstanding' then
+      public.has_club_permission(target_club,'viewTreasury')
+      and public.has_club_permission(target_club,'manageFees')
+    when 'open_events' then public.has_club_permission(target_club,'viewEvents')
+    when 'low_stock' then
+      public.has_club_permission(target_club,'viewInventory')
+      or public.has_club_permission(target_club,'viewBar')
+    when 'expiring_documents' then
+      public.has_club_permission(target_club,'viewDocuments')
+      or public.has_club_permission(target_club,'manageDocuments')
+      or public.has_club_permission(target_club,'viewSensitiveDocuments')
+    when 'pending_approvals' then public.financial_manager_v1(target_club)
+    else false
+  end;
+  if not coalesce(allowed,false) then return denied; end if;
+
+  -- The existing SECURITY DEFINER summary supplies aggregates only. It never
+  -- supplies privileged rows to this RPC. The rows below remain SECURITY
+  -- INVOKER and subject to the existing RLS. Compare BEFORE returning any page:
+  -- matching money alone is insufficient (hidden balances can cancel out).
+  -- STABLE functions share the invoking statement's MVCC snapshot.
+  aggregate_summary := public.dashboard_summary_rc1(target_club);
+  expected_count :=
+    (aggregate_summary->'indicator_row_counts'->>p_indicator)::bigint;
+  if p_indicator in ('total_balance','fee_outstanding') then
+    expected_money := (aggregate_summary->>p_indicator)::numeric;
+  end if;
+
+  -- Unused keys are NULL for an indicator. This shared order implements:
+  -- members/prospects: member_number NULLS LAST, full_name, id
+  -- balance/stock: name, id; fees: due_date NULLS LAST, member_name, id
+  -- events: starts_at, name, id; documents: expires_at, name, id
+  -- approvals: created_at, id. ASC has explicit NULLS LAST throughout.
+  -- Boolean null flags and neutral values make tuple comparison null-safe;
+  -- the flags distinguish real zero/empty values from NULL. Text comparisons
+  -- use the same database collation as ORDER BY. ID is always the final key.
+  with source as materialized (
+    select r.* from bob_dashboard_private.indicator_rows_v1(target_club,p_indicator) r
+  ), page as (
+    select s.* from source s
+    where p_cursor is null or row(
+      s.sort_number is null, coalesce(s.sort_number,0),
+      s.sort_date is null, coalesce(s.sort_date,'-infinity'::date),
+      s.sort_time is null, coalesce(s.sort_time,'-infinity'::timestamptz),
+      s.sort_text is null, coalesce(s.sort_text,''), s.id
+    ) > row(
+      cursor_number is null, coalesce(cursor_number,0),
+      cursor_date is null, coalesce(cursor_date,'-infinity'::date),
+      cursor_time is null, coalesce(cursor_time,'-infinity'::timestamptz),
+      cursor_text is null, coalesce(cursor_text,''), cursor_id
+    )
+    order by s.sort_number asc nulls last, s.sort_date asc nulls last,
+      s.sort_time asc nulls last, s.sort_text asc nulls last, s.id asc
+    limit p_limit + 1
+  ), displayed as (
+    select p.* from page p
+    order by p.sort_number asc nulls last, p.sort_date asc nulls last,
+      p.sort_time asc nulls last, p.sort_text asc nulls last, p.id asc
+    limit p_limit
+  )
+  select
+    (select count(*) from source),
+    (select coalesce(sum(s.monetary_value),0) from source s),
+    (select coalesce(jsonb_agg(d.row_data order by
+      d.sort_number asc nulls last, d.sort_date asc nulls last,
+      d.sort_time asc nulls last, d.sort_text asc nulls last, d.id asc
+    ),'[]'::jsonb) from displayed d),
+    case when (select count(*) from page) > p_limit then (
+      select jsonb_build_object(
+        'v',1, 'club_id',target_club, 'indicator',p_indicator,
+        'number',d.sort_number, 'date',d.sort_date, 'time',d.sort_time,
+        'text',d.sort_text, 'id',d.id
+      )
+      from displayed d
+      -- Exact reverse of the forward order, including NULL placement.
+      order by d.sort_number desc nulls first, d.sort_date desc nulls first,
+        d.sort_time desc nulls first, d.sort_text desc nulls first, d.id desc
+      limit 1
+    ) else null end
+  into visible_count,visible_money,page_rows,cursor_value;
+
+  if visible_count is distinct from expected_count
+    or (p_indicator in ('total_balance','fee_outstanding')
+      and visible_money is distinct from expected_money) then
+    return denied;
+  end if;
+  return jsonb_build_object(
+    'indicator',p_indicator, 'authorized',true, 'complete',true,
+    'rows',page_rows, 'total_rows',visible_count,
+    'monetary_total',case when p_indicator in ('total_balance','fee_outstanding')
+      then visible_money else null end,
+    'next_cursor',cursor_value
+  );
+end;
+$$;
+revoke all on function public.dashboard_indicator_details_v1(uuid,text,integer,jsonb)
+  from public, anon;
+grant execute on function public.dashboard_indicator_details_v1(uuid,text,integer,jsonb)
+  to authenticated;
+
+-- Activity history is invoker-security and remains subject to audit_log RLS.
+create or replace function public.audit_entity_history_v1(
+  target_club uuid,
+  p_entity_type text,
+  p_entity_id text,
+  p_limit integer default 100
+)
+returns table (
+  audit_id bigint,
+  action text,
+  entity_type text,
+  entity_id text,
+  actor_id uuid,
+  actor_name text,
+  created_at timestamptz,
+  portugal_date text,
+  portugal_time text,
+  before_data jsonb,
+  after_data jsonb
+)
+language sql
+stable
+security invoker
+set search_path = 'public'
+as $$
+  select
+    a.id,
+    a.action,
+    a.entity_type,
+    a.entity_id,
+    a.actor_id,
+    coalesce(p.full_name,'Sistema'),
+    a.created_at,
+    to_char(a.created_at at time zone 'Europe/Lisbon','DD/MM/YYYY'),
+    to_char(a.created_at at time zone 'Europe/Lisbon','HH24:MI:SS'),
+    a.before_data,
+    a.after_data
+  from public.audit_log a
+  left join public.profiles p on p.id=a.actor_id
+  where a.club_id=target_club
+    and public.has_club_permission(target_club,'viewActivity')
+    and a.entity_type=p_entity_type
+    and a.entity_id=p_entity_id
+  order by a.created_at desc
+  limit greatest(1,least(coalesce(p_limit,100),500));
+$$;
+revoke all on function public.audit_entity_history_v1(uuid,text,text,integer)
+  from public, anon;
+grant execute on function public.audit_entity_history_v1(uuid,text,text,integer)
+  to authenticated;
+
+create or replace function public.financial_manager_v1(target_club uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path=public
+as $$
+  select auth.uid() is not null
+     and public.has_club_permission(target_club,'viewFinancialRequests')
+     and public.has_club_permission(target_club,'approveExpenseRequests');
+$$;
+revoke all on function public.financial_manager_v1(uuid) from public, anon;
+grant execute on function public.financial_manager_v1(uuid) to authenticated;
+
+-- Financial request rows, attachments, and storage access share this helper.
+create or replace function public.financial_request_access_v1(p_request uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = pg_catalog, public, pg_temp
+as $$
+  select auth.uid() is not null and exists (
+    select 1
+    from public.financial_requests r
+    join public.members m on m.id=r.member_id
+    where r.id=p_request
+      and public.has_club_permission(r.club_id,'viewFinancialRequests')
+      and (
+        public.financial_manager_v1(r.club_id)
+        or (m.profile_id=auth.uid() and exists (select 1 from public.club_memberships cm where cm.club_id=r.club_id and cm.profile_id=auth.uid() and cm.active is true))
+      )
+  );
+$$;
+revoke all on function public.financial_request_access_v1(uuid)
+  from public, anon;
+grant execute on function public.financial_request_access_v1(uuid)
+  to authenticated;
+
+create or replace function public.can_manage_weekly_officer_v1(target_club uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = pg_catalog, public, pg_temp
+as $$
+  select (select auth.uid()) is not null
+    and public.has_club_permission(target_club,'manageWeeklyOfficer');
+$$;
+revoke all on function public.can_manage_weekly_officer_v1(uuid)
+  from public, anon;
+grant execute on function public.can_manage_weekly_officer_v1(uuid)
+  to authenticated;
+
+drop policy if exists weekly_officer_rotation_select on public.weekly_officer_rotation;
+create policy weekly_officer_rotation_select on public.weekly_officer_rotation
+for select to authenticated
+using (
+  public.has_club_access(club_id)
+  and public.has_club_permission(club_id,'viewWeeklyOfficer')
+);
+
+drop policy if exists weekly_officer_absences_select on public.weekly_officer_absences;
+create policy weekly_officer_absences_select on public.weekly_officer_absences
+for select to authenticated
+using (
+  public.has_club_access(club_id)
+  and public.has_club_permission(club_id,'viewWeeklyOfficer')
+);
+
+drop policy if exists weekly_dinners_select on public.weekly_dinners;
+create policy weekly_dinners_select on public.weekly_dinners
+for select to authenticated
+using (
+  public.has_club_access(club_id)
+  and public.has_club_permission(club_id,'viewWeeklyOfficer')
+);
+
+drop policy if exists weekly_officer_swaps_select on public.weekly_officer_swap_requests;
+create policy weekly_officer_swaps_select on public.weekly_officer_swap_requests
+for select to authenticated
+using (
+  public.has_club_access(club_id)
+  and public.has_club_permission(club_id,'viewWeeklyOfficer')
+  and (
+    public.can_manage_weekly_officer_v1(club_id)
+    or requester_member_id=public.current_weekly_officer_member_v1(club_id)
+    or requested_member_id=public.current_weekly_officer_member_v1(club_id)
+  )
+);
+
+-- agenda_calendar_v1 is the SECURITY DEFINER projection used by both Agenda
+-- and the weekly module; hide weekly records unless the weekly view is granted.
+create or replace function public.agenda_calendar_v1(
+  target_club uuid,p_from date,p_to date
+)
+returns table(
+  item_id uuid,source_type text,item_kind text,title text,subtitle text,
+  starts_at timestamptz,ends_at timestamptz,all_day boolean,priority text,
+  item_status text,action_route text,entity_id uuid,can_edit boolean,metadata jsonb
+)
+language plpgsql stable security definer set search_path=pg_catalog, public as $$
+declare
+  v_member uuid;
+  v_manage_agenda boolean;
+  v_manage_fees boolean;
+  v_view_docs boolean;
+  v_sensitive_docs boolean;
+  v_manage_docs boolean;
+  v_profile uuid;
+  v_manage_events boolean;
+  v_view_weekly boolean;
+begin
+  if (select auth.uid()) is null or not public.has_club_access(target_club) then
+    raise exception 'Sem acesso ao clube.';
+  end if;
+  if not public.has_club_permission(target_club,'viewAgenda') then
+    raise exception 'Sem permissão para consultar a Agenda.';
+  end if;
+  if p_from is null or p_to is null or p_to<p_from or p_to-p_from>400 then
+    raise exception 'Intervalo da Agenda inválido.';
+  end if;
+
+  v_member:=public.agenda_current_member_v1(target_club);
+  v_manage_agenda:=public.can_manage_agenda_v1(target_club);
+  v_manage_fees:=public.has_club_permission(target_club,'manageFees');
+  v_view_docs:=public.has_club_permission(target_club,'viewDocuments');
+  v_sensitive_docs:=public.has_club_permission(
+    target_club,'viewSensitiveDocuments'
+  );
+  v_manage_events:=public.has_club_permission(target_club,'manageEvents');
+  v_manage_docs:=public.has_club_permission(target_club,'manageDocuments');
+  v_profile:=(select auth.uid());
+  v_view_weekly:=public.has_club_permission(target_club,'viewWeeklyOfficer');
+
+  return query
+  with years as (
+    select generate_series(
+      extract(year from p_from)::int,
+      extract(year from p_to)::int
+    ) as y
+  ),
+  member_dates as (
+    select m.id,'birthday'::text as kind,m.birth_date as src_date,
+           'Aniversário — '||coalesce(nullif(m.nickname,''),m.full_name) as label
+    from public.members m
+    where m.club_id=target_club
+      and m.birth_date is not null
+      and m.status::text not in ('former','deceased')
+    union all
+    select m.id,'prospect'::text,m.prospect_joined_at,
+           'Prospect — '||coalesce(nullif(m.nickname,''),m.full_name)
+    from public.members m
+    where m.club_id=target_club
+      and m.prospect_joined_at is not null
+      and m.status::text not in ('former','deceased')
+    union all
+    select m.id,'full_colors'::text,m.full_colors_at,
+           'Full Colors — '||coalesce(nullif(m.nickname,''),m.full_name)
+    from public.members m
+    where m.club_id=target_club
+      and m.full_colors_at is not null
+      and m.status::text not in ('former','deceased')
+  ),
+  anniversaries as (
+    select md.*,public.agenda_anniversary_date_v1(md.src_date,y.y) as agenda_date
+    from member_dates md cross join years y
+  )
+  select
+    a.id,'agenda'::text,a.item_type,a.title,
+    concat_ws(
+      ' · ',
+      nullif(a.location,''),
+      case when a.audience='direction' then 'Direção' else null end
+    ),
+    a.starts_at,a.ends_at,a.all_day,a.priority,a.status,
+    'agenda'::text,a.id,v_manage_agenda,
+    jsonb_build_object('audience',a.audience,'description',a.description)
+  from public.agenda_items a
+  where a.club_id=target_club
+    and a.starts_at < ((p_to+1)::timestamp at time zone 'Europe/Lisbon')
+    and coalesce(a.ends_at,a.starts_at) >=
+        (p_from::timestamp at time zone 'Europe/Lisbon')
+    and (
+      a.audience='all'
+      or public.can_view_direction_agenda_v1(target_club)
+    )
+
+  union all
+
+  select
+    e.id,'event'::text,'event'::text,e.name,e.location,
+    e.starts_at,e.ends_at,false,'normal'::text,e.status::text,
+    'events'::text,e.id,v_manage_events,
+    jsonb_build_object('description',e.description)
+  from public.events e
+  where e.club_id=target_club
+    and e.starts_at is not null
+    and public.has_club_permission(target_club,'viewEvents')
+    and (e.status::text<>'draft' or v_manage_events)
+    and e.starts_at < ((p_to+1)::timestamp at time zone 'Europe/Lisbon')
+    and coalesce(e.ends_at,e.starts_at) >=
+        (p_from::timestamp at time zone 'Europe/Lisbon')
+
+  union all
+
+  select
+    an.id,'member'::text,an.kind,an.label,null::text,
+    (an.agenda_date::timestamp at time zone 'Europe/Lisbon'),
+    null::timestamptz,true,'normal'::text,'active'::text,
+    'members'::text,an.id,false,
+    jsonb_build_object('original_date',an.src_date,'kind',an.kind)
+  from anniversaries an
+  where an.agenda_date between p_from and p_to
+    and public.has_club_permission(target_club,'viewMembers')
+
+  union all
+
+  select
+    wd.id,'weekly_dinner'::text,
+    case
+      when wd.dinner_kind='extraordinary' then 'dinner_extraordinary'
+      else 'dinner'
+    end,
+    case
+      when wd.status='closed' then 'Jantar — Club House fechado'
+      else 'Jantar — '||
+        coalesce(
+          nullif(m.nickname,''),m.full_name,
+          nullif(wd.external_name,''),'Por definir'
+        )
+    end,
+    nullif(wd.dish,''),
+    (wd.dinner_date::timestamp at time zone 'Europe/Lisbon'),
+    null::timestamptz,true,'normal'::text,wd.status,
+    'weekly_officer'::text,wd.id,false,
+    jsonb_build_object(
+      'dinner_kind',wd.dinner_kind,
+      'assigned_member_id',wd.assigned_member_id,
+      'external_name',wd.external_name
+    )
+  from public.weekly_dinners wd
+  left join public.members m
+    on m.id=wd.assigned_member_id and m.club_id=wd.club_id
+  where wd.club_id=target_club
+    and wd.dinner_date between p_from and p_to
+    and v_view_weekly
+
+  union all
+
+  select
+    d.id,'document'::text,'deadline'::text,
+    'Validade — '||d.name,d.category,
+    (d.expires_at::timestamp at time zone 'Europe/Lisbon'),
+    null::timestamptz,true,
+    case when d.expires_at<current_date then 'high' else 'normal' end,
+    case when d.expires_at<current_date then 'overdue' else 'planned' end,
+    'documents'::text,d.id,false,
+    jsonb_build_object('sensitive',d.sensitive,'category',d.category)
+  from public.documents d
+  where d.club_id=target_club
+    and d.expires_at between p_from and p_to
+    -- Keep this visibility predicate aligned with the documents_select policy.
+    and (
+      (d.scope='personal' and (d.owner_profile_id=v_profile or v_manage_docs))
+      or (d.scope='leadership' and v_sensitive_docs)
+      or (
+        d.scope in ('club','event_gallery','annual_book')
+        and v_view_docs
+        and (d.sensitive=false or v_sensitive_docs)
+      )
+    )
+
+  union all
+
+  select
+    fo.id,'fee'::text,'charge'::text,
+    case
+      when v_manage_fees then
+        'Cobrança — '||coalesce(nullif(m.nickname,''),m.full_name)
+      else 'Cobrança pendente'
+    end,
+    to_char(
+      greatest(fo.amount-coalesce(fo.paid_amount,0),0),
+      'FM999999990.00'
+    )||' €',
+    (fo.due_date::timestamp at time zone 'Europe/Lisbon'),
+    null::timestamptz,true,
+    case when fo.due_date<current_date then 'high' else 'normal' end,
+    fo.status::text,'fees'::text,fo.id,false,
+    jsonb_build_object(
+      'reference_year',fo.reference_year,
+      'reference_month',fo.reference_month
+    )
+  from public.fee_obligations fo
+  join public.members m
+    on m.id=fo.member_id and m.club_id=fo.club_id
+  where fo.club_id=target_club
+    and fo.due_date between p_from and p_to
+    and fo.status::text in ('pending','partial')
+    and (v_manage_fees or fo.member_id=v_member)
+
+  order by starts_at,title;
+end;
+$$;
+
+revoke all on function public.agenda_calendar_v1(uuid,date,date)
+  from public, anon;
+grant execute on function public.agenda_calendar_v1(uuid,date,date)
+  to authenticated;
+
+commit;
