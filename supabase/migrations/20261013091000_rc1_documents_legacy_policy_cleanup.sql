@@ -1,0 +1,1 @@
+drop policy if exists documents_tenant on public.documents;

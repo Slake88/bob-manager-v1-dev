@@ -1,0 +1,386 @@
+{
+  "scan_categories": [
+    "absolute_path",
+    "supabase_url",
+    "secret",
+    "email",
+    "uuid",
+    "credential_assignment"
+  ],
+  "findings": [
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_CLOSURE_BEFORE.json",
+      "category": "uuid",
+      "lines": [
+        1
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_CLOSURE_CATALOG_RESULTS.json",
+      "category": "uuid",
+      "lines": [
+        1
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_FINAL_CLOSURE_RESULTS.json",
+      "category": "uuid",
+      "lines": [
+        1
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "docs/PHASE_HIGH_RISK_TRIGGER_EFFECTS.json",
+      "category": "uuid",
+      "lines": [
+        1
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_ambiguous_address.mjs",
+      "category": "email",
+      "lines": [
+        24
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_ambiguous_address.mjs",
+      "category": "uuid",
+      "lines": [
+        23
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_ambiguous_override.mjs",
+      "category": "email",
+      "lines": [
+        15
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_ambiguous_override.mjs",
+      "category": "uuid",
+      "lines": [
+        11
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_clean_rebuild.mjs",
+      "category": "email",
+      "lines": [
+        83,
+        85
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_clean_rebuild.mjs",
+      "category": "uuid",
+      "lines": [
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        91,
+        94,
+        96,
+        99,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_consolidated_writers.mjs",
+      "category": "email",
+      "lines": [
+        24
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_consolidated_writers.mjs",
+      "category": "uuid",
+      "lines": [
+        23,
+        28,
+        29
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_final_contracts.mjs",
+      "category": "email",
+      "lines": [
+        8
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_final_contracts.mjs",
+      "category": "uuid",
+      "lines": [
+        6
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_final_event_policies.mjs",
+      "category": "email",
+      "lines": [
+        11
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_final_event_policies.mjs",
+      "category": "uuid",
+      "lines": [
+        9
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_final_policies.mjs",
+      "category": "email",
+      "lines": [
+        29
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_grouped_fees.mjs",
+      "category": "email",
+      "lines": [
+        18
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_grouped_fees.mjs",
+      "category": "uuid",
+      "lines": [
+        14,
+        71
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_grouped_memberships.mjs",
+      "category": "email",
+      "lines": [
+        6
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_grouped_memberships.mjs",
+      "category": "uuid",
+      "lines": [
+        5
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_grouped_operations.mjs",
+      "category": "email",
+      "lines": [
+        9,
+        24
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_grouped_operations.mjs",
+      "category": "uuid",
+      "lines": [
+        5,
+        40
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_high_risk.mjs",
+      "category": "email",
+      "lines": [
+        17,
+        25
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_policy_documents.mjs",
+      "category": "email",
+      "lines": [
+        17
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_policy_documents.mjs",
+      "category": "uuid",
+      "lines": [
+        11,
+        19,
+        23,
+        26,
+        31,
+        37,
+        38
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_policy_hardening.mjs",
+      "category": "email",
+      "lines": [
+        25
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_policy_hardening.mjs",
+      "category": "uuid",
+      "lines": [
+        16,
+        17,
+        18,
+        19,
+        27
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_policy_structural_contracts.mjs",
+      "category": "email",
+      "lines": [
+        17
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_policy_structural_contracts.mjs",
+      "category": "uuid",
+      "lines": [
+        11,
+        19,
+        34,
+        43,
+        53
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_reconciliation.mjs",
+      "category": "email",
+      "lines": [
+        35,
+        49,
+        67
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_reconciliation.mjs",
+      "category": "uuid",
+      "lines": [
+        35,
+        41,
+        42,
+        43,
+        49,
+        67,
+        70,
+        77,
+        79
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_reconciliation_final.mjs",
+      "category": "email",
+      "lines": [
+        46
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_reconciliation_final.mjs",
+      "category": "uuid",
+      "lines": [
+        46,
+        47
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_structural_blockers.mjs",
+      "category": "email",
+      "lines": [
+        17
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_structural_blockers.mjs",
+      "category": "uuid",
+      "lines": [
+        11,
+        19,
+        34,
+        43,
+        53,
+        155,
+        160
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_structural_drift.mjs",
+      "category": "email",
+      "lines": [
+        17
+      ],
+      "status": "requires contextual review"
+    },
+    {
+      "path": "tools/test_structural_drift.mjs",
+      "category": "uuid",
+      "lines": [
+        17,
+        18,
+        19,
+        21,
+        22,
+        23,
+        24,
+        31,
+        32,
+        33,
+        36,
+        38,
+        41,
+        45,
+        48,
+        49,
+        50
+      ],
+      "status": "requires contextual review"
+    }
+  ],
+  "limitation": "Names, addresses, phones, fiscal IDs and production IDs require contextual review; pattern scan is not PII certification."
+}

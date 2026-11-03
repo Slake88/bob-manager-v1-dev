@@ -1,0 +1,1 @@
+{"database":"bob_clean_rebuild_1792080630515","endpoint":"127.0.0.1:55440","production_executed":false,"status":"passed","result_sets":14,"note":"Read-only SQL syntax/catalog compatibility on clean PostgreSQL + adapters only; no production assertion"}

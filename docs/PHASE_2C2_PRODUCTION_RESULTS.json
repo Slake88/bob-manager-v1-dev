@@ -1,0 +1,270 @@
+{
+  "project_id": "vgjwghzypumtxvbuhwwl",
+  "migration": {
+    "name": "rc1_weekly_officer_calendar_assignment_split",
+    "version": "20261013145457",
+    "statements_count": 1
+  },
+  "local_file": "20261013145457_rc1_weekly_officer_calendar_assignment_split.sql",
+  "approved_sql_sha256": "ca9f895a0ee09bb51bd051bc4d37ed692759b26ba9347cd419f151d93404a4ac",
+  "validation": "Read-only catalog queries; all 13 function bodies and execution ACLs match approved SQL and expected permissions.",
+  "functions": [
+    {
+      "acl": "{postgres=X/postgres}",
+      "name": "lock_club",
+      "owner": "postgres",
+      "schema": "bob_weekly_officer_private",
+      "returns": "void",
+      "identity": "target_club uuid",
+      "volatility": "v",
+      "search_path": [
+        "search_path=pg_catalog, public, pg_temp"
+      ],
+      "anon_execute": false,
+      "public_execute": false,
+      "security_definer": true,
+      "service_role_execute": false,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+      "name": "can_manage_weekly_officer_v1",
+      "owner": "postgres",
+      "schema": "public",
+      "returns": "boolean",
+      "identity": "target_club uuid",
+      "volatility": "s",
+      "search_path": [
+        "search_path=pg_catalog, public, pg_temp"
+      ],
+      "anon_execute": false,
+      "public_execute": false,
+      "security_definer": true,
+      "service_role_execute": true,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+      "name": "delete_weekly_officer_absence_v1",
+      "owner": "postgres",
+      "schema": "public",
+      "returns": "void",
+      "identity": "target_club uuid, p_absence uuid",
+      "volatility": "v",
+      "search_path": [
+        "search_path=pg_catalog, public, pg_temp"
+      ],
+      "anon_execute": false,
+      "public_execute": false,
+      "security_definer": true,
+      "service_role_execute": true,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+      "name": "ensure_weekly_officer_schedule_v1",
+      "owner": "postgres",
+      "schema": "public",
+      "returns": "integer",
+      "identity": "target_club uuid, p_year integer",
+      "volatility": "v",
+      "search_path": [
+        "search_path=pg_catalog, public, pg_temp"
+      ],
+      "anon_execute": false,
+      "public_execute": false,
+      "security_definer": true,
+      "service_role_execute": true,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "name": "rebuild_weekly_officer_future_internal_v1",
+      "owner": "postgres",
+      "schema": "public",
+      "returns": "void",
+      "identity": "target_club uuid, p_from_date date",
+      "volatility": "v",
+      "search_path": [
+        "search_path=pg_catalog, public, pg_temp"
+      ],
+      "anon_execute": false,
+      "public_execute": false,
+      "security_definer": true,
+      "service_role_execute": false,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "name": "rebuild_weekly_officer_schedule_internal_v1",
+      "owner": "postgres",
+      "schema": "public",
+      "returns": "void",
+      "identity": "target_club uuid, p_from_date date, p_through_date date",
+      "volatility": "v",
+      "search_path": [
+        "search_path=pg_catalog, public, pg_temp"
+      ],
+      "anon_execute": false,
+      "public_execute": false,
+      "security_definer": true,
+      "service_role_execute": false,
+      "authenticated_execute": false
+    },
+    {
+      "acl": "{postgres=X/postgres,authenticated=X/postgres}",
+      "name": "rebuild_weekly_officer_schedule_v1",
+      "owner": "postgres",
+      "schema": "public",
+      "returns": "jsonb",
+      "identity": "target_club uuid, p_year integer",
+      "volatility": "v",
+      "search_path": [
+        "search_path=pg_catalog, public, pg_temp"
+      ],
+      "anon_execute": false,
+      "public_execute": false,
+      "security_definer": true,
+      "service_role_execute": false,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+      "name": "reorder_weekly_officer_v1",
+      "owner": "postgres",
+      "schema": "public",
+      "returns": "void",
+      "identity": "target_club uuid, p_member_ids uuid[]",
+      "volatility": "v",
+      "search_path": [
+        "search_path=pg_catalog, public, pg_temp"
+      ],
+      "anon_execute": false,
+      "public_execute": false,
+      "security_definer": true,
+      "service_role_execute": true,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+      "name": "save_weekly_dinner_v1",
+      "owner": "postgres",
+      "schema": "public",
+      "returns": "uuid",
+      "identity": "target_club uuid, p_dinner uuid, p_date date, p_assigned_member uuid, p_external_name text, p_dish text, p_notes text, p_status text",
+      "volatility": "v",
+      "search_path": [
+        "search_path=pg_catalog, public, pg_temp"
+      ],
+      "anon_execute": false,
+      "public_execute": false,
+      "security_definer": true,
+      "service_role_execute": true,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+      "name": "save_weekly_officer_absence_v1",
+      "owner": "postgres",
+      "schema": "public",
+      "returns": "uuid",
+      "identity": "target_club uuid, p_absence uuid, p_member uuid, p_absence_kind text, p_starts_on date, p_ends_on date, p_notes text",
+      "volatility": "v",
+      "search_path": [
+        "search_path=pg_catalog, public, pg_temp"
+      ],
+      "anon_execute": false,
+      "public_execute": false,
+      "security_definer": true,
+      "service_role_execute": true,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+      "name": "set_weekly_dinner_closed_v1",
+      "owner": "postgres",
+      "schema": "public",
+      "returns": "void",
+      "identity": "target_club uuid, p_dinner uuid, p_closed boolean, p_notes text",
+      "volatility": "v",
+      "search_path": [
+        "search_path=pg_catalog, public, pg_temp"
+      ],
+      "anon_execute": false,
+      "public_execute": false,
+      "security_definer": true,
+      "service_role_execute": true,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}",
+      "name": "set_weekly_officer_member_v1",
+      "owner": "postgres",
+      "schema": "public",
+      "returns": "void",
+      "identity": "target_club uuid, p_member uuid, p_enabled boolean, p_availability_status text, p_force_included boolean, p_notes text",
+      "volatility": "v",
+      "search_path": [
+        "search_path=pg_catalog, public, pg_temp"
+      ],
+      "anon_execute": false,
+      "public_execute": false,
+      "security_definer": true,
+      "service_role_execute": true,
+      "authenticated_execute": true
+    },
+    {
+      "acl": "{postgres=X/postgres}",
+      "name": "weekly_officer_member_append_trigger_v1",
+      "owner": "postgres",
+      "schema": "public",
+      "returns": "trigger",
+      "identity": "",
+      "volatility": "v",
+      "search_path": [
+        "search_path=pg_catalog, public, pg_temp"
+      ],
+      "anon_execute": false,
+      "public_execute": false,
+      "security_definer": true,
+      "service_role_execute": false,
+      "authenticated_execute": false
+    }
+  ],
+  "private_schema": {
+    "name": "bob_weekly_officer_private",
+    "anon_usage": false,
+    "service_role_usage": false,
+    "authenticated_usage": false
+  },
+  "weekly_tables": [
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+      "rls": true,
+      "name": "weekly_dinners"
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+      "rls": true,
+      "name": "weekly_officer_absences"
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+      "rls": true,
+      "name": "weekly_officer_rotation"
+    },
+    {
+      "acl": "{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres,authenticated=r/postgres}",
+      "rls": true,
+      "name": "weekly_officer_swap_requests"
+    }
+  ],
+  "cron_rebuild_callers": 0,
+  "actions_not_performed": [
+    "Web deployment",
+    "Schedule recalculation/rebuild",
+    "RPC smoke tests or data writes after migration",
+    "Commit or push"
+  ],
+  "history_note": "Supabase assigned version 20261013145457; the new local migration file was renamed to match, without changing its approved SQL bytes or rewriting production history."
+}
