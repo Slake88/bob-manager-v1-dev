@@ -29,7 +29,15 @@ void main() {
   });
 
   test('Super Admin mantém manageUserAccess', () {
-    PermissionPolicy.configure(permissionKeys: const [], superAdmin: true);
+    final effectivePermissions = resolveEffectivePermissionKeys(
+      superAdmin: true,
+      roleRows: const [],
+      userOverrides: const [],
+    );
+    PermissionPolicy.configure(
+      permissionKeys: effectivePermissions,
+      superAdmin: true,
+    );
 
     expect(
       PermissionPolicy.allows(
@@ -37,6 +45,28 @@ void main() {
         AppPermission.manageUserAccess,
       ),
       isTrue,
+    );
+  });
+
+  test('deny individual prevalece para Super Admin em manageUserAccess', () {
+    final effectivePermissions = resolveEffectivePermissionKeys(
+      superAdmin: true,
+      roleRows: const [],
+      userOverrides: const [
+        {'permission_key': 'manageUserAccess', 'allowed': false},
+      ],
+    );
+    PermissionPolicy.configure(
+      permissionKeys: effectivePermissions,
+      superAdmin: true,
+    );
+
+    expect(
+      PermissionPolicy.allows(
+        AppRole.administrator,
+        AppPermission.manageUserAccess,
+      ),
+      isFalse,
     );
   });
 
@@ -58,7 +88,8 @@ void main() {
     );
   });
 
-  test('Sargento de Armas é atribuível sem privilégios administrativos fixos', () {
+  test('Sargento de Armas é atribuível sem privilégios administrativos fixos',
+      () {
     expect(
       userAccessRoles.any(
         (role) =>

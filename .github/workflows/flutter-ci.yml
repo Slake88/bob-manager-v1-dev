@@ -27,6 +27,9 @@ jobs:
 
       - run: flutter test
 
+      - name: Test Treasury DEMO fixture consistency
+        run: flutter test test/treasury_demo_consistency_test.dart --dart-define=DEMO_MODE=true
+
       - name: Test explicit Euromillions contracts (mock HTTP only)
         run: >-
           flutter test test/lottery_read_write_split_test.dart test/lottery_screen_split_test.dart
