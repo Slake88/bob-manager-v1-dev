@@ -5,15 +5,12 @@ import 'package:flutter/material.dart';
 import '../core/adaptive_layout.dart';
 import '../core/app_navigation.dart';
 import '../core/app_session.dart';
-import '../core/club_export.dart';
-import '../core/importing.dart';
 import '../core/module_definition.dart';
 import '../core/notification_center.dart';
-import '../core/permissions.dart';
-import '../core/reporting.dart';
 import '../repositories/activity_repository.dart';
 import '../services/auth_service.dart';
 import '../services/push_notification_service.dart';
+import '../widgets/environment_banner.dart';
 import 'activity_screen.dart';
 import 'global_search_screen.dart';
 import 'login_screen.dart';
@@ -55,35 +52,7 @@ class _ShellScreenState extends State<ShellScreen> {
     super.dispose();
   }
 
-  List<ModuleDefinition> get _visibleModules {
-    return appModules.where(_canViewModule).toList();
-  }
-
-  bool _canViewModule(ModuleDefinition module) {
-    final session = AppSession.instance;
-    return switch (module.code) {
-      'dashboard' || 'activity' || 'financial' || 'weekly_officer' || 'agenda' =>
-        session.authenticated,
-      'members' => session.can(AppPermission.viewMembers),
-      'treasury' => session.can(AppPermission.viewTreasury),
-      'fees' => session.can(AppPermission.viewFees),
-      'lottery' => session.can(AppPermission.viewLottery),
-      'events' => session.can(AppPermission.viewEvents),
-      'bar' => session.can(AppPermission.viewBar),
-      'inventory' => session.can(AppPermission.viewInventory),
-      'documents' => session.can(AppPermission.viewDocuments),
-      'communication' => session.can(AppPermission.viewCommunication),
-      'reports' =>
-        ReportCatalog.canOpenCenter(session.can) ||
-            ClubExportPolicy.canExport(session) ||
-            ImportCatalog.canOpen(session),
-      'settings' =>
-        session.can(AppPermission.manageSettings) ||
-        session.can(AppPermission.manageUserAccess),
-      'emergency' => session.can(AppPermission.viewEmergencyData),
-      _ => false,
-    };
-  }
+  List<ModuleDefinition> get _visibleModules => appModules;
 
   Future<void> _configurePush() async {
     await PushNotificationService.instance.initialize();
@@ -115,7 +84,9 @@ class _ShellScreenState extends State<ShellScreen> {
 
   void _refreshUnread() {
     if (!mounted) return;
-    setState(() => _unreadFuture = _activity.unreadCount());
+    setState(() {
+      _unreadFuture = _activity.unreadCount();
+    });
   }
 
   Future<void> _refreshPermissions() async {
@@ -206,6 +177,7 @@ class _ShellScreenState extends State<ShellScreen> {
 
   PreferredSizeWidget _buildAppBar(String title) {
     return AppBar(
+      bottom: const EnvironmentBanner(appBarStrip: true),
       title: Text(
         title,
         maxLines: 1,
@@ -222,7 +194,8 @@ class _ShellScreenState extends State<ShellScreen> {
           builder: (context, snapshot) {
             final count = snapshot.data ?? 0;
             return IconButton(
-              tooltip: count > 0 ? '$count notificações por ler' : 'Notificações',
+              tooltip:
+                  count > 0 ? '$count notificações por ler' : 'Notificações',
               onPressed: _openNotifications,
               icon: Badge(
                 isLabelVisible: count > 0,
@@ -295,14 +268,16 @@ class _ShellScreenState extends State<ShellScreen> {
               Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                    backgroundColor:
+                        Theme.of(context).colorScheme.primaryContainer,
                     child: const Icon(Icons.shield_outlined),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
                     child: Text(
                       'BOB MANAGER',
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
+                      style:
+                          TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
                     ),
                   ),
                 ],
@@ -327,7 +302,10 @@ class _ShellScreenState extends State<ShellScreen> {
         ...modules.map(
           (item) => NavigationDrawerDestination(
             icon: Icon(item.icon),
-            label: Text(item.title),
+            label: SizedBox(
+                width: 180,
+                child: Text(item.title,
+                    maxLines: 1, overflow: TextOverflow.ellipsis)),
           ),
         ),
         const Divider(),
@@ -597,8 +575,10 @@ class _MoreModulesSheet extends StatelessWidget {
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             module.title,
@@ -616,7 +596,9 @@ class _MoreModulesSheet extends StatelessWidget {
                                             module.description,
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
-                                            style: Theme.of(context).textTheme.bodySmall,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall,
                                           ),
                                         ],
                                       ),

@@ -1,4 +1,9 @@
 class AppConfig {
+  static const appEnvValue = String.fromEnvironment('APP_ENV');
+
+  static AppEnvironment get environment =>
+      AppEnvironment.fromValue(appEnvValue);
+
   static const supabaseUrl = String.fromEnvironment(
     'SUPABASE_URL',
     defaultValue: '',
@@ -15,8 +20,7 @@ class AppConfig {
       String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID');
   static const firebaseProjectId =
       String.fromEnvironment('FIREBASE_PROJECT_ID');
-  static const firebaseVapidKey =
-      String.fromEnvironment('FIREBASE_VAPID_KEY');
+  static const firebaseVapidKey = String.fromEnvironment('FIREBASE_VAPID_KEY');
   static const firebaseAuthDomain =
       String.fromEnvironment('FIREBASE_AUTH_DOMAIN');
   static const firebaseStorageBucket =
@@ -52,6 +56,19 @@ class AppConfig {
       );
     }
   }
+}
+
+enum AppEnvironment {
+  test,
+  real,
+  unconfigured;
+
+  static AppEnvironment fromValue(String value) =>
+      switch (value.trim().toUpperCase()) {
+        'TESTE' => AppEnvironment.test,
+        'REAL' => AppEnvironment.real,
+        _ => AppEnvironment.unconfigured,
+      };
 }
 
 class AppConfigurationException implements Exception {

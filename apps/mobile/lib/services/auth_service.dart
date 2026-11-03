@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/app_config.dart';
 import '../core/app_session.dart';
 import '../core/permissions.dart';
+import '../repositories/weekly_dinner_finance_repository.dart';
 
 class AuthService {
   AuthService._();
@@ -11,7 +12,9 @@ class AuthService {
 
   bool get needsPasswordSetup {
     if (AppConfig.demoMode) return false;
-    return Supabase.instance.client.auth.currentUser?.userMetadata?['must_set_password'] == true;
+    return Supabase.instance.client.auth.currentUser
+            ?.userMetadata?['must_set_password'] ==
+        true;
   }
 
   Future<void> signIn(String email, String password) async {
@@ -26,16 +29,9 @@ class AuthService {
           'A aplicação não está configurada para ligar ao Supabase.',
         );
       }
-      AppSession.instance.authenticate(
-        newProfileId: 'demo-profile',
-        newClubId: '00000000-0000-0000-0000-000000000001',
-        newFullName: 'Israel Sousa',
-        newRole: 'super_admin',
-      );
-      AppSession.instance.applyPermissions(AppPermission.values.map((p) => p.key));
+      await _authenticateDemo();
       return;
     }
-
     try {
       final response = await Supabase.instance.client.auth.signInWithPassword(
         email: normalizedEmail,
@@ -58,6 +54,33 @@ class AuthService {
       throw const AuthException(
         'Não foi possível concluir o login. Verifica a ligação e tenta novamente.',
       );
+    }
+  }
+
+  Future<void> signInDemo() async {
+    if (!AppConfig.explicitDemoMode) {
+      throw const AuthException(
+        'A entrada em demonstração só está disponível quando DEMO_MODE=true.',
+      );
+    }
+    await _authenticateDemo();
+  }
+
+  Future<void> _authenticateDemo() async {
+    AppSession.instance.authenticate(
+      newProfileId: 'demo-profile',
+      newClubId: '00000000-0000-0000-0000-000000000001',
+      newFullName: 'Israel Sousa',
+      newRole: 'super_admin',
+    );
+    AppSession.instance.applyPermissions(
+      AppPermission.values.map((permission) => permission.key),
+    );
+    try {
+      await WeeklyDinnerFinanceRepository.seedDemo();
+    } catch (_) {
+      AppSession.instance.clear();
+      rethrow;
     }
   }
 
@@ -180,7 +203,8 @@ class AuthService {
     AppSession.instance.authenticate(
       newProfileId: profileId,
       newClubId: clubId,
-      newFullName: fullName == null || fullName.isEmpty ? fallbackName : fullName,
+      newFullName:
+          fullName == null || fullName.isEmpty ? fallbackName : fullName,
       newRole: role,
     );
 
@@ -192,11 +216,6 @@ class AuthService {
     String profileId,
     String role,
   ) async {
-    if (AppSession.instance.superAdmin) {
-      AppSession.instance.applyPermissions(AppPermission.values.map((p) => p.key));
-      return;
-    }
-
     final values = await Future.wait([
       Supabase.instance.client
           .from('club_role_permissions')
@@ -210,18 +229,11 @@ class AuthService {
           .eq('profile_id', profileId),
     ]);
 
-    final effective = <String>{};
-    for (final row in List<Map<String, dynamic>>.from(values[0] as List)) {
-      if (row['allowed'] == true) effective.add(row['permission_key'].toString());
-    }
-    for (final row in List<Map<String, dynamic>>.from(values[1] as List)) {
-      final key = row['permission_key'].toString();
-      if (row['allowed'] == true) {
-        effective.add(key);
-      } else {
-        effective.remove(key);
-      }
-    }
+    final effective = resolveEffectivePermissionKeys(
+      superAdmin: AppSession.instance.superAdmin,
+      roleRows: List<Map<String, dynamic>>.from(values[0] as List),
+      userOverrides: List<Map<String, dynamic>>.from(values[1] as List),
+    );
     AppSession.instance.applyPermissions(effective);
   }
 

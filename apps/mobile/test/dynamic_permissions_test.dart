@@ -31,15 +31,28 @@ void main() {
     );
   });
 
-  test('Super Admin mantém acesso total independentemente da matriz', () {
-    PermissionPolicy.configure(permissionKeys: const [], superAdmin: true);
+  test('Super Admin respeita um deny individual no conjunto efetivo', () {
+    final effective = resolveEffectivePermissionKeys(
+      superAdmin: true,
+      roleRows: const [],
+      userOverrides: const [
+        {'permission_key': 'viewTreasury', 'allowed': false},
+      ],
+    );
+    PermissionPolicy.configure(
+      permissionKeys: effective,
+      superAdmin: true,
+    );
 
-    for (final permission in AppPermission.values) {
-      expect(
-        PermissionPolicy.allows(AppRole.administrator, permission),
-        isTrue,
-        reason: permission.name,
-      );
-    }
+    expect(
+      PermissionPolicy.allows(
+          AppRole.administrator, AppPermission.viewTreasury),
+      isFalse,
+    );
+    expect(
+      PermissionPolicy.allows(
+          AppRole.administrator, AppPermission.manageSettings),
+      isTrue,
+    );
   });
 }

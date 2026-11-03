@@ -28,10 +28,25 @@ extension Rc1DataServiceExtensions on DataService {
     }
 
     final storedAccounts = await list('financial_accounts');
-    final accounts = (storedAccounts.isEmpty ? _defaultAccounts : storedAccounts)
+    final storedIds = storedAccounts
+        .map((account) => account['id']?.toString())
+        .whereType<String>()
+        .toSet();
+    for (final account in _defaultAccounts) {
+      final id = account['id']?.toString();
+      if (id != null && !storedIds.contains(id)) {
+        await insert('financial_accounts', {
+          ...account,
+          'account_type': account['type'],
+          'club_id': AppSession.instance.clubId,
+        });
+      }
+    }
+    final accounts = (await list('financial_accounts'))
         .map(Map<String, dynamic>.from)
         .toList()
-      ..sort((a, b) => _asInt(a['display_order']).compareTo(_asInt(b['display_order'])));
+      ..sort((a, b) =>
+          _asInt(a['display_order']).compareTo(_asInt(b['display_order'])));
     final transactions = await list('financial_transactions');
 
     for (final account in accounts) {

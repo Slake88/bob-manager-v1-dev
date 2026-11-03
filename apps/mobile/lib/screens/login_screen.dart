@@ -3,10 +3,15 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/app_config.dart';
 import '../services/auth_service.dart';
+import '../widgets/environment_banner.dart';
 import 'shell_screen.dart';
 
+typedef LoginAction = Future<void> Function(String email, String password);
+
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.onSignIn});
+
+  final LoginAction? onSignIn;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -26,7 +31,22 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> submit() async {
+  Future<void> submit() {
+    final signIn = widget.onSignIn ?? AuthService.instance.signIn;
+    return _authenticate(
+      () => signIn(
+        emailController.text.trim(),
+        passwordController.text,
+      ),
+    );
+  }
+
+  Future<void> _enterDemo() {
+    if (!AppConfig.explicitDemoMode) return Future.value();
+    return _authenticate(AuthService.instance.signInDemo);
+  }
+
+  Future<void> _authenticate(Future<void> Function() signIn) async {
     if (loading) return;
 
     setState(() {
@@ -35,10 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await AuthService.instance.signIn(
-        emailController.text.trim(),
-        passwordController.text,
-      );
+      await signIn();
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const ShellScreen()),
@@ -143,6 +160,8 @@ class _LoginScreenState extends State<LoginScreen> {
             child: AutofillGroup(
               child: Column(
                 children: [
+                  const EnvironmentBanner(),
+                  const SizedBox(height: 14),
                   const Icon(Icons.shield, size: 80),
                   const SizedBox(height: 12),
                   Text(
@@ -157,6 +176,17 @@ class _LoginScreenState extends State<LoginScreen> {
                       avatar: Icon(Icons.science_outlined),
                       label: Text('MODO DEMONSTRAÇÃO'),
                     ),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: loading ? null : _enterDemo,
+                      icon: const Icon(Icons.science_outlined),
+                      label: const Text('Entrar em demonstração'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(52),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text('Ou utiliza os campos abaixo.'),
                   ],
                   const SizedBox(height: 24),
                   TextField(
